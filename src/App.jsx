@@ -534,32 +534,32 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd }) {
                 <input type="date" value={vve.datumExtra||""}
                   onChange={e=>onUpdate({...vve, datumExtra: e.target.value, uitgenodigdExtra: false})}
                   className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-zinc-500"/>
-                {vve.datumExtra && (() => {
-                  const invE = inviteStatus(vve.datumExtra, vve.uitgenodigdExtra);
-                  return (
-                    <div className={`rounded-lg px-3 py-2.5 border ${
-                      invE==="overdue" ? "border-red-900/50 bg-red-950/20" :
-                      invE==="warning" ? "border-amber-900/50 bg-amber-950/20" :
-                      invE==="confirmed" ? "border-emerald-900/40 bg-emerald-950/10" :
-                      "border-zinc-700/50 bg-zinc-800/40"}`}>
-                      <div className="flex items-center justify-between">
-                        <span className={`text-xs font-medium ${
-                          invE==="overdue" ? "text-red-400" :
-                          invE==="warning" ? "text-amber-400" :
-                          invE==="confirmed" ? "text-emerald-400" : "text-zinc-400"}`}>
-                          {invE==="confirmed" ? "✉ Uitnodiging verstuurd" :
-                           invE==="overdue" ? "✉ Uitnodigingstermijn verlopen" :
-                           invE==="warning" ? `✉ Uitnodigen vóór ${fmtDate(addDays(vve.datumExtra,-INVITE_DAYS))}` :
-                           `✉ Uitnodigen uiterlijk ${fmtDate(addDays(vve.datumExtra,-INVITE_DAYS))}`}
-                        </span>
-                        <Checkbox checked={!!vve.uitgenodigdExtra} disabled={false}
-                          onChange={v=>onUpdate({...vve, uitgenodigdExtra: v})}
-                          label="Uitnodiging verstuurd"/>
-                      </div>
+                {vve.datumExtra && (
+                  <div className={`rounded-lg px-3 py-2.5 border ${
+                    inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="overdue" ? "border-red-900/50 bg-red-950/20" :
+                    inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="warning" ? "border-amber-900/50 bg-amber-950/20" :
+                    inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="confirmed" ? "border-emerald-900/40 bg-emerald-950/10" :
+                    "border-zinc-700/50 bg-zinc-800/40"}`}>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-xs font-medium ${
+                        inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="overdue" ? "text-red-400" :
+                        inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="warning" ? "text-amber-400" :
+                        inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="confirmed" ? "text-emerald-400" : "text-zinc-400"}`}>
+                        {inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="confirmed" ? "✉ Uitnodiging verstuurd" :
+                         inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="overdue" ? "✉ Uitnodigingstermijn verlopen" :
+                         inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="warning" ? `✉ Uitnodigen vóór ${fmtDate(addDays(vve.datumExtra,-INVITE_DAYS))}` :
+                         `✉ Uitnodigen uiterlijk ${fmtDate(addDays(vve.datumExtra,-INVITE_DAYS))}`}
+                      </span>
+                      <Checkbox checked={!!vve.uitgenodigdExtra} disabled={false}
+                        onChange={v=>onUpdate({...vve, uitgenodigdExtra: v})}
+                        label="Uitnodiging verstuurd"/>
                     </div>
-                  );
-                })()}
-                <div className="flex items-center pt-1">
+                  </div>
+                )}
+                <div className="flex flex-col gap-2 pt-1">
+                  <Checkbox checked={!!vve.uitgenodigdExtra} disabled={false}
+                    onChange={v=>onUpdate({...vve, uitgenodigdExtra: v})}
+                    label="Uitnodiging verstuurd"/>
                   <Checkbox checked={!!vve.vergaderdExtra} disabled={false}
                     onChange={v=>onUpdate({...vve, vergaderdExtra: v})}
                     label="Vergadering heeft plaatsgevonden"/>
@@ -1007,10 +1007,14 @@ export default function App() {
     .filter(v => hideAfgerond ? !(v.vergaderd1 && (!v.needs2e || v.vergaderd2)) : true)
     .slice()
     .sort((a,b) => {
-      if (!a.datum1 && !b.datum1) return 0;
-      if (!a.datum1) return 1;
-      if (!b.datum1) return -1;
-      return a.datum1.localeCompare(b.datum1);
+      // Gebruik de laatste relevante datum: datumExtra > datum2 > datum1
+      const sortDatum = (v) => v.datumExtra || v.datum2 || v.datum1 || "";
+      const da = sortDatum(a);
+      const db = sortDatum(b);
+      if (!da && !db) return 0;
+      if (!da) return 1;
+      if (!db) return -1;
+      return da.localeCompare(db);
     });
 
   // ── Screens ──────────────────────────────────────────────────
@@ -1435,4 +1439,3 @@ export default function App() {
     </div>
   );
 }
-
