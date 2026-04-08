@@ -523,6 +523,61 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd }) {
               placeholder="Bijv. altijd dinsdag…"
               className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-400 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"/>
           </div>
+
+          {/* Extra vergadering */}
+          <div className="space-y-2 border-t border-zinc-800/40 pt-4">
+            <Checkbox checked={!!vve.extraVergadering} disabled={false}
+              onChange={v=>onUpdate({...vve, extraVergadering: v, datumExtra: v ? vve.datumExtra : "", uitgenodigdExtra: false, vergaderdExtra: false})}
+              label="Extra vergadering"/>
+            {vve.extraVergadering && (
+              <div className="space-y-2 pl-1">
+                <input type="date" value={vve.datumExtra||""}
+                  onChange={e=>onUpdate({...vve, datumExtra: e.target.value, uitgenodigdExtra: false})}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-zinc-500"/>
+                {vve.datumExtra && (() => {
+                  const invE = inviteStatus(vve.datumExtra, vve.uitgenodigdExtra);
+                  return (
+                    <div className={`rounded-lg px-3 py-2.5 border ${
+                      invE==="overdue" ? "border-red-900/50 bg-red-950/20" :
+                      invE==="warning" ? "border-amber-900/50 bg-amber-950/20" :
+                      invE==="confirmed" ? "border-emerald-900/40 bg-emerald-950/10" :
+                      "border-zinc-700/50 bg-zinc-800/40"}`}>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-xs font-medium ${
+                          invE==="overdue" ? "text-red-400" :
+                          invE==="warning" ? "text-amber-400" :
+                          invE==="confirmed" ? "text-emerald-400" : "text-zinc-400"}`}>
+                          {invE==="confirmed" ? "✉ Uitnodiging verstuurd" :
+                           invE==="overdue" ? "✉ Uitnodigingstermijn verlopen" :
+                           invE==="warning" ? `✉ Uitnodigen vóór ${fmtDate(addDays(vve.datumExtra,-INVITE_DAYS))}` :
+                           `✉ Uitnodigen uiterlijk ${fmtDate(addDays(vve.datumExtra,-INVITE_DAYS))}`}
+                        </span>
+                        <Checkbox checked={!!vve.uitgenodigdExtra} disabled={false}
+                          onChange={v=>onUpdate({...vve, uitgenodigdExtra: v})}
+                          label="Uitnodiging verstuurd"/>
+                      </div>
+                    </div>
+                  );
+                })()}
+                <div className="flex items-center pt-1">
+                  <Checkbox checked={!!vve.vergaderdExtra} disabled={false}
+                    onChange={v=>onUpdate({...vve, vergaderdExtra: v})}
+                    label="Vergadering heeft plaatsgevonden"/>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Kosten reminder */}
+          {(vve.needs2e || vve.extraVergadering) && (
+            <p className="text-[10px] text-amber-600/80 border-t border-zinc-800/40 pt-3">
+              💡 Vergeet niet de kosten in rekening te brengen
+              {vve.needs2e && vve.extraVergadering ? " voor de 2e reglementaire vergadering en de extra vergadering." :
+               vve.needs2e ? " voor de 2e reglementaire vergadering." :
+               " voor de extra vergadering."}
+            </p>
+          )}
+
           <div className="flex justify-end">
             <button onClick={()=>onDelete(vve.id)} className="text-xs text-red-500 hover:text-red-400 transition-colors">Verwijder VvE</button>
           </div>
@@ -1380,3 +1435,4 @@ export default function App() {
     </div>
   );
 }
+
