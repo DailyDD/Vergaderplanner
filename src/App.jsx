@@ -1105,7 +1105,75 @@ export default function App() {
 
         {/* ── VERGADERINGEN ── */}
         {tab==="vergaderingen" && (
-          <div className="space-y-4">
+          <div className="flex gap-5 items-start">
+
+          {/* Voortgang zijbalk */}
+          {data.vves.length > 0 && (() => {
+            const total = data.vves.length;
+            const pctAfgerond = Math.round((afgerond / total) * 100);
+            const pctUitgenodigd = Math.round((uitgenodigd / total) * 100);
+            const pctNiet = 100 - pctAfgerond - pctUitgenodigd;
+            const R = 40; const C = 2 * Math.PI * R;
+            const dasAfgerond = (pctAfgerond / 100) * C;
+            const dasUitgenodigd = (pctUitgenodigd / 100) * C;
+            const label = pctAfgerond === 100 ? "Alles afgerond! 🎉"
+              : pctAfgerond >= 75 ? "Bijna klaar"
+              : pctAfgerond >= 50 ? "Op de helft"
+              : pctAfgerond >= 25 ? "Goed op weg"
+              : "Net begonnen";
+            return (
+              <div className="w-52 shrink-0 bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-3 sticky top-4">
+                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Voortgang {new Date().getFullYear()}</p>
+                <div className="flex flex-col items-center gap-1">
+                  <svg width="96" height="96" viewBox="0 0 96 96">
+                    <circle cx="48" cy="48" r={R} fill="none" stroke="#27272a" strokeWidth="10"/>
+                    {pctNiet > 0 && (
+                      <circle cx="48" cy="48" r={R} fill="none" stroke="#3f3f46" strokeWidth="10"
+                        strokeDasharray={`${(pctNiet/100)*C} ${C}`}
+                        strokeDashoffset={-(dasAfgerond+dasUitgenodigd)}
+                        transform="rotate(-90 48 48)" strokeLinecap="butt"/>
+                    )}
+                    {pctUitgenodigd > 0 && (
+                      <circle cx="48" cy="48" r={R} fill="none" stroke="#0ea5e9" strokeWidth="10"
+                        strokeDasharray={`${dasUitgenodigd} ${C}`}
+                        strokeDashoffset={-dasAfgerond}
+                        transform="rotate(-90 48 48)" strokeLinecap="butt"/>
+                    )}
+                    {pctAfgerond > 0 && (
+                      <circle cx="48" cy="48" r={R} fill="none" stroke="#10b981" strokeWidth="10"
+                        strokeDasharray={`${dasAfgerond} ${C}`}
+                        strokeDashoffset={0}
+                        transform="rotate(-90 48 48)" strokeLinecap="butt"/>
+                    )}
+                    <text x="48" y="44" textAnchor="middle" fill="#f4f4f5" fontSize="18" fontWeight="700" fontFamily="monospace">{pctAfgerond}%</text>
+                    <text x="48" y="57" textAnchor="middle" fill="#71717a" fontSize="8" fontFamily="sans-serif">afgerond</text>
+                  </svg>
+                  <p className="text-sm font-semibold text-zinc-200 text-center">{label}</p>
+                  <p className="text-[10px] text-zinc-500 text-center">{afgerond} van {total} vergaderingen volledig afgerond</p>
+                </div>
+                <div className="space-y-2 pt-1">
+                  {[
+                    ["Afgerond", afgerond, total, "bg-emerald-500"],
+                    ["Uitgenodigd", uitgenodigd, total, "bg-sky-500"],
+                    ["Niet uitgenodigd", nietUitgenodigd, total, "bg-zinc-600"],
+                  ].map(([lbl, val, tot, barColor]) => (
+                    <div key={lbl}>
+                      <div className="flex justify-between mb-0.5">
+                        <span className="text-[10px] text-zinc-400">{lbl}</span>
+                        <span className="text-[10px] font-mono text-zinc-400">{val} <span className="text-zinc-600">/ {tot}</span></span>
+                      </div>
+                      <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${barColor}`} style={{width:`${tot===0?0:Math.round((val/tot)*100)}%`}}/>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* VvE lijst */}
+          <div className="flex-1 space-y-4">
 
             {/* Notification panel */}
             {urgentItems.length > 0 && (
@@ -1239,6 +1307,7 @@ export default function App() {
                 </div>
               ))}
             </div>
+          </div>
           </div>
         )}
 
