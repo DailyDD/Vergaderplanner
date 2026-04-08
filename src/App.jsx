@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 
 // ── Config ───────────────────────────────────────────────────────
-const INVITE_DAYS = 17;
+const INVITE_DAYS = 21;
 const NL_MONTHS = ["jan","feb","mrt","apr","mei","jun","jul","aug","sep","okt","nov","dec"];
 const NL_MONTHS_FULL = ["Januari","Februari","Maart","April","Mei","Juni","Juli","Augustus","September","Oktober","November","December"];
 const NL_DAYS = ["Zo","Ma","Di","Wo","Do","Vr","Za"];
