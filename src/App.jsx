@@ -340,7 +340,7 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd }) {
   const vergaderd2 = !!vve.vergaderd2;
   const uitgenodigd1 = !!vve.uitgenodigd1;
   const uitgenodigd2 = !!vve.uitgenodigd2;
-  const afgerond = vergaderd1 && (!vve.datum2 || vergaderd2);
+  const afgerond = vergaderd1 && (!vve.needs2e || vergaderd2);
 
   const inv1 = inviteStatus(vve.datum1, uitgenodigd1);
   const inv2 = inviteStatus(vve.datum2, uitgenodigd2);
@@ -413,7 +413,7 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd }) {
             <input type="date" value={vve.datum1} onChange={e=>updateDatum1(e.target.value)}
               className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-zinc-500"/>
             {vve.datum1 && (
-              <div className={`rounded-lg px-3 py-2.5 space-y-2 border ${
+              <div className={`rounded-lg px-3 py-2.5 border ${
                 inv1==="overdue" ? "border-red-900/50 bg-red-950/20" :
                 inv1==="warning" ? "border-amber-900/50 bg-amber-950/20" :
                 inv1==="confirmed" ? "border-emerald-900/40 bg-emerald-950/10" :
@@ -434,12 +434,15 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd }) {
                 </div>
               </div>
             )}
-            <div className="flex items-center justify-between pt-1">
+            <div className="flex flex-col gap-2 pt-1">
               <Checkbox checked={vergaderd1} disabled={false}
                 onChange={v=>onUpdate({...vve, vergaderd1: v})}
                 label="Vergadering heeft plaatsgevonden"/>
+              <Checkbox checked={!!vve.needs2e} disabled={false}
+                onChange={v=>onUpdate({...vve, needs2e: v, datum2: v ? vve.datum2 : "", uitgenodigd2: false, vergaderd2: false})}
+                label="2e reglementaire vergadering nodig"/>
             </div>
-            {vergaderd1 && (
+            {vergaderd1 && !vve.needs2e && (
               <div className="border border-emerald-900/40 bg-emerald-950/10 rounded-lg px-3 py-2.5 space-y-1.5">
                 <label className="text-xs text-emerald-400 font-medium block">📅 Voorkeursdatum volgend jaar</label>
                 <p className="text-[10px] text-zinc-500">Optioneel — wordt meegenomen in de auto-planning voor {new Date().getFullYear() + 1}.</p>
@@ -456,46 +459,63 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd }) {
             )}
           </div>
 
-          {/* 2e vergadering */}
-          <div className="space-y-2">
-            <span className="text-xs text-zinc-400 font-medium">2e vergadering</span>
-            <div className="flex gap-2">
-              <input type="date" value={vve.datum2||""} onChange={e=>updateDatum2(e.target.value)}
-                className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-zinc-500"/>
-              {vve.datum1 && !vve.datum2 && (
-                <button onClick={()=>onAdd2nd(vve)} className="text-xs bg-zinc-700 hover:bg-zinc-600 text-zinc-300 px-3 rounded transition-colors whitespace-nowrap">+2.5w</button>
+          {/* 2e vergadering — alleen zichtbaar als needs2e aangevinkt */}
+          {vve.needs2e && (
+            <div className="space-y-2 border-t border-zinc-800/40 pt-4">
+              <span className="text-xs text-zinc-400 font-medium">2e reglementaire vergadering</span>
+              <div className="flex gap-2">
+                <input type="date" value={vve.datum2||""} onChange={e=>updateDatum2(e.target.value)}
+                  className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-zinc-500"/>
+                {vve.datum1 && !vve.datum2 && (
+                  <button onClick={()=>onAdd2nd(vve)} className="text-xs bg-zinc-700 hover:bg-zinc-600 text-zinc-300 px-3 rounded transition-colors whitespace-nowrap">+3w</button>
+                )}
+              </div>
+              {vve.datum2 && (
+                <div className={`rounded-lg px-3 py-2.5 border ${
+                  inv2==="overdue" ? "border-red-900/50 bg-red-950/20" :
+                  inv2==="warning" ? "border-amber-900/50 bg-amber-950/20" :
+                  inv2==="confirmed" ? "border-emerald-900/40 bg-emerald-950/10" :
+                  "border-zinc-700/50 bg-zinc-800/40"}`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs font-medium ${
+                      inv2==="overdue" ? "text-red-400" :
+                      inv2==="warning" ? "text-amber-400" :
+                      inv2==="confirmed" ? "text-emerald-400" : "text-zinc-400"}`}>
+                      {inv2==="confirmed" ? "✉ Uitnodiging verstuurd" :
+                       inv2==="overdue" ? "✉ Uitnodigingstermijn verlopen" :
+                       inv2==="warning" ? `✉ Uitnodigen vóór ${fmtDate(addDays(vve.datum2,-INVITE_DAYS))}` :
+                       `✉ Uitnodigen uiterlijk ${fmtDate(addDays(vve.datum2,-INVITE_DAYS))}`}
+                    </span>
+                    <Checkbox checked={uitgenodigd2} disabled={false}
+                      onChange={v=>onUpdate({...vve, uitgenodigd2: v})}
+                      label="Uitnodiging verstuurd"/>
+                  </div>
+                </div>
+              )}
+              {vve.datum2 && (
+                <div className="flex items-center pt-1">
+                  <Checkbox checked={vergaderd2} disabled={false}
+                    onChange={v=>onUpdate({...vve, vergaderd2: v})}
+                    label="Vergadering heeft plaatsgevonden"/>
+                </div>
+              )}
+              {vergaderd2 && (
+                <div className="border border-emerald-900/40 bg-emerald-950/10 rounded-lg px-3 py-2.5 space-y-1.5">
+                  <label className="text-xs text-emerald-400 font-medium block">📅 Voorkeursdatum volgend jaar</label>
+                  <p className="text-[10px] text-zinc-500">Optioneel — wordt meegenomen in de auto-planning voor {new Date().getFullYear() + 1}.</p>
+                  <input
+                    type="date"
+                    value={vve.voorkeurVolgendjaar || ""}
+                    onChange={e => onUpdate({ ...vve, voorkeurVolgendjaar: e.target.value })}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-emerald-600"
+                  />
+                  {vve.voorkeurVolgendjaar && (
+                    <p className="text-[10px] text-emerald-600">✓ Voorkeur opgeslagen: {fmtDate(vve.voorkeurVolgendjaar)}</p>
+                  )}
+                </div>
               )}
             </div>
-            {vve.datum2 && (
-              <div className={`rounded-lg px-3 py-2.5 space-y-2 border ${
-                inv2==="overdue" ? "border-red-900/50 bg-red-950/20" :
-                inv2==="warning" ? "border-amber-900/50 bg-amber-950/20" :
-                inv2==="confirmed" ? "border-emerald-900/40 bg-emerald-950/10" :
-                "border-zinc-700/50 bg-zinc-800/40"}`}>
-                <div className="flex items-center justify-between">
-                  <span className={`text-xs font-medium ${
-                    inv2==="overdue" ? "text-red-400" :
-                    inv2==="warning" ? "text-amber-400" :
-                    inv2==="confirmed" ? "text-emerald-400" : "text-zinc-400"}`}>
-                    {inv2==="confirmed" ? "✉ Uitnodiging verstuurd" :
-                     inv2==="overdue" ? "✉ Uitnodigingstermijn verlopen" :
-                     inv2==="warning" ? `✉ Uitnodigen vóór ${fmtDate(addDays(vve.datum2,-INVITE_DAYS))}` :
-                     `✉ Uitnodigen uiterlijk ${fmtDate(addDays(vve.datum2,-INVITE_DAYS))}`}
-                  </span>
-                  <Checkbox checked={uitgenodigd2} disabled={false}
-                    onChange={v=>onUpdate({...vve, uitgenodigd2: v})}
-                    label="Uitnodiging verstuurd"/>
-                </div>
-              </div>
-            )}
-            {vve.datum2 && (
-              <div className="flex items-center justify-between pt-1">
-                <Checkbox checked={vergaderd2} disabled={false}
-                  onChange={v=>onUpdate({...vve, vergaderd2: v})}
-                  label="Vergadering heeft plaatsgevonden"/>
-              </div>
-            )}
-          </div>
+          )}
 
           <div>
             <label className="text-xs text-zinc-500 block mb-1">Notitie</label>
@@ -542,8 +562,8 @@ function calcStats(data) {
   const vves = data.vves||[];
   const vakanties = data.vakanties||[];
   const total = vves.length;
-  const afgerond = vves.filter(v => v.vergaderd1 && (!v.datum2 || v.vergaderd2)).length;
-  const uitgenodigd = vves.filter(v => (v.uitgenodigd1 || v.uitgenodigd2) && !(v.vergaderd1 && (!v.datum2 || v.vergaderd2))).length;
+  const afgerond = vves.filter(v => v.vergaderd1 && (!v.needs2e || v.vergaderd2)).length;
+  const uitgenodigd = vves.filter(v => (v.uitgenodigd1 || v.uitgenodigd2) && !(v.vergaderd1 && (!v.needs2e || v.vergaderd2))).length;
   const nietUitgenodigd = total - uitgenodigd - afgerond;
   const uitnodigingUrgent = vves.filter(v => {
     const s1 = inviteStatus(v.datum1, v.uitgenodigd1);
@@ -615,8 +635,8 @@ function AdminDashboard({ beheerderList, onBack, onSaveBeheerderData }) {
   }, [beheerderList]);
 
   const allVves = Object.values(allData).flatMap(d=>d?.vves||[]);
-  const totaalAfgerond = allVves.filter(v => v.vergaderd1 && (!v.datum2 || v.vergaderd2)).length;
-  const totaalUitgenodigd = allVves.filter(v => (v.uitgenodigd1 || v.uitgenodigd2) && !(v.vergaderd1 && (!v.datum2 || v.vergaderd2))).length;
+  const totaalAfgerond = allVves.filter(v => v.vergaderd1 && (!v.needs2e || v.vergaderd2)).length;
+  const totaalUitgenodigd = allVves.filter(v => (v.uitgenodigd1 || v.uitgenodigd2) && !(v.vergaderd1 && (!v.needs2e || v.vergaderd2))).length;
   const totaalNietUitgenodigd = allVves.length - totaalUitgenodigd - totaalAfgerond;
   const totaalUitnodiging = allVves.filter(v => {
     const s1 = inviteStatus(v.datum1, v.uitgenodigd1);
@@ -894,8 +914,8 @@ export default function App() {
   const werkdagen = data.werkdagen || WORK_DAYS_DEFAULT;
   const counts = spreadScore(planningPreview || data.vves);
   const ongepland = data.vves.filter(v=>!v.datum1).length;
-  const uitgenodigd = data.vves.filter(v=> (v.uitgenodigd1 || v.uitgenodigd2) && !( v.vergaderd1 && (!v.datum2 || v.vergaderd2))).length;
-  const afgerond = data.vves.filter(v=> v.vergaderd1 && (!v.datum2 || v.vergaderd2)).length;
+  const uitgenodigd = data.vves.filter(v=> (v.uitgenodigd1 || v.uitgenodigd2) && !( v.vergaderd1 && (!v.needs2e || v.vergaderd2))).length;
+  const afgerond = data.vves.filter(v=> v.vergaderd1 && (!v.needs2e || v.vergaderd2)).length;
   const nietUitgenodigd = data.vves.length - uitgenodigd - afgerond;
   const metWaarschuwing = data.vves.filter(v => {
     const s1 = inviteStatus(v.datum1, v.uitgenodigd1);
@@ -929,7 +949,7 @@ export default function App() {
 
   const filtered = (planningPreview||data.vves)
     .filter(v => v.naam.toLowerCase().includes(search.toLowerCase()))
-    .filter(v => hideAfgerond ? !(v.vergaderd1 && (!v.datum2 || v.vergaderd2)) : true)
+    .filter(v => hideAfgerond ? !(v.vergaderd1 && (!v.needs2e || v.vergaderd2)) : true)
     .slice()
     .sort((a,b) => {
       if (!a.datum1 && !b.datum1) return 0;
