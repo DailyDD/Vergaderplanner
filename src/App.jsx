@@ -975,8 +975,10 @@ export default function App() {
   const metWaarschuwing = data.vves.filter(v => {
     const s1 = inviteStatus(v.datum1, v.uitgenodigd1);
     const s2 = inviteStatus(v.datum2, v.uitgenodigd2);
+    const sE = inviteStatus(v.datumExtra, v.uitgenodigdExtra);
     return (!v.vergaderd1 && (s1==="warning"||s1==="overdue")) ||
-           (!v.vergaderd2 && v.datum2 && (s2==="warning"||s2==="overdue"));
+           (v.needs2e && !v.vergaderd2 && v.datum2 && (s2==="warning"||s2==="overdue")) ||
+           (v.extraVergadering && !v.vergaderdExtra && v.datumExtra && (sE==="warning"||sE==="overdue"));
   }).length;
   const inVakantie = data.vves.filter(v=>(v.datum1&&isInVakantie(v.datum1,data.vakanties))||(v.datum2&&isInVakantie(v.datum2,data.vakanties))).length;
 
@@ -985,11 +987,14 @@ export default function App() {
     const items = [];
     const s1 = inviteStatus(v.datum1, v.uitgenodigd1);
     const s2 = inviteStatus(v.datum2, v.uitgenodigd2);
+    const sE = inviteStatus(v.datumExtra, v.uitgenodigdExtra);
     if (!v.vergaderd1 && (s1==="warning"||s1==="overdue"))
       items.push({ id: v.id+"_u1", naam: v.naam, type: s1==="overdue"?"overdue":"warning", datum: v.datum1, deadline: addDays(v.datum1,-INVITE_DAYS) });
-    if (v.datum2 && !v.vergaderd2 && (s2==="warning"||s2==="overdue"))
+    if (v.needs2e && v.datum2 && !v.vergaderd2 && (s2==="warning"||s2==="overdue"))
       items.push({ id: v.id+"_u2", naam: v.naam, type: s2==="overdue"?"overdue":"warning", datum: v.datum2, deadline: addDays(v.datum2,-INVITE_DAYS), is2e: true });
-    if (v.datum1 && v.datum1 < today() && !v.datum2 && !v.vergaderd1)
+    if (v.extraVergadering && v.datumExtra && !v.vergaderdExtra && (sE==="warning"||sE==="overdue"))
+      items.push({ id: v.id+"_uE", naam: v.naam, type: sE==="overdue"?"overdue":"warning", datum: v.datumExtra, deadline: addDays(v.datumExtra,-INVITE_DAYS), isExtra: true });
+    if (v.datum1 && v.datum1 < today() && !v.needs2e && !v.vergaderd1)
       items.push({ id: v.id+"_2e", naam: v.naam, type: "geen2e", datum: v.datum1 });
     return items;
   });
@@ -1116,7 +1121,8 @@ export default function App() {
                     </span>
                     <div className="flex-1 min-w-0">
                       <span className="font-medium">{item.naam}</span>
-                      {item.is2e && <span className="ml-1 opacity-60">(2e vergadering)</span>}
+                      {item.is2e && <span className="ml-1 opacity-60">(2e reglementaire vergadering)</span>}
+                      {item.isExtra && <span className="ml-1 opacity-60">(extra vergadering)</span>}
                       <span className="ml-2 opacity-70">
                         {item.type==="overdue"  ? `— uitnodigingstermijn verlopen, vergadering ${fmtDate(item.datum)}` :
                          item.type==="geen2e"   ? `— 1e vergadering voorbij (${fmtDate(item.datum)}), geen 2e gepland` :
