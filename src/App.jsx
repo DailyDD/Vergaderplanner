@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 // ── Config ───────────────────────────────────────────────────────
 const INVITE_DAYS = 17;
@@ -182,6 +182,7 @@ function parseImportLine(line) {
 
 // ── Auto-planner ─────────────────────────────────────────────────
 // Distributes ongeplande VvE's evenly across the year on valid workdays
+// Respects voorkeurVolgendjaar — plans on or near that date if set
 function generatePlanning(vves, vakanties, werkdagen) {
   const year = new Date().getFullYear();
   const ongepland = vves.filter(v => !v.datum1);
@@ -193,7 +194,7 @@ function generatePlanning(vves, vakanties, werkdagen) {
   const end = new Date(`${year}-12-31T00:00:00`);
   for (let d = new Date(start); d <= end; d.setDate(d.getDate()+1)) {
     const iso = d.toISOString().slice(0,10);
-    const dow = d.getDay(); // 0=Sun
+    const dow = d.getDay();
     if (!werkdagen[dow]) continue;
     if (isInVakantie(iso, vakanties)) continue;
     validDates.push(iso);
@@ -201,40 +202,58 @@ function generatePlanning(vves, vakanties, werkdagen) {
 
   if (validDates.length === 0) return vves;
 
-  // Count already planned per date to avoid stacking
   const alreadyPlanned = {};
   vves.filter(v => v.datum1).forEach(v => {
     alreadyPlanned[v.datum1] = (alreadyPlanned[v.datum1]||0)+1;
   });
 
-  // Spread: pick evenly spaced slots from validDates
+  // Find closest valid date to a target date
+  function closestValidDate(target) {
+    if (!target) return null;
+    // Adjust year to current year
+    const adjusted = `${year}-${target.slice(5)}`;
+    if (validDates.includes(adjusted)) return adjusted;
+    // Search outward ±30 days
+    for (let delta = 1; delta <= 30; delta++) {
+      const fwd = addDays(adjusted, delta);
+      const bwd = addDays(adjusted, -delta);
+      if (validDates.includes(fwd)) return fwd;
+      if (validDates.includes(bwd)) return bwd;
+    }
+    return null;
+  }
+
   const total = ongepland.length;
   const step = Math.max(1, Math.floor(validDates.length / total));
-  
-  // Find slots with lowest existing load, spaced evenly
   const assignments = [];
-  let cursor = 0;
-  for (let i = 0; i < total; i++) {
-    // Look in window around the ideal position
+
+  ongepland.forEach((vve, i) => {
+    // If voorkeurVolgendjaar is set, try to use that date
+    if (vve.voorkeurVolgendjaar) {
+      const preferred = closestValidDate(vve.voorkeurVolgendjaar);
+      if (preferred) {
+        assignments.push({ id: vve.id, datum: preferred });
+        alreadyPlanned[preferred] = (alreadyPlanned[preferred]||0)+1;
+        return;
+      }
+    }
+    // Otherwise spread evenly
     const idealIdx = Math.min(Math.round(i * (validDates.length / total)), validDates.length - 1);
-    // Find least-loaded date near idealIdx (search window ±step/2)
     const windowStart = Math.max(0, idealIdx - Math.floor(step/2));
     const windowEnd = Math.min(validDates.length-1, idealIdx + Math.floor(step/2));
     let bestIdx = idealIdx;
     let bestLoad = Infinity;
     for (let j = windowStart; j <= windowEnd; j++) {
-      const load = (alreadyPlanned[validDates[j]]||0) + assignments.filter(a=>a===validDates[j]).length;
+      const load = (alreadyPlanned[validDates[j]]||0) + assignments.filter(a=>a.datum===validDates[j]).length;
       if (load < bestLoad) { bestLoad = load; bestIdx = j; }
     }
-    assignments.push(validDates[bestIdx]);
-  }
+    assignments.push({ id: vve.id, datum: validDates[bestIdx] });
+  });
 
-  // Apply to ongeplande vves
-  let idx = 0;
   return vves.map(v => {
     if (v.datum1) return v;
-    const datum = assignments[idx++] || "";
-    return { ...v, datum1: datum };
+    const match = assignments.find(a => a.id === v.id);
+    return match ? { ...v, datum1: match.datum } : v;
   });
 }
 
@@ -355,6 +374,7 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd }) {
           <div className="flex items-center gap-2 flex-wrap">
             <span className={`text-sm font-medium truncate ${afgerond ? "text-emerald-300" : "text-zinc-200"}`}>{vve.naam}</span>
             {afgerond && <Badge color="green">✓ Afgerond</Badge>}
+            {afgerond && vve.voorkeurVolgendjaar && <Badge color="blue">📅 {new Date().getFullYear()+1} gepland</Badge>}
             {!afgerond && vergaderd1 && vve.datum2 && !vergaderd2 && <Badge color="blue">1e ✓ · 2e loopt</Badge>}
             {!vve.datum1 && !afgerond && <Badge color="gray">Niet gepland</Badge>}
             {inVak1 && !vergaderd1 && <Badge color="orange">Vakantieperiode</Badge>}
@@ -419,6 +439,21 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd }) {
                 onChange={v=>onUpdate({...vve, vergaderd1: v})}
                 label="Vergadering heeft plaatsgevonden"/>
             </div>
+            {vergaderd1 && (
+              <div className="border border-emerald-900/40 bg-emerald-950/10 rounded-lg px-3 py-2.5 space-y-1.5">
+                <label className="text-xs text-emerald-400 font-medium block">📅 Voorkeursdatum volgend jaar</label>
+                <p className="text-[10px] text-zinc-500">Optioneel — wordt meegenomen in de auto-planning voor {new Date().getFullYear() + 1}.</p>
+                <input
+                  type="date"
+                  value={vve.voorkeurVolgendjaar || ""}
+                  onChange={e => onUpdate({ ...vve, voorkeurVolgendjaar: e.target.value })}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-emerald-600"
+                />
+                {vve.voorkeurVolgendjaar && (
+                  <p className="text-[10px] text-emerald-600">✓ Voorkeur opgeslagen: {fmtDate(vve.voorkeurVolgendjaar)}</p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* 2e vergadering */}
