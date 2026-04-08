@@ -1168,6 +1168,51 @@ export default function App() {
                     </div>
                   ))}
                 </div>
+
+                {/* Countdown naar jaareinde */}
+                {(() => {
+                  const nu = new Date();
+                  const jaareinde = new Date(nu.getFullYear(), 11, 31);
+                  const dagenOver = Math.ceil((jaareinde - nu) / 86400000);
+                  const opSchema = onTrackDiff >= -5;
+                  return (
+                    <div className="border-t border-zinc-800 pt-3 space-y-1">
+                      <p className="text-[10px] text-zinc-500">
+                        <span className="text-zinc-300 font-medium">Nog {dagenOver} dagen</span> tot eind {nu.getFullYear()}
+                      </p>
+                      <p className={`text-[10px] font-medium ${opSchema ? "text-emerald-400" : "text-amber-400"}`}>
+                        {opSchema ? "✓ Je bent op schema" : "⚠ Je loopt achter op schema"}
+                      </p>
+                    </div>
+                  );
+                })()}
+
+                {/* Drukste maand */}
+                {(() => {
+                  const year = new Date().getFullYear();
+                  const counts = {};
+                  data.vves.forEach(v => {
+                    [v.datum1, v.datum2, v.datumExtra].forEach(d => {
+                      if (d && d.startsWith(String(year))) {
+                        const m = parseInt(d.slice(5,7)) - 1;
+                        counts[m] = (counts[m] || 0) + 1;
+                      }
+                    });
+                  });
+                  const entries = Object.entries(counts);
+                  if (entries.length === 0) return null;
+                  const [maandIdx, aantal] = entries.sort((a,b) => b[1]-a[1])[0];
+                  const maandNaam = NL_MONTHS_FULL[parseInt(maandIdx)];
+                  return (
+                    <div className="border-t border-zinc-800 pt-3">
+                      <p className="text-[10px] text-zinc-500">
+                        <span className="text-amber-400 font-medium">📅 {maandNaam}</span> wordt je drukste maand
+                      </p>
+                      <p className="text-[10px] text-zinc-600">{aantal} vergadering{aantal !== 1 ? "en" : ""} gepland</p>
+                    </div>
+                  );
+                })()}
+
               </div>
             );
           })()}
