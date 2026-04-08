@@ -966,6 +966,102 @@ export default function App() {
   };
   const handleRejectPlanning = () => setPlanningPreview(null);
 
+  // Begroeting
+  const begroeting = () => {
+    const uur = new Date().getHours();
+    if (uur < 12) return "Goedemorgen";
+    if (uur < 18) return "Goedemiddag";
+    return "Goedenavond";
+  };
+  const aantalUitTeNodigen = data.vves.filter(v => {
+    const s1 = inviteStatus(v.datum1, v.uitgenodigd1);
+    const s2 = inviteStatus(v.datum2, v.uitgenodigd2);
+    const sE = inviteStatus(v.datumExtra, v.uitgenodigdExtra);
+    return (!v.vergaderd1 && (s1==="warning"||s1==="overdue")) ||
+           (v.needs2e && !v.vergaderd2 && (s2==="warning"||s2==="overdue")) ||
+           (v.extraVergadering && !v.vergaderdExtra && (sE==="warning"||sE==="overdue"));
+  }).length;
+
+  // Export naar Excel (CSV)
+  const exportExcel = () => {
+    const year = new Date().getFullYear();
+    const rows = [["VvE", "1e vergadering", "Uitgenodigd 1e", "Vergaderd 1e", "2e reglementair", "2e vergadering", "Uitgenodigd 2e", "Vergaderd 2e", "Extra vergadering", "Extra datum", "Uitgenodigd extra", "Vergaderd extra", "Voorkeur volgend jaar", "Notitie"]];
+    data.vves.forEach(v => {
+      rows.push([
+        v.naam,
+        v.datum1 ? fmtDate(v.datum1) : "",
+        v.uitgenodigd1 ? "Ja" : "Nee",
+        v.vergaderd1 ? "Ja" : "Nee",
+        v.needs2e ? "Ja" : "Nee",
+        v.datum2 ? fmtDate(v.datum2) : "",
+        v.uitgenodigd2 ? "Ja" : "Nee",
+        v.vergaderd2 ? "Ja" : "Nee",
+        v.extraVergadering ? "Ja" : "Nee",
+        v.datumExtra ? fmtDate(v.datumExtra) : "",
+        v.uitgenodigdExtra ? "Ja" : "Nee",
+        v.vergaderdExtra ? "Ja" : "Nee",
+        v.voorkeurVolgendjaar ? fmtDate(v.voorkeurVolgendjaar) : "",
+        v.notitie || "",
+      ]);
+    });
+    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(";")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `VvE_Planning_${beheerder}_${year}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  // Export naar PDF
+  const exportPDF = () => {
+    const year = new Date().getFullYear();
+    const maanden = NL_MONTHS_FULL;
+    let html = `
+      <html><head><meta charset="utf-8">
+      <style>
+        body { font-family: Arial, sans-serif; font-size: 11px; color: #1a1a1a; margin: 20px; }
+        h1 { font-size: 16px; color: #991A21; margin-bottom: 4px; }
+        h2 { font-size: 12px; color: #991A21; margin: 16px 0 6px; border-bottom: 1px solid #991A21; padding-bottom: 2px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+        th { background: #991A21; color: white; padding: 4px 6px; text-align: left; font-size: 10px; }
+        td { padding: 3px 6px; border-bottom: 1px solid #eee; vertical-align: top; }
+        tr:nth-child(even) td { background: #faf7f7; }
+        .ok { color: #059669; } .warn { color: #d97706; } .sub { color: #888; font-size: 9px; }
+        @media print { body { margin: 10px; } }
+      </style></head><body>
+      <h1>VvE Vergaderplanning ${year} — ${beheerder}</h1>
+      <p class="sub">Gegenereerd op ${fmtDate(new Date().toISOString().slice(0,10))}</p>`;
+
+    maanden.forEach((maand, mi) => {
+      const key = `${year}-${String(mi+1).padStart(2,"0")}`;
+      const vves = data.vves.filter(v =>
+        (v.datum1 && v.datum1.startsWith(key)) ||
+        (v.datum2 && v.datum2.startsWith(key)) ||
+        (v.datumExtra && v.datumExtra.startsWith(key))
+      );
+      if (vves.length === 0) return;
+      html += `<h2>${maand} (${vves.length})</h2><table>
+        <tr><th>VvE</th><th>Datum</th><th>Type</th><th>Status</th></tr>`;
+      vves.forEach(v => {
+        const rijen = [];
+        if (v.datum1 && v.datum1.startsWith(key)) rijen.push({ datum: v.datum1, type: "1e vergadering", status: v.vergaderd1 ? "Afgerond" : v.uitgenodigd1 ? "Uitgenodigd" : "Open" });
+        if (v.datum2 && v.datum2.startsWith(key)) rijen.push({ datum: v.datum2, type: "2e reglementair", status: v.vergaderd2 ? "Afgerond" : v.uitgenodigd2 ? "Uitgenodigd" : "Open" });
+        if (v.datumExtra && v.datumExtra.startsWith(key)) rijen.push({ datum: v.datumExtra, type: "Extra", status: v.vergaderdExtra ? "Afgerond" : v.uitgenodigdExtra ? "Uitgenodigd" : "Open" });
+        rijen.forEach(r => {
+          const kleur = r.status === "Afgerond" ? "ok" : r.status === "Uitgenodigd" ? "warn" : "";
+          html += `<tr><td>${v.naam}</td><td>${fmtDate(r.datum)}</td><td>${r.type}</td><td class="${kleur}">${r.status}</td></tr>`;
+        });
+      });
+      html += `</table>`;
+    });
+
+    html += `</body></html>`;
+    const win = window.open("", "_blank");
+    win.document.write(html);
+    win.document.close();
+    win.print();
+  };
+
   const werkdagen = data.werkdagen || WORK_DAYS_DEFAULT;
   const counts = spreadScore(planningPreview || data.vves);
   const ongepland = data.vves.filter(v=>!v.datum1).length;
@@ -1095,13 +1191,38 @@ export default function App() {
         {inVakantie>0 && <div className="text-center"><div className="text-lg font-mono font-bold text-amber-400">{inVakantie}</div><div className="text-[10px] text-zinc-600 uppercase tracking-wide">In vakantie</div></div>}
       </div>
 
-      <div className="border-b border-zinc-800 px-6 flex gap-1">
+      <div className="border-b border-zinc-800 px-6 flex gap-1 items-center justify-between">
+        <div className="flex gap-1">
         {[["vergaderingen","Vergaderingen"],["overzicht","Spreiding"],["vakantie","Vakantie"],["instellingen","Instellingen"]].map(([key,label])=>(
           <button key={key} onClick={()=>setTab(key)} className={`px-4 py-3 text-sm transition-colors border-b-2 -mb-px ${tab===key?"border-zinc-400 text-zinc-100":"border-transparent text-zinc-500 hover:text-zinc-400"}`}>{label}</button>
         ))}
+        </div>
+        <div className="flex gap-2 pb-1">
+          <button onClick={exportExcel} className="text-xs px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition-colors">⬇ Excel</button>
+          <button onClick={exportPDF} className="text-xs px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition-colors">⬇ PDF</button>
+        </div>
       </div>
 
-      <div className="p-6 max-w-4xl mx-auto">
+      <div className="p-6 max-w-6xl mx-auto">
+
+        {/* Begroeting */}
+        {tab==="vergaderingen" && (
+          <div className="mb-4 px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-zinc-200">
+                Hoi {beheerder}! 👋
+              </p>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                {aantalUitTeNodigen > 0
+                  ? `Je hebt ${aantalUitTeNodigen} uitnodiging${aantalUitTeNodigen > 1 ? "en" : ""} te versturen.`
+                  : afgerond === data.vves.length && data.vves.length > 0
+                  ? "Alles is afgerond — geweldig werk! 🎉"
+                  : `Je hebt nog ${data.vves.filter(v => !v.vergaderd1).length} open vergaderingen.`}
+              </p>
+            </div>
+            <span className="text-2xl">{aantalUitTeNodigen > 0 ? "📬" : afgerond === data.vves.length && data.vves.length > 0 ? "🏆" : "📋"}</span>
+          </div>
+        )}
 
         {/* ── VERGADERINGEN ── */}
         {tab==="vergaderingen" && (
@@ -1209,6 +1330,45 @@ export default function App() {
                         <span className="text-amber-400 font-medium">📅 {maandNaam}</span> wordt je drukste maand
                       </p>
                       <p className="text-[10px] text-zinc-600">{aantal} vergadering{aantal !== 1 ? "en" : ""} gepland</p>
+                    </div>
+                  );
+                })()}
+
+                {/* Week agenda */}
+                {(() => {
+                  const nu = new Date();
+                  const startWeek = new Date(nu);
+                  startWeek.setDate(nu.getDate() - ((nu.getDay() + 6) % 7)); // maandag
+                  const eindWeek = new Date(startWeek);
+                  eindWeek.setDate(startWeek.getDate() + 6);
+                  const isoStart = startWeek.toISOString().slice(0,10);
+                  const isoEind = eindWeek.toISOString().slice(0,10);
+                  const dezeWeek = data.vves.flatMap(v => {
+                    const items = [];
+                    if (v.datum1 && v.datum1 >= isoStart && v.datum1 <= isoEind)
+                      items.push({ naam: v.naam, datum: v.datum1, type: "1e" });
+                    if (v.datum2 && v.datum2 >= isoStart && v.datum2 <= isoEind)
+                      items.push({ naam: v.naam, datum: v.datum2, type: "2e" });
+                    if (v.datumExtra && v.datumExtra >= isoStart && v.datumExtra <= isoEind)
+                      items.push({ naam: v.naam, datum: v.datumExtra, type: "extra" });
+                    return items;
+                  }).sort((a,b) => a.datum.localeCompare(b.datum));
+                  return (
+                    <div className="border-t border-zinc-800 pt-3 space-y-2">
+                      <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide">Deze week</p>
+                      {dezeWeek.length === 0 ? (
+                        <p className="text-[10px] text-zinc-600">Geen vergaderingen deze week.</p>
+                      ) : (
+                        dezeWeek.map((item, i) => (
+                          <div key={i} className="flex items-start gap-2">
+                            <span className="text-[9px] text-zinc-500 shrink-0 mt-0.5 w-12">{fmtDate(item.datum).slice(0,6)}</span>
+                            <div className="min-w-0">
+                              <p className="text-[10px] text-zinc-300 truncate">{item.naam}</p>
+                              <p className="text-[9px] text-zinc-600">{item.type === "1e" ? "1e vergadering" : item.type === "2e" ? "2e reglementair" : "Extra"}</p>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   );
                 })()}
