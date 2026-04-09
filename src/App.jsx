@@ -892,6 +892,38 @@ export default function App() {
   const [loginPw, setLoginPw] = useState("");
   const [loginError, setLoginError] = useState("");
   const [planningPreview, setPlanningPreview] = useState(null);
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem("vve-theme");
+    return saved ? saved === "dark" : true;
+  });
+
+  const toggleTheme = () => {
+    setDarkMode(prev => {
+      const next = !prev;
+      localStorage.setItem("vve-theme", next ? "dark" : "light");
+      return next;
+    });
+  };
+
+  // Theme classes
+  const t = {
+    bg:        darkMode ? "bg-zinc-950"    : "bg-gray-50",
+    bgCard:    darkMode ? "bg-zinc-900"    : "bg-white",
+    bgInput:   darkMode ? "bg-zinc-800"    : "bg-gray-100",
+    bgHover:   darkMode ? "hover:bg-zinc-800/30" : "hover:bg-gray-50",
+    border:    darkMode ? "border-zinc-800" : "border-gray-200",
+    borderIn:  darkMode ? "border-zinc-700" : "border-gray-300",
+    text:      darkMode ? "text-zinc-200"  : "text-gray-800",
+    textMuted: darkMode ? "text-zinc-500"  : "text-gray-500",
+    textDim:   darkMode ? "text-zinc-600"  : "text-gray-400",
+    textHead:  darkMode ? "text-zinc-100"  : "text-gray-900",
+    textInput: darkMode ? "text-zinc-200"  : "text-gray-800",
+    tabActive: darkMode ? "border-zinc-400 text-zinc-100" : "border-gray-700 text-gray-900",
+    tabInact:  darkMode ? "border-transparent text-zinc-500 hover:text-zinc-400" : "border-transparent text-gray-500 hover:text-gray-700",
+    btnSec:    darkMode ? "bg-zinc-800 hover:bg-zinc-700 text-zinc-200" : "bg-gray-200 hover:bg-gray-300 text-gray-700",
+    rowBorder: darkMode ? "border-zinc-800" : "border-gray-200",
+    expanded:  darkMode ? "border-zinc-800/60 bg-zinc-900/60" : "border-gray-200 bg-gray-50",
+  };
 
   const handleLogin = async () => {
     const account = findAccount(loginNaam, loginPw);
@@ -1167,47 +1199,54 @@ export default function App() {
 
   // Main screen
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-200">
-      <div className="border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
+    <div className={`min-h-screen ${t.bg} ${t.text}`}>
+      <div className={`border-b ${t.border} px-6 py-4 flex items-center justify-between`}>
         <div className="flex items-center gap-3">
           <span className="text-lg">🏢</span>
           <div>
-            <h1 className="text-sm font-semibold text-zinc-100">VvE Vergaderplanner</h1>
-            <p className="text-xs text-zinc-500">{beheerder}</p>
+            <h1 className={`text-sm font-semibold ${t.textHead}`}>VvE Vergaderplanner</h1>
+            <p className={`text-xs ${t.textMuted}`}>{beheerder}</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={()=>{ setScreen("login"); setLoginNaam(""); setLoginPw(""); }} className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors">Uitloggen</button>
-          {saving && <span className="text-[10px] text-zinc-600 animate-pulse">Opslaan…</span>}
+          <button
+            onClick={toggleTheme}
+            className={`text-xs px-3 py-1.5 rounded-lg border ${t.border} ${t.btnSec} transition-colors`}
+            title={darkMode ? "Schakel naar licht thema" : "Schakel naar donker thema"}
+          >
+            {darkMode ? "☀️ Licht" : "🌙 Donker"}
+          </button>
+          <button onClick={()=>{ setScreen("login"); setLoginNaam(""); setLoginPw(""); }} className={`text-xs ${t.textDim} hover:${t.textMuted} transition-colors`}>Uitloggen</button>
+          {saving && <span className={`text-[10px] ${t.textDim} animate-pulse`}>Opslaan…</span>}
         </div>
       </div>
 
-      <div className="border-b border-zinc-800 px-6 py-3 flex gap-6">
-        <div className="text-center"><div className="text-lg font-mono font-bold text-zinc-100">{data.vves.length}</div><div className="text-[10px] text-zinc-600 uppercase tracking-wide">VvE's</div></div>
-        <div className="text-center"><div className="text-lg font-mono font-bold text-emerald-400">{afgerond}</div><div className="text-[10px] text-zinc-600 uppercase tracking-wide">Afgerond</div></div>
-        <div className="text-center"><div className="text-lg font-mono font-bold text-sky-400">{uitgenodigd}</div><div className="text-[10px] text-zinc-600 uppercase tracking-wide">Uitgenodigd</div></div>
-        <div className="text-center"><div className="text-lg font-mono font-bold text-zinc-500">{nietUitgenodigd}</div><div className="text-[10px] text-zinc-600 uppercase tracking-wide">Niet uitgenodigd</div></div>
-        {metWaarschuwing>0 && <div className="text-center"><div className="text-lg font-mono font-bold text-red-400">{metWaarschuwing}</div><div className="text-[10px] text-zinc-600 uppercase tracking-wide">Uitnodiging!</div></div>}
-        {inVakantie>0 && <div className="text-center"><div className="text-lg font-mono font-bold text-amber-400">{inVakantie}</div><div className="text-[10px] text-zinc-600 uppercase tracking-wide">In vakantie</div></div>}
+      <div className={`border-b ${t.border} px-6 py-3 flex gap-6`}>
+        <div className="text-center"><div className={`text-lg font-mono font-bold ${t.textHead}`}>{data.vves.length}</div><div className={`text-[10px] ${t.textDim} uppercase tracking-wide`}>VvE's</div></div>
+        <div className="text-center"><div className="text-lg font-mono font-bold text-emerald-500">{afgerond}</div><div className={`text-[10px] ${t.textDim} uppercase tracking-wide`}>Afgerond</div></div>
+        <div className="text-center"><div className="text-lg font-mono font-bold text-sky-500">{uitgenodigd}</div><div className={`text-[10px] ${t.textDim} uppercase tracking-wide`}>Uitgenodigd</div></div>
+        <div className="text-center"><div className={`text-lg font-mono font-bold ${t.textMuted}`}>{nietUitgenodigd}</div><div className={`text-[10px] ${t.textDim} uppercase tracking-wide`}>Niet uitgenodigd</div></div>
+        {metWaarschuwing>0 && <div className="text-center"><div className="text-lg font-mono font-bold text-red-500">{metWaarschuwing}</div><div className={`text-[10px] ${t.textDim} uppercase tracking-wide`}>Uitnodiging!</div></div>}
+        {inVakantie>0 && <div className="text-center"><div className="text-lg font-mono font-bold text-amber-500">{inVakantie}</div><div className={`text-[10px] ${t.textDim} uppercase tracking-wide`}>In vakantie</div></div>}
       </div>
 
-      <div className="border-b border-zinc-800 px-6 flex gap-1 items-center justify-between">
+      <div className={`border-b ${t.border} px-6 flex gap-1 items-center justify-between`}>
         <div className="flex gap-1">
         {[["vergaderingen","Vergaderingen"],["overzicht","Spreiding"],["vakantie","Vakantie"],["instellingen","Instellingen"]].map(([key,label])=>(
-          <button key={key} onClick={()=>setTab(key)} className={`px-4 py-3 text-sm transition-colors border-b-2 -mb-px ${tab===key?"border-zinc-400 text-zinc-100":"border-transparent text-zinc-500 hover:text-zinc-400"}`}>{label}</button>
+          <button key={key} onClick={()=>setTab(key)} className={`px-4 py-3 text-sm transition-colors border-b-2 -mb-px ${tab===key ? t.tabActive : t.tabInact}`}>{label}</button>
         ))}
         </div>
         <div className="flex gap-2 pb-1">
-          <button onClick={exportExcel} className="text-xs px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition-colors">⬇ Excel</button>
-          <button onClick={exportPDF} className="text-xs px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition-colors">⬇ PDF</button>
+          <button onClick={exportExcel} className={`text-xs px-3 py-1.5 ${t.btnSec} rounded-lg transition-colors`}>⬇ Excel</button>
+          <button onClick={exportPDF} className={`text-xs px-3 py-1.5 ${t.btnSec} rounded-lg transition-colors`}>⬇ PDF</button>
         </div>
       </div>
 
-      <div className="p-6 max-w-6xl mx-auto">
+      <div className={`p-6 max-w-6xl mx-auto`}>
 
         {/* Begroeting */}
         {tab==="vergaderingen" && (
-          <div className="mb-4 px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl flex items-center justify-between">
+          <div className={`mb-4 px-4 py-3 ${t.bgCard} border ${t.border} rounded-xl flex items-center justify-between`}>
             <div>
               <p className="text-sm font-medium text-zinc-200">
                 Hoi {beheerder}! 👋
@@ -1243,7 +1282,7 @@ export default function App() {
               : pctAfgerond >= 25 ? "Goed op weg"
               : "Net begonnen";
             return (
-              <div className="w-52 shrink-0 bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-3 sticky top-4">
+              <div className={`w-52 shrink-0 ${t.bgCard} border ${t.border} rounded-xl p-4 space-y-3 sticky top-4`}>
                 <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Voortgang {new Date().getFullYear()}</p>
                 <div className="flex flex-col items-center gap-1">
                   <svg width="96" height="96" viewBox="0 0 96 96">
