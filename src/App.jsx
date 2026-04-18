@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 // ── Config ───────────────────────────────────────────────────────
 const INVITE_DAYS = 21;
@@ -116,7 +116,6 @@ async function loadAllData(beheerderList) {
   } catch(e) { console.error("loadAllData", e); return {}; }
 }
 
-// Beheerderlijst komt uit ACCOUNTS
 function getBeheerderList() {
   return ACCOUNTS.filter(a => a.rol === "beheerder").map(a => a.naam);
 }
@@ -136,11 +135,6 @@ function monthKey(iso) { return iso ? iso.slice(0,7) : null; }
 function isInVakantie(iso, vakanties) {
   return vakanties.some(v => v.van && v.tot && iso >= v.van && iso <= v.tot);
 }
-function inviteWarning(iso) {
-  if (!iso) return false;
-  const diff = (new Date(iso+"T00:00:00") - new Date()) / 86400000;
-  return diff >= 0 && diff < INVITE_DAYS;
-}
 function spreadScore(vves) {
   const counts = {};
   vves.forEach(m => {
@@ -156,39 +150,36 @@ function newVve(naam, datum1 = "") {
   return { id: `${Date.now()}_${_idCounter}_${Math.random().toString(36).slice(2,7)}`, naam, datum1, datum2:"", notitie:"" };
 }
 
+// ── FIX 4: isAfgerond helper ─────────────────────────────────────
+// Een VvE is afgerond als vergadering 1 heeft plaatsgevonden
+// én er geen 2e nodig is, of de 2e ook heeft plaatsgevonden.
+function isAfgerond(vve) {
+  return !!vve.vergaderd1 && (!vve.needs2e || !!vve.vergaderd2);
+}
+
 // ── Import line parser ────────────────────────────────────────────
-// Handles: "VvE naam\t16-4-2026\t15.00 uur"  or plain "VvE naam"
 function parseImportLine(line) {
-  // Split on tab first, fallback to 2+ spaces
   const parts = line.includes("\t")
     ? line.split("\t").map(p => p.trim())
     : line.split(/\s{2,}/).map(p => p.trim());
-
   const naam = parts[0]?.trim();
   if (!naam) return null;
-
   let datum1 = "";
   if (parts[1]) {
-    // Parse d-m-yyyy or dd-mm-yyyy
     const match = parts[1].match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
     if (match) {
       const [, d, m, y] = match;
       datum1 = `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
     }
   }
-
   return { naam, datum1 };
 }
 
 // ── Auto-planner ─────────────────────────────────────────────────
-// Distributes ongeplande VvE's evenly across the year on valid workdays
-// Respects voorkeurVolgendjaar — plans on or near that date if set
 function generatePlanning(vves, vakanties, werkdagen) {
   const year = new Date().getFullYear();
   const ongepland = vves.filter(v => !v.datum1);
   if (ongepland.length === 0) return vves;
-
-  // Build list of all valid dates this year
   const validDates = [];
   const start = new Date(`${year}-01-01T00:00:00`);
   const end = new Date(`${year}-12-31T00:00:00`);
@@ -199,21 +190,15 @@ function generatePlanning(vves, vakanties, werkdagen) {
     if (isInVakantie(iso, vakanties)) continue;
     validDates.push(iso);
   }
-
   if (validDates.length === 0) return vves;
-
   const alreadyPlanned = {};
   vves.filter(v => v.datum1).forEach(v => {
     alreadyPlanned[v.datum1] = (alreadyPlanned[v.datum1]||0)+1;
   });
-
-  // Find closest valid date to a target date
   function closestValidDate(target) {
     if (!target) return null;
-    // Adjust year to current year
     const adjusted = `${year}-${target.slice(5)}`;
     if (validDates.includes(adjusted)) return adjusted;
-    // Search outward ±30 days
     for (let delta = 1; delta <= 30; delta++) {
       const fwd = addDays(adjusted, delta);
       const bwd = addDays(adjusted, -delta);
@@ -222,13 +207,10 @@ function generatePlanning(vves, vakanties, werkdagen) {
     }
     return null;
   }
-
   const total = ongepland.length;
   const step = Math.max(1, Math.floor(validDates.length / total));
   const assignments = [];
-
   ongepland.forEach((vve, i) => {
-    // If voorkeurVolgendjaar is set, try to use that date
     if (vve.voorkeurVolgendjaar) {
       const preferred = closestValidDate(vve.voorkeurVolgendjaar);
       if (preferred) {
@@ -237,7 +219,6 @@ function generatePlanning(vves, vakanties, werkdagen) {
         return;
       }
     }
-    // Otherwise spread evenly
     const idealIdx = Math.min(Math.round(i * (validDates.length / total)), validDates.length - 1);
     const windowStart = Math.max(0, idealIdx - Math.floor(step/2));
     const windowEnd = Math.min(validDates.length-1, idealIdx + Math.floor(step/2));
@@ -249,7 +230,6 @@ function generatePlanning(vves, vakanties, werkdagen) {
     }
     assignments.push({ id: vve.id, datum: validDates[bestIdx] });
   });
-
   return vves.map(v => {
     if (v.datum1) return v;
     const match = assignments.find(a => a.id === v.id);
@@ -301,15 +281,14 @@ function MonthBar({ counts, vakanties }) {
 }
 
 // ── Invite status helper ─────────────────────────────────────────
-// Returns: 'none' | 'ok' | 'warning' | 'overdue' | 'confirmed'
 function inviteStatus(datum, uitgenodigd) {
   if (!datum) return "none";
   if (uitgenodigd) return "confirmed";
   const deadline = addDays(datum, -INVITE_DAYS);
   const t = today();
-  if (datum < t) return "overdue";           // vergadering al voorbij, nooit uitgenodigd
-  if (deadline < t) return "overdue";        // deadline verlopen
-  if (deadline <= addDays(t, 5)) return "warning"; // deadline binnen 5 dagen
+  if (datum < t) return "overdue";
+  if (deadline < t) return "overdue";
+  if (deadline <= addDays(t, 5)) return "warning";
   return "ok";
 }
 
@@ -331,8 +310,20 @@ function Checkbox({ checked, disabled, onChange, label }) {
 }
 
 // ── VvE Row ──────────────────────────────────────────────────────
-function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd }) {
+function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onForceOpenHandled }) {
   const [expanded, setExpanded] = useState(false);
+
+  // FIX 3: wanneer forceOpen=true, klap open en scroll
+  const rowRef = useRef(null);
+  useEffect(() => {
+    if (forceOpen) {
+      setExpanded(true);
+      setTimeout(() => {
+        rowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 50);
+      onForceOpenHandled?.();
+    }
+  }, [forceOpen]);
 
   const inVak1 = vve.datum1 && isInVakantie(vve.datum1, vakanties);
   const inVak2 = vve.datum2 && isInVakantie(vve.datum2, vakanties);
@@ -340,12 +331,12 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd }) {
   const vergaderd2 = !!vve.vergaderd2;
   const uitgenodigd1 = !!vve.uitgenodigd1;
   const uitgenodigd2 = !!vve.uitgenodigd2;
-  const afgerond = vergaderd1 && (!vve.needs2e || vergaderd2);
+  // FIX 4: gebruik isAfgerond helper
+  const afgerond = isAfgerond(vve);
 
   const inv1 = inviteStatus(vve.datum1, uitgenodigd1);
   const inv2 = inviteStatus(vve.datum2, uitgenodigd2);
 
-  // Invite status badge config
   const invBadge = (status, which) => {
     if (status === "none") return null;
     if (status === "confirmed") return <Badge color="green">✉ Uitgenodigd</Badge>;
@@ -354,7 +345,6 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd }) {
     return null;
   };
 
-  // Dot color — worst state wins
   const dotColor = afgerond ? "bg-emerald-500"
     : vergaderd1 ? "bg-sky-500"
     : inv1 === "overdue" || inv2 === "overdue" ? "bg-red-500"
@@ -362,12 +352,11 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd }) {
     : vve.datum1 ? "bg-zinc-500"
     : "bg-zinc-700";
 
-  // When datum changes, reset uitgenodigd for that vergadering
   const updateDatum1 = (val) => onUpdate({ ...vve, datum1: val, uitgenodigd1: false });
   const updateDatum2 = (val) => onUpdate({ ...vve, datum2: val, uitgenodigd2: false });
 
   return (
-    <div className={`border rounded-lg overflow-hidden transition-colors ${afgerond ? "border-emerald-900/50 bg-emerald-950/10" : "border-zinc-800"}`}>
+    <div ref={rowRef} className={`border rounded-lg overflow-hidden transition-colors ${afgerond ? "border-emerald-900/50 bg-emerald-950/10" : "border-zinc-800"}`}>
       <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-zinc-800/30 transition-colors" onClick={()=>setExpanded(e=>!e)}>
         <div className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`}/>
         <div className="flex-1 min-w-0">
@@ -459,7 +448,7 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd }) {
             )}
           </div>
 
-          {/* 2e vergadering — alleen zichtbaar als needs2e aangevinkt */}
+          {/* 2e vergadering */}
           {vve.needs2e && (
             <div className="space-y-2 border-t border-zinc-800/40 pt-4">
               <span className="text-xs text-zinc-400 font-medium">2e reglementaire vergadering</span>
@@ -589,8 +578,7 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd }) {
 
 // ── Werkdagen selector ───────────────────────────────────────────
 function WerkdagenSelector({ werkdagen, onChange }) {
-  // Show Mon-Sun order for display but store as Sun=0
-  const displayOrder = [1,2,3,4,5,6,0]; // ma,di,wo,do,vr,za,zo
+  const displayOrder = [1,2,3,4,5,6,0];
   const displayLabels = ["Ma","Di","Wo","Do","Vr","Za","Zo"];
   return (
     <div className="flex gap-2">
@@ -617,8 +605,9 @@ function calcStats(data) {
   const vves = data.vves||[];
   const vakanties = data.vakanties||[];
   const total = vves.length;
-  const afgerond = vves.filter(v => v.vergaderd1 && (!v.needs2e || v.vergaderd2)).length;
-  const uitgenodigd = vves.filter(v => (v.uitgenodigd1 || v.uitgenodigd2) && !(v.vergaderd1 && (!v.needs2e || v.vergaderd2))).length;
+  // FIX 4 in admin too
+  const afgerond = vves.filter(v => isAfgerond(v)).length;
+  const uitgenodigd = vves.filter(v => (v.uitgenodigd1 || v.uitgenodigd2) && !isAfgerond(v)).length;
   const nietUitgenodigd = total - uitgenodigd - afgerond;
   const uitnodigingUrgent = vves.filter(v => {
     const s1 = inviteStatus(v.datum1, v.uitgenodigd1);
@@ -643,16 +632,15 @@ function riskLevel(stats) {
 }
 
 // ── Admin Dashboard ──────────────────────────────────────────────
-function AdminDashboard({ beheerderList, onBack, onSaveBeheerderData }) {
+function AdminDashboard({ beheerderList, onBack }) {
   const [allData, setAllData] = useState({});
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
-  const [herindelenVan, setHerindelenVan] = useState(null); // naam van beheerder
-  const [herindelenVve, setHerindelenVve] = useState(null); // vve object
+  const [herindelenVan, setHerindelenVan] = useState(null);
+  const [herindelenVve, setHerindelenVve] = useState(null);
   const [herindelenNaar, setHerindelenNaar] = useState("");
   const [herindelenMsg, setHerindelenMsg] = useState("");
 
-  // On-track: % of year elapsed vs avg % afgerond across all beheerders
   const now = new Date();
   const yearStart = new Date(now.getFullYear(), 0, 1);
   const yearEnd = new Date(now.getFullYear(), 11, 31);
@@ -673,12 +661,6 @@ function AdminDashboard({ beheerderList, onBack, onSaveBeheerderData }) {
     setTimeout(() => setHerindelenMsg(""), 3000);
   };
 
-  const verwijderBeheerder = async (naam) => {
-    if (!window.confirm(`Beheerder "${naam}" verwijderen? De VvE-data blijft bewaard in de opslag maar is niet meer toegankelijk via de app.`)) return;
-    // We can only remove from the list display; accounts are hardcoded
-    setAllData(prev => { const d = {...prev}; delete d[naam]; return d; });
-  };
-
   useEffect(() => {
     async function fetchAll() {
       setLoading(true);
@@ -690,8 +672,8 @@ function AdminDashboard({ beheerderList, onBack, onSaveBeheerderData }) {
   }, [beheerderList]);
 
   const allVves = Object.values(allData).flatMap(d=>d?.vves||[]);
-  const totaalAfgerond = allVves.filter(v => v.vergaderd1 && (!v.needs2e || v.vergaderd2)).length;
-  const totaalUitgenodigd = allVves.filter(v => (v.uitgenodigd1 || v.uitgenodigd2) && !(v.vergaderd1 && (!v.needs2e || v.vergaderd2))).length;
+  const totaalAfgerond = allVves.filter(v => isAfgerond(v)).length;
+  const totaalUitgenodigd = allVves.filter(v => (v.uitgenodigd1 || v.uitgenodigd2) && !isAfgerond(v)).length;
   const totaalNietUitgenodigd = allVves.length - totaalUitgenodigd - totaalAfgerond;
   const totaalUitnodiging = allVves.filter(v => {
     const s1 = inviteStatus(v.datum1, v.uitgenodigd1);
@@ -728,8 +710,6 @@ function AdminDashboard({ beheerderList, onBack, onSaveBeheerderData }) {
         ))}
       </div>
       <div className="p-6 max-w-5xl mx-auto space-y-6">
-
-        {/* On-track indicator */}
         {allVves.length > 0 && (() => {
           const avgAfgerondPct = Math.round((totaalAfgerond / allVves.length) * 100);
           const diff = avgAfgerondPct - yearPct;
@@ -832,18 +812,13 @@ function AdminDashboard({ beheerderList, onBack, onSaveBeheerderData }) {
                         </div>
                       )}
                       {risk==="green" && <p className="text-xs text-emerald-500">✓ Alles op schema. Geen actie vereist.</p>}
-
-                      {/* Herindelen */}
                       <div className="border-t border-zinc-800/60 pt-3 mt-2">
                         <p className="text-[10px] text-zinc-600 uppercase tracking-wide mb-2">VvE herindelen naar andere beheerder</p>
                         {herindelenVan === naam && herindelenVve ? (
                           <div className="flex gap-2 items-center flex-wrap">
                             <span className="text-xs text-zinc-400 shrink-0">"{herindelenVve.naam}" →</span>
-                            <select
-                              value={herindelenNaar}
-                              onChange={e=>setHerindelenNaar(e.target.value)}
-                              className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 focus:outline-none"
-                            >
+                            <select value={herindelenNaar} onChange={e=>setHerindelenNaar(e.target.value)}
+                              className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 focus:outline-none">
                               <option value="">Kies beheerder…</option>
                               {beheerderList.filter(n=>n!==naam).map(n=><option key={n} value={n}>{n}</option>)}
                             </select>
@@ -851,14 +826,10 @@ function AdminDashboard({ beheerderList, onBack, onSaveBeheerderData }) {
                             <button onClick={()=>{setHerindelenVve(null);setHerindelenVan(null);}} className="text-xs text-zinc-500 hover:text-zinc-400">Annuleer</button>
                           </div>
                         ) : (
-                          <select
-                            value=""
-                            onChange={e=>{
-                              const vve = (allData[naam]?.vves||[]).find(v=>v.id===e.target.value);
-                              if (vve) { setHerindelenVve(vve); setHerindelenVan(naam); setHerindelenNaar(""); }
-                            }}
-                            className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-400 focus:outline-none"
-                          >
+                          <select value="" onChange={e=>{
+                            const vve = (allData[naam]?.vves||[]).find(v=>v.id===e.target.value);
+                            if (vve) { setHerindelenVve(vve); setHerindelenVan(naam); setHerindelenNaar(""); }
+                          }} className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-400 focus:outline-none">
                             <option value="">Selecteer VvE om te herindelen…</option>
                             {(allData[naam]?.vves||[]).map(v=><option key={v.id} value={v.id}>{v.naam}</option>)}
                           </select>
@@ -897,6 +868,15 @@ export default function App() {
     return saved ? saved === "dark" : true;
   });
 
+  // FIX 1: gesorteerde volgorde staat los van data
+  // We bewaren een gesorteerde ID-volgorde en passen die toe bij weergave
+  const [sortedOrder, setSortedOrder] = useState(null); // null = nog niet gesorteerd
+  // FIX 3: welke VvE moet geforceerd opengaan
+  const [forceOpenId, setForceOpenId] = useState(null);
+  // FIX 2: maandfilter
+  const [filterJaar2027, setFilterJaar2027] = useState(false);
+  const [geselecteerdeFilterMaanden, setGeselecteerdeFilterMaanden] = useState(new Set());
+
   const toggleTheme = () => {
     setDarkMode(prev => {
       const next = !prev;
@@ -905,7 +885,6 @@ export default function App() {
     });
   };
 
-  // Theme classes
   const t = {
     bg:        darkMode ? "bg-zinc-950"    : "bg-gray-50",
     bgCard:    darkMode ? "bg-zinc-900"    : "bg-white",
@@ -953,7 +932,11 @@ export default function App() {
     setNewVveName("");
   };
   const updateVve = async (u) => await persist({ ...data, vves: data.vves.map(v=>v.id===u.id?u:v) });
-  const deleteVve = async (id) => await persist({ ...data, vves: data.vves.filter(v=>v.id!==id) });
+  const deleteVve = async (id) => {
+    await persist({ ...data, vves: data.vves.filter(v=>v.id!==id) });
+    // remove from sorted order too
+    setSortedOrder(prev => prev ? prev.filter(sid => sid !== id) : null);
+  };
   const add2nd = async (vve) => await updateVve({ ...vve, datum2: addDays(vve.datum1, INVITE_DAYS+3) });
   const addVakantie = async () => await persist({ ...data, vakanties: [...data.vakanties, { id:Date.now().toString(), naam:"", van:"", tot:"" }] });
   const updateVakantie = async (v) => await persist({ ...data, vakanties: data.vakanties.map(x=>x.id===v.id?v:x) });
@@ -970,21 +953,29 @@ export default function App() {
     await persist({ ...data, vves: [...data.vves, ...nieuwen] });
     setImportText(""); setShowImport(false);
   };
-  const handleAdminLogin = () => {}; // handled via handleLogin now
+
   const [hideAfgerond, setHideAfgerond] = useState(false);
   const [selectie, setSelectie] = useState(new Set());
 
-  const toggleSelectie = (id) => setSelectie(prev => {
-    const next = new Set(prev);
-    next.has(id) ? next.delete(id) : next.add(id);
-    return next;
-  });
-  const selecteerAlles = () => setSelectie(new Set(filtered.map(v => v.id)));
-  const deselecteerAlles = () => setSelectie(new Set());
-  const verwijderSelectie = async () => {
-    if (!window.confirm(`${selectie.size} VvE${selectie.size > 1 ? "'s" : ""} verwijderen? Dit kan niet ongedaan worden gemaakt.`)) return;
-    await persist({ ...data, vves: data.vves.filter(v => !selectie.has(v.id)) });
-    setSelectie(new Set());
+  // ── FIX 1 + 5: Sorteer functie ───────────────────────────────
+  // VvE's zonder voorkeurVolgendjaar komen eerst, gesorteerd op datum1/datum2/datumExtra
+  // VvE's met voorkeurVolgendjaar komen daarna, gesorteerd op voorkeurVolgendjaar
+  const handleSorteer = () => {
+    const vves = planningPreview || data.vves;
+    const year = new Date().getFullYear();
+    const nextYear = year + 1;
+
+    // Splits in twee groepen
+    const metVoorkeur = vves.filter(v => v.voorkeurVolgendjaar);
+    const zonderVoorkeur = vves.filter(v => !v.voorkeurVolgendjaar);
+
+    const sortDatum = (v) => v.datumExtra || v.datum2 || v.datum1 || "9999-99-99";
+
+    zonderVoorkeur.sort((a, b) => sortDatum(a).localeCompare(sortDatum(b)));
+    metVoorkeur.sort((a, b) => (a.voorkeurVolgendjaar || "").localeCompare(b.voorkeurVolgendjaar || ""));
+
+    const gesorteerd = [...zonderVoorkeur, ...metVoorkeur];
+    setSortedOrder(gesorteerd.map(v => v.id));
   };
 
   // Planning
@@ -995,16 +986,17 @@ export default function App() {
   const handleConfirmPlanning = async () => {
     await persist({ ...data, vves: planningPreview });
     setPlanningPreview(null);
+    setSortedOrder(null); // reset sortering na nieuwe planning
   };
   const handleRejectPlanning = () => setPlanningPreview(null);
 
-  // Begroeting
   const begroeting = () => {
     const uur = new Date().getHours();
     if (uur < 12) return "Goedemorgen";
     if (uur < 18) return "Goedemiddag";
     return "Goedenavond";
   };
+
   const aantalUitTeNodigen = data.vves.filter(v => {
     const s1 = inviteStatus(v.datum1, v.uitgenodigd1);
     const s2 = inviteStatus(v.datum2, v.uitgenodigd2);
@@ -1014,91 +1006,52 @@ export default function App() {
            (v.extraVergadering && !v.vergaderdExtra && (sE==="warning"||sE==="overdue"));
   }).length;
 
-  // Export naar Excel (CSV)
   const exportExcel = () => {
     const year = new Date().getFullYear();
     const rows = [["VvE", "1e vergadering", "Uitgenodigd 1e", "Vergaderd 1e", "2e reglementair", "2e vergadering", "Uitgenodigd 2e", "Vergaderd 2e", "Extra vergadering", "Extra datum", "Uitgenodigd extra", "Vergaderd extra", "Voorkeur volgend jaar", "Notitie"]];
     data.vves.forEach(v => {
       rows.push([
-        v.naam,
-        v.datum1 ? fmtDate(v.datum1) : "",
-        v.uitgenodigd1 ? "Ja" : "Nee",
-        v.vergaderd1 ? "Ja" : "Nee",
-        v.needs2e ? "Ja" : "Nee",
-        v.datum2 ? fmtDate(v.datum2) : "",
-        v.uitgenodigd2 ? "Ja" : "Nee",
-        v.vergaderd2 ? "Ja" : "Nee",
-        v.extraVergadering ? "Ja" : "Nee",
-        v.datumExtra ? fmtDate(v.datumExtra) : "",
-        v.uitgenodigdExtra ? "Ja" : "Nee",
-        v.vergaderdExtra ? "Ja" : "Nee",
-        v.voorkeurVolgendjaar ? fmtDate(v.voorkeurVolgendjaar) : "",
-        v.notitie || "",
+        v.naam, v.datum1 ? fmtDate(v.datum1) : "", v.uitgenodigd1 ? "Ja" : "Nee", v.vergaderd1 ? "Ja" : "Nee",
+        v.needs2e ? "Ja" : "Nee", v.datum2 ? fmtDate(v.datum2) : "", v.uitgenodigd2 ? "Ja" : "Nee", v.vergaderd2 ? "Ja" : "Nee",
+        v.extraVergadering ? "Ja" : "Nee", v.datumExtra ? fmtDate(v.datumExtra) : "", v.uitgenodigdExtra ? "Ja" : "Nee", v.vergaderdExtra ? "Ja" : "Nee",
+        v.voorkeurVolgendjaar ? fmtDate(v.voorkeurVolgendjaar) : "", v.notitie || "",
       ]);
     });
     const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(";")).join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `VvE_Planning_${beheerder}_${year}.csv`;
+    const a = document.createElement("a"); a.href = url; a.download = `VvE_Planning_${beheerder}_${year}.csv`;
     a.click(); URL.revokeObjectURL(url);
   };
 
-  // Export naar PDF
   const exportPDF = () => {
     const year = new Date().getFullYear();
-    const maanden = NL_MONTHS_FULL;
-    let html = `
-      <html><head><meta charset="utf-8">
-      <style>
-        body { font-family: Arial, sans-serif; font-size: 11px; color: #1a1a1a; margin: 20px; }
-        h1 { font-size: 16px; color: #991A21; margin-bottom: 4px; }
-        h2 { font-size: 12px; color: #991A21; margin: 16px 0 6px; border-bottom: 1px solid #991A21; padding-bottom: 2px; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-        th { background: #991A21; color: white; padding: 4px 6px; text-align: left; font-size: 10px; }
-        td { padding: 3px 6px; border-bottom: 1px solid #eee; vertical-align: top; }
-        tr:nth-child(even) td { background: #faf7f7; }
-        .ok { color: #059669; } .warn { color: #d97706; } .sub { color: #888; font-size: 9px; }
-        @media print { body { margin: 10px; } }
-      </style></head><body>
-      <h1>VvE Vergaderplanning ${year} — ${beheerder}</h1>
-      <p class="sub">Gegenereerd op ${fmtDate(new Date().toISOString().slice(0,10))}</p>`;
-
-    maanden.forEach((maand, mi) => {
+    let html = `<html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a;margin:20px}h1{font-size:16px;color:#991A21;margin-bottom:4px}h2{font-size:12px;color:#991A21;margin:16px 0 6px;border-bottom:1px solid #991A21;padding-bottom:2px}table{width:100%;border-collapse:collapse;margin-bottom:8px}th{background:#991A21;color:white;padding:4px 6px;text-align:left;font-size:10px}td{padding:3px 6px;border-bottom:1px solid #eee;vertical-align:top}tr:nth-child(even) td{background:#faf7f7}.ok{color:#059669}.warn{color:#d97706}.sub{color:#888;font-size:9px}</style></head><body>`;
+    html += `<h1>VvE Vergaderplanning ${year} — ${beheerder}</h1><p class="sub">Gegenereerd op ${fmtDate(new Date().toISOString().slice(0,10))}</p>`;
+    NL_MONTHS_FULL.forEach((maand, mi) => {
       const key = `${year}-${String(mi+1).padStart(2,"0")}`;
-      const vves = data.vves.filter(v =>
-        (v.datum1 && v.datum1.startsWith(key)) ||
-        (v.datum2 && v.datum2.startsWith(key)) ||
-        (v.datumExtra && v.datumExtra.startsWith(key))
-      );
+      const vves = data.vves.filter(v => (v.datum1&&v.datum1.startsWith(key))||(v.datum2&&v.datum2.startsWith(key))||(v.datumExtra&&v.datumExtra.startsWith(key)));
       if (vves.length === 0) return;
-      html += `<h2>${maand} (${vves.length})</h2><table>
-        <tr><th>VvE</th><th>Datum</th><th>Type</th><th>Status</th></tr>`;
+      html += `<h2>${maand} (${vves.length})</h2><table><tr><th>VvE</th><th>Datum</th><th>Type</th><th>Status</th></tr>`;
       vves.forEach(v => {
         const rijen = [];
-        if (v.datum1 && v.datum1.startsWith(key)) rijen.push({ datum: v.datum1, type: "1e vergadering", status: v.vergaderd1 ? "Afgerond" : v.uitgenodigd1 ? "Uitgenodigd" : "Open" });
-        if (v.datum2 && v.datum2.startsWith(key)) rijen.push({ datum: v.datum2, type: "2e reglementair", status: v.vergaderd2 ? "Afgerond" : v.uitgenodigd2 ? "Uitgenodigd" : "Open" });
-        if (v.datumExtra && v.datumExtra.startsWith(key)) rijen.push({ datum: v.datumExtra, type: "Extra", status: v.vergaderdExtra ? "Afgerond" : v.uitgenodigdExtra ? "Uitgenodigd" : "Open" });
-        rijen.forEach(r => {
-          const kleur = r.status === "Afgerond" ? "ok" : r.status === "Uitgenodigd" ? "warn" : "";
-          html += `<tr><td>${v.naam}</td><td>${fmtDate(r.datum)}</td><td>${r.type}</td><td class="${kleur}">${r.status}</td></tr>`;
-        });
+        if (v.datum1&&v.datum1.startsWith(key)) rijen.push({datum:v.datum1,type:"1e vergadering",status:v.vergaderd1?"Afgerond":v.uitgenodigd1?"Uitgenodigd":"Open"});
+        if (v.datum2&&v.datum2.startsWith(key)) rijen.push({datum:v.datum2,type:"2e reglementair",status:v.vergaderd2?"Afgerond":v.uitgenodigd2?"Uitgenodigd":"Open"});
+        if (v.datumExtra&&v.datumExtra.startsWith(key)) rijen.push({datum:v.datumExtra,type:"Extra",status:v.vergaderdExtra?"Afgerond":v.uitgenodigdExtra?"Uitgenodigd":"Open"});
+        rijen.forEach(r => { html += `<tr><td>${v.naam}</td><td>${fmtDate(r.datum)}</td><td>${r.type}</td><td class="${r.status==="Afgerond"?"ok":r.status==="Uitgenodigd"?"warn":""}">${r.status}</td></tr>`; });
       });
       html += `</table>`;
     });
-
     html += `</body></html>`;
-    const win = window.open("", "_blank");
-    win.document.write(html);
-    win.document.close();
-    win.print();
+    const win = window.open("","_blank"); win.document.write(html); win.document.close(); win.print();
   };
 
   const werkdagen = data.werkdagen || WORK_DAYS_DEFAULT;
   const counts = spreadScore(planningPreview || data.vves);
   const ongepland = data.vves.filter(v=>!v.datum1).length;
-  const uitgenodigd = data.vves.filter(v=> (v.uitgenodigd1 || v.uitgenodigd2) && !( v.vergaderd1 && (!v.needs2e || v.vergaderd2))).length;
-  const afgerond = data.vves.filter(v=> v.vergaderd1 && (!v.needs2e || v.vergaderd2)).length;
+  // FIX 4: gebruik isAfgerond
+  const uitgenodigd = data.vves.filter(v=> (v.uitgenodigd1 || v.uitgenodigd2) && !isAfgerond(v)).length;
+  const afgerond = data.vves.filter(v=> isAfgerond(v)).length;
   const nietUitgenodigd = data.vves.length - uitgenodigd - afgerond;
   const metWaarschuwing = data.vves.filter(v => {
     const s1 = inviteStatus(v.datum1, v.uitgenodigd1);
@@ -1110,45 +1063,99 @@ export default function App() {
   }).length;
   const inVakantie = data.vves.filter(v=>(v.datum1&&isInVakantie(v.datum1,data.vakanties))||(v.datum2&&isInVakantie(v.datum2,data.vakanties))).length;
 
-  // Urgent items for notification panel
   const urgentItems = data.vves.flatMap(v => {
     const items = [];
     const s1 = inviteStatus(v.datum1, v.uitgenodigd1);
     const s2 = inviteStatus(v.datum2, v.uitgenodigd2);
     const sE = inviteStatus(v.datumExtra, v.uitgenodigdExtra);
     if (!v.vergaderd1 && (s1==="warning"||s1==="overdue"))
-      items.push({ id: v.id+"_u1", naam: v.naam, type: s1==="overdue"?"overdue":"warning", datum: v.datum1, deadline: addDays(v.datum1,-INVITE_DAYS) });
+      items.push({ id: v.id+"_u1", vveId: v.id, naam: v.naam, type: s1==="overdue"?"overdue":"warning", datum: v.datum1, deadline: addDays(v.datum1,-INVITE_DAYS) });
     if (v.needs2e && v.datum2 && !v.vergaderd2 && (s2==="warning"||s2==="overdue"))
-      items.push({ id: v.id+"_u2", naam: v.naam, type: s2==="overdue"?"overdue":"warning", datum: v.datum2, deadline: addDays(v.datum2,-INVITE_DAYS), is2e: true });
+      items.push({ id: v.id+"_u2", vveId: v.id, naam: v.naam, type: s2==="overdue"?"overdue":"warning", datum: v.datum2, deadline: addDays(v.datum2,-INVITE_DAYS), is2e: true });
     if (v.extraVergadering && v.datumExtra && !v.vergaderdExtra && (sE==="warning"||sE==="overdue"))
-      items.push({ id: v.id+"_uE", naam: v.naam, type: sE==="overdue"?"overdue":"warning", datum: v.datumExtra, deadline: addDays(v.datumExtra,-INVITE_DAYS), isExtra: true });
+      items.push({ id: v.id+"_uE", vveId: v.id, naam: v.naam, type: sE==="overdue"?"overdue":"warning", datum: v.datumExtra, deadline: addDays(v.datumExtra,-INVITE_DAYS), isExtra: true });
     if (v.datum1 && v.datum1 < today() && !v.needs2e && !v.vergaderd1)
-      items.push({ id: v.id+"_2e", naam: v.naam, type: "geen2e", datum: v.datum1 });
+      items.push({ id: v.id+"_2e", vveId: v.id, naam: v.naam, type: "geen2e", datum: v.datum1 });
     return items;
   });
 
-  // On-track estimate: % afgerond vs % of year elapsed
   const now = new Date();
   const yearStart = new Date(now.getFullYear(), 0, 1);
   const yearEnd = new Date(now.getFullYear(), 11, 31);
   const yearPct = Math.round(((now - yearStart) / (yearEnd - yearStart)) * 100);
   const afgerondPct = data.vves.length === 0 ? 0 : Math.round((afgerond / data.vves.length) * 100);
-  const onTrackDiff = afgerondPct - yearPct; // positive = ahead, negative = behind
+  const onTrackDiff = afgerondPct - yearPct;
 
-  const filtered = (planningPreview||data.vves)
-    .filter(v => v.naam.toLowerCase().includes(search.toLowerCase()))
-    .filter(v => hideAfgerond ? !(v.vergaderd1 && (!v.needs2e || v.vergaderd2)) : true)
-    .slice()
-    .sort((a,b) => {
-      // Gebruik de laatste relevante datum: datumExtra > datum2 > datum1
-      const sortDatum = (v) => v.datumExtra || v.datum2 || v.datum1 || "";
-      const da = sortDatum(a);
-      const db = sortDatum(b);
-      if (!da && !db) return 0;
-      if (!da) return 1;
-      if (!db) return -1;
-      return da.localeCompare(db);
+  // ── FIX 2: Maandfilter toggle ─────────────────────────────────
+  const toggleFilterMaand = (key) => {
+    setGeselecteerdeFilterMaanden(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
     });
+  };
+
+  // ── Bouw de gefilterde + gesorteerde lijst ───────────────────
+  const bronVves = planningPreview || data.vves;
+
+  // Stap 1: sorteer op basis van sortedOrder (of standaard volgorde)
+  let ordered;
+  if (sortedOrder) {
+    const idMap = Object.fromEntries(bronVves.map(v => [v.id, v]));
+    ordered = sortedOrder.map(id => idMap[id]).filter(Boolean);
+    // nieuwe VvE's die nog niet in sortedOrder zitten, achteraan
+    const inOrder = new Set(sortedOrder);
+    const nieuwen = bronVves.filter(v => !inOrder.has(v.id));
+    ordered = [...ordered, ...nieuwen];
+  } else {
+    ordered = [...bronVves];
+  }
+
+  // Stap 2: zoekfilter
+  let filtered = ordered.filter(v => v.naam.toLowerCase().includes(search.toLowerCase()));
+
+  // Stap 3: verberg afgerond (FIX 4)
+  if (hideAfgerond) {
+    filtered = filtered.filter(v => !isAfgerond(v));
+  }
+
+  // Stap 4: maandfilter (FIX 2)
+  if (geselecteerdeFilterMaanden.size > 0) {
+    filtered = filtered.filter(v => {
+      const datums = [v.datum1, v.datum2, v.datumExtra, v.voorkeurVolgendjaar].filter(Boolean);
+      return datums.some(d => geselecteerdeFilterMaanden.has(d.slice(0, 7)));
+    });
+  }
+
+  const toggleSelectie = (id) => setSelectie(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+  const selecteerAlles = () => setSelectie(new Set(filtered.map(v => v.id)));
+  const deselecteerAlles = () => setSelectie(new Set());
+  const verwijderSelectie = async () => {
+    if (!window.confirm(`${selectie.size} VvE${selectie.size > 1 ? "'s" : ""} verwijderen? Dit kan niet ongedaan worden gemaakt.`)) return;
+    await persist({ ...data, vves: data.vves.filter(v => !selectie.has(v.id)) });
+    setSortedOrder(prev => prev ? prev.filter(id => !selectie.has(id)) : null);
+    setSelectie(new Set());
+  };
+
+  // ── FIX 2: maanden met VvE's (voor filter in zijbalk) ────────
+  const year = new Date().getFullYear();
+  const nextYear = year + 1;
+
+  const maandenMetVves2026 = NL_MONTHS.map((m, i) => {
+    const key = `${year}-${String(i+1).padStart(2,"0")}`;
+    const count = bronVves.filter(v => [v.datum1, v.datum2, v.datumExtra].filter(Boolean).some(d => d.startsWith(key))).length;
+    return { key, label: m, count };
+  }).filter(m => m.count > 0);
+
+  const maandenMetVves2027 = NL_MONTHS.map((m, i) => {
+    const key = `${nextYear}-${String(i+1).padStart(2,"0")}`;
+    const count = bronVves.filter(v => (v.voorkeurVolgendjaar || "").startsWith(key)).length;
+    return { key, label: m, count };
+  }).filter(m => m.count > 0);
 
   // ── Screens ──────────────────────────────────────────────────
   if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBack={()=>{ setScreen("login"); setLoginNaam(""); setLoginPw(""); }}/>;
@@ -1164,32 +1171,17 @@ export default function App() {
         <div className="space-y-3">
           <div>
             <label className="text-xs text-zinc-500 block mb-1">Naam</label>
-            <input
-              autoFocus
-              value={loginNaam}
-              onChange={e=>{ setLoginNaam(e.target.value); setLoginError(""); }}
-              onKeyDown={e=>e.key==="Enter"&&handleLogin()}
-              placeholder="Jouw naam"
-              className={`w-full bg-zinc-800 border rounded-lg px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none ${loginError?"border-red-700":"border-zinc-700 focus:border-zinc-600"}`}
-            />
+            <input autoFocus value={loginNaam} onChange={e=>{ setLoginNaam(e.target.value); setLoginError(""); }} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="Jouw naam"
+              className={`w-full bg-zinc-800 border rounded-lg px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none ${loginError?"border-red-700":"border-zinc-700 focus:border-zinc-600"}`}/>
           </div>
           <div>
             <label className="text-xs text-zinc-500 block mb-1">Wachtwoord</label>
-            <input
-              type="password"
-              value={loginPw}
-              onChange={e=>{ setLoginPw(e.target.value); setLoginError(""); }}
-              onKeyDown={e=>e.key==="Enter"&&handleLogin()}
-              placeholder="Wachtwoord"
-              className={`w-full bg-zinc-800 border rounded-lg px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none ${loginError?"border-red-700":"border-zinc-700 focus:border-zinc-600"}`}
-            />
+            <input type="password" value={loginPw} onChange={e=>{ setLoginPw(e.target.value); setLoginError(""); }} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="Wachtwoord"
+              className={`w-full bg-zinc-800 border rounded-lg px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none ${loginError?"border-red-700":"border-zinc-700 focus:border-zinc-600"}`}/>
           </div>
           {loginError && <p className="text-xs text-red-400">{loginError}</p>}
-          <button
-            onClick={handleLogin}
-            disabled={loading}
-            className="w-full py-2.5 bg-zinc-700 hover:bg-zinc-600 disabled:opacity-60 text-zinc-200 text-sm font-medium rounded-lg transition-colors mt-1"
-          >
+          <button onClick={handleLogin} disabled={loading}
+            className="w-full py-2.5 bg-zinc-700 hover:bg-zinc-600 disabled:opacity-60 text-zinc-200 text-sm font-medium rounded-lg transition-colors mt-1">
             {loading ? "Laden…" : "Inloggen →"}
           </button>
         </div>
@@ -1209,11 +1201,7 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={toggleTheme}
-            className={`text-xs px-3 py-1.5 rounded-lg border ${t.border} ${t.btnSec} transition-colors`}
-            title={darkMode ? "Schakel naar licht thema" : "Schakel naar donker thema"}
-          >
+          <button onClick={toggleTheme} className={`text-xs px-3 py-1.5 rounded-lg border ${t.border} ${t.btnSec} transition-colors`}>
             {darkMode ? "☀️ Licht" : "🌙 Donker"}
           </button>
           <button onClick={()=>{ setScreen("login"); setLoginNaam(""); setLoginPw(""); }} className={`text-xs ${t.textDim} hover:${t.textMuted} transition-colors`}>Uitloggen</button>
@@ -1232,9 +1220,9 @@ export default function App() {
 
       <div className={`border-b ${t.border} px-6 flex gap-1 items-center justify-between`}>
         <div className="flex gap-1">
-        {[["vergaderingen","Vergaderingen"],["overzicht","Spreiding"],["vakantie","Vakantie"],["instellingen","Instellingen"]].map(([key,label])=>(
-          <button key={key} onClick={()=>setTab(key)} className={`px-4 py-3 text-sm transition-colors border-b-2 -mb-px ${tab===key ? t.tabActive : t.tabInact}`}>{label}</button>
-        ))}
+          {[["vergaderingen","Vergaderingen"],["overzicht","Spreiding"],["vakantie","Vakantie"],["instellingen","Instellingen"]].map(([key,label])=>(
+            <button key={key} onClick={()=>setTab(key)} className={`px-4 py-3 text-sm transition-colors border-b-2 -mb-px ${tab===key ? t.tabActive : t.tabInact}`}>{label}</button>
+          ))}
         </div>
         <div className="flex gap-2 pb-1">
           <button onClick={exportExcel} className={`text-xs px-3 py-1.5 ${t.btnSec} rounded-lg transition-colors`}>⬇ Excel</button>
@@ -1242,21 +1230,19 @@ export default function App() {
         </div>
       </div>
 
-      <div className={`p-6 max-w-6xl mx-auto`}>
+      <div className="p-6 max-w-6xl mx-auto">
 
         {/* Begroeting */}
         {tab==="vergaderingen" && (
           <div className={`mb-4 px-4 py-3 ${t.bgCard} border ${t.border} rounded-xl flex items-center justify-between`}>
             <div>
-              <p className="text-sm font-medium text-zinc-200">
-                Hoi {beheerder}! 👋
-              </p>
+              <p className="text-sm font-medium text-zinc-200">Hoi {beheerder}! 👋</p>
               <p className="text-xs text-zinc-500 mt-0.5">
                 {aantalUitTeNodigen > 0
                   ? `Je hebt ${aantalUitTeNodigen} uitnodiging${aantalUitTeNodigen > 1 ? "en" : ""} te versturen.`
                   : afgerond === data.vves.length && data.vves.length > 0
                   ? "Alles is afgerond — geweldig werk! 🎉"
-                  : `Je hebt nog ${data.vves.filter(v => !v.vergaderd1).length} open vergaderingen.`}
+                  : `Je hebt nog ${data.vves.filter(v => !isAfgerond(v)).length} open vergaderingen.`}
               </p>
             </div>
             <span className="text-2xl">{aantalUitTeNodigen > 0 ? "📬" : afgerond === data.vves.length && data.vves.length > 0 ? "🏆" : "📋"}</span>
@@ -1267,375 +1253,441 @@ export default function App() {
         {tab==="vergaderingen" && (
           <div className="flex gap-5 items-start">
 
-          {/* Voortgang zijbalk */}
-          {data.vves.length > 0 && (() => {
-            const total = data.vves.length;
-            const pctAfgerond = Math.round((afgerond / total) * 100);
-            const pctUitgenodigd = Math.round((uitgenodigd / total) * 100);
-            const pctNiet = 100 - pctAfgerond - pctUitgenodigd;
-            const R = 40; const C = 2 * Math.PI * R;
-            const dasAfgerond = (pctAfgerond / 100) * C;
-            const dasUitgenodigd = (pctUitgenodigd / 100) * C;
-            const label = pctAfgerond === 100 ? "Alles afgerond! 🎉"
-              : pctAfgerond >= 75 ? "Bijna klaar"
-              : pctAfgerond >= 50 ? "Op de helft"
-              : pctAfgerond >= 25 ? "Goed op weg"
-              : "Net begonnen";
-            return (
-              <div className={`w-52 shrink-0 ${t.bgCard} border ${t.border} rounded-xl p-4 space-y-3 sticky top-4`}>
-                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Voortgang {new Date().getFullYear()}</p>
-                <div className="flex flex-col items-center gap-1">
-                  <svg width="96" height="96" viewBox="0 0 96 96">
-                    <circle cx="48" cy="48" r={R} fill="none" stroke="#27272a" strokeWidth="10"/>
-                    {pctNiet > 0 && (
-                      <circle cx="48" cy="48" r={R} fill="none" stroke="#3f3f46" strokeWidth="10"
-                        strokeDasharray={`${(pctNiet/100)*C} ${C}`}
-                        strokeDashoffset={-(dasAfgerond+dasUitgenodigd)}
-                        transform="rotate(-90 48 48)" strokeLinecap="butt"/>
-                    )}
-                    {pctUitgenodigd > 0 && (
-                      <circle cx="48" cy="48" r={R} fill="none" stroke="#0ea5e9" strokeWidth="10"
-                        strokeDasharray={`${dasUitgenodigd} ${C}`}
-                        strokeDashoffset={-dasAfgerond}
-                        transform="rotate(-90 48 48)" strokeLinecap="butt"/>
-                    )}
-                    {pctAfgerond > 0 && (
-                      <circle cx="48" cy="48" r={R} fill="none" stroke="#10b981" strokeWidth="10"
-                        strokeDasharray={`${dasAfgerond} ${C}`}
-                        strokeDashoffset={0}
-                        transform="rotate(-90 48 48)" strokeLinecap="butt"/>
-                    )}
-                    <text x="48" y="44" textAnchor="middle" fill="#f4f4f5" fontSize="18" fontWeight="700" fontFamily="monospace">{pctAfgerond}%</text>
-                    <text x="48" y="57" textAnchor="middle" fill="#71717a" fontSize="8" fontFamily="sans-serif">afgerond</text>
-                  </svg>
-                  <p className="text-sm font-semibold text-zinc-200 text-center">{label}</p>
-                  <p className="text-[10px] text-zinc-500 text-center">{afgerond} van {total} vergaderingen volledig afgerond</p>
-                </div>
-                <div className="space-y-2 pt-1">
-                  {[
-                    ["Afgerond", afgerond, total, "bg-emerald-500"],
-                    ["Uitgenodigd", uitgenodigd, total, "bg-sky-500"],
-                    ["Niet uitgenodigd", nietUitgenodigd, total, "bg-zinc-600"],
-                  ].map(([lbl, val, tot, barColor]) => (
-                    <div key={lbl}>
-                      <div className="flex justify-between mb-0.5">
-                        <span className="text-[10px] text-zinc-400">{lbl}</span>
-                        <span className="text-[10px] font-mono text-zinc-400">{val} <span className="text-zinc-600">/ {tot}</span></span>
+            {/* Voortgang zijbalk */}
+            {data.vves.length > 0 && (() => {
+              const total = data.vves.length;
+              const pctAfgerond = Math.round((afgerond / total) * 100);
+              const pctUitgenodigd = Math.round((uitgenodigd / total) * 100);
+              const pctNiet = 100 - pctAfgerond - pctUitgenodigd;
+              const R = 40; const C = 2 * Math.PI * R;
+              const dasAfgerond = (pctAfgerond / 100) * C;
+              const dasUitgenodigd = (pctUitgenodigd / 100) * C;
+              const label = pctAfgerond === 100 ? "Alles afgerond! 🎉"
+                : pctAfgerond >= 75 ? "Bijna klaar"
+                : pctAfgerond >= 50 ? "Op de helft"
+                : pctAfgerond >= 25 ? "Goed op weg"
+                : "Net begonnen";
+              return (
+                <div className={`w-52 shrink-0 ${t.bgCard} border ${t.border} rounded-xl p-4 space-y-3 sticky top-4`}>
+                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Voortgang {year}</p>
+                  <div className="flex flex-col items-center gap-1">
+                    <svg width="96" height="96" viewBox="0 0 96 96">
+                      <circle cx="48" cy="48" r={R} fill="none" stroke="#27272a" strokeWidth="10"/>
+                      {pctNiet > 0 && (
+                        <circle cx="48" cy="48" r={R} fill="none" stroke="#3f3f46" strokeWidth="10"
+                          strokeDasharray={`${(pctNiet/100)*C} ${C}`} strokeDashoffset={-(dasAfgerond+dasUitgenodigd)}
+                          transform="rotate(-90 48 48)" strokeLinecap="butt"/>
+                      )}
+                      {pctUitgenodigd > 0 && (
+                        <circle cx="48" cy="48" r={R} fill="none" stroke="#0ea5e9" strokeWidth="10"
+                          strokeDasharray={`${dasUitgenodigd} ${C}`} strokeDashoffset={-dasAfgerond}
+                          transform="rotate(-90 48 48)" strokeLinecap="butt"/>
+                      )}
+                      {pctAfgerond > 0 && (
+                        <circle cx="48" cy="48" r={R} fill="none" stroke="#10b981" strokeWidth="10"
+                          strokeDasharray={`${dasAfgerond} ${C}`} strokeDashoffset={0}
+                          transform="rotate(-90 48 48)" strokeLinecap="butt"/>
+                      )}
+                      <text x="48" y="44" textAnchor="middle" fill="#f4f4f5" fontSize="18" fontWeight="700" fontFamily="monospace">{pctAfgerond}%</text>
+                      <text x="48" y="57" textAnchor="middle" fill="#71717a" fontSize="8" fontFamily="sans-serif">afgerond</text>
+                    </svg>
+                    <p className="text-sm font-semibold text-zinc-200 text-center">{label}</p>
+                    <p className="text-[10px] text-zinc-500 text-center">{afgerond} van {total} vergaderingen volledig afgerond</p>
+                  </div>
+                  <div className="space-y-2 pt-1">
+                    {[
+                      ["Afgerond", afgerond, total, "bg-emerald-500"],
+                      ["Uitgenodigd", uitgenodigd, total, "bg-sky-500"],
+                      ["Niet uitgenodigd", nietUitgenodigd, total, "bg-zinc-600"],
+                    ].map(([lbl, val, tot, barColor]) => (
+                      <div key={lbl}>
+                        <div className="flex justify-between mb-0.5">
+                          <span className="text-[10px] text-zinc-400">{lbl}</span>
+                          <span className="text-[10px] font-mono text-zinc-400">{val} <span className="text-zinc-600">/ {tot}</span></span>
+                        </div>
+                        <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${barColor}`} style={{width:`${tot===0?0:Math.round((val/tot)*100)}%`}}/>
+                        </div>
                       </div>
-                      <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${barColor}`} style={{width:`${tot===0?0:Math.round((val/tot)*100)}%`}}/>
+                    ))}
+                  </div>
+
+                  {/* Countdown naar jaareinde */}
+                  {(() => {
+                    const nu = new Date();
+                    const jaareinde = new Date(nu.getFullYear(), 11, 31);
+                    const dagenOver = Math.ceil((jaareinde - nu) / 86400000);
+                    const opSchema = onTrackDiff >= -5;
+                    return (
+                      <div className="border-t border-zinc-800 pt-3 space-y-1">
+                        <p className="text-[10px] text-zinc-500">
+                          <span className="text-zinc-300 font-medium">Nog {dagenOver} dagen</span> tot eind {nu.getFullYear()}
+                        </p>
+                        <p className={`text-[10px] font-medium ${opSchema ? "text-emerald-400" : "text-amber-400"}`}>
+                          {opSchema ? "✓ Je bent op schema" : "⚠ Je loopt achter op schema"}
+                        </p>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Drukste maand */}
+                  {(() => {
+                    const nu = new Date();
+                    const cnts = {};
+                    data.vves.forEach(v => {
+                      [v.datum1, v.datum2, v.datumExtra].forEach(d => {
+                        if (d && d.startsWith(String(nu.getFullYear()))) {
+                          const m = parseInt(d.slice(5,7)) - 1;
+                          cnts[m] = (cnts[m] || 0) + 1;
+                        }
+                      });
+                    });
+                    const entries = Object.entries(cnts);
+                    if (entries.length === 0) return null;
+                    const [maandIdx, aantal] = entries.sort((a,b) => b[1]-a[1])[0];
+                    return (
+                      <div className="border-t border-zinc-800 pt-3">
+                        <p className="text-[10px] text-zinc-500">
+                          <span className="text-amber-400 font-medium">📅 {NL_MONTHS_FULL[parseInt(maandIdx)]}</span> wordt je drukste maand
+                        </p>
+                        <p className="text-[10px] text-zinc-600">{aantal} vergadering{aantal !== 1 ? "en" : ""} gepland</p>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Week agenda */}
+                  {(() => {
+                    const nu = new Date();
+                    const startWeek = new Date(nu);
+                    startWeek.setDate(nu.getDate() - ((nu.getDay() + 6) % 7));
+                    const eindWeek = new Date(startWeek); eindWeek.setDate(startWeek.getDate() + 6);
+                    const isoStart = startWeek.toISOString().slice(0,10);
+                    const isoEind = eindWeek.toISOString().slice(0,10);
+                    const dezeWeek = data.vves.flatMap(v => {
+                      const items = [];
+                      if (v.datum1 && v.datum1 >= isoStart && v.datum1 <= isoEind) items.push({ naam: v.naam, datum: v.datum1, type: "1e" });
+                      if (v.datum2 && v.datum2 >= isoStart && v.datum2 <= isoEind) items.push({ naam: v.naam, datum: v.datum2, type: "2e" });
+                      if (v.datumExtra && v.datumExtra >= isoStart && v.datumExtra <= isoEind) items.push({ naam: v.naam, datum: v.datumExtra, type: "extra" });
+                      return items;
+                    }).sort((a,b) => a.datum.localeCompare(b.datum));
+                    return (
+                      <div className="border-t border-zinc-800 pt-3 space-y-2">
+                        <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide">Deze week</p>
+                        {dezeWeek.length === 0 ? (
+                          <p className="text-[10px] text-zinc-600">Geen vergaderingen deze week.</p>
+                        ) : (
+                          dezeWeek.map((item, i) => (
+                            <div key={i} className="flex items-start gap-2">
+                              <span className="text-[9px] text-zinc-500 shrink-0 mt-0.5 w-12">{fmtDate(item.datum).slice(0,6)}</span>
+                              <div className="min-w-0">
+                                <p className="text-[10px] text-zinc-300 truncate">{item.naam}</p>
+                                <p className="text-[9px] text-zinc-600">{item.type === "1e" ? "1e vergadering" : item.type === "2e" ? "2e reglementair" : "Extra"}</p>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* ── FIX 2: Maandfilter ───────────────────── */}
+                  {(maandenMetVves2026.length > 0 || maandenMetVves2027.length > 0) && (
+                    <div className="border-t border-zinc-800 pt-3 space-y-2">
+                      <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide">Filter op maand</p>
+
+                      {/* 2026 maanden */}
+                      {maandenMetVves2026.length > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-[9px] text-zinc-600 uppercase tracking-wide">{year}</p>
+                          <div className="flex flex-wrap gap-1">
+                            {maandenMetVves2026.map(({ key, label, count }) => {
+                              const actief = geselecteerdeFilterMaanden.has(key);
+                              return (
+                                <button
+                                  key={key}
+                                  onClick={() => toggleFilterMaand(key)}
+                                  className={`text-[10px] px-2 py-0.5 rounded font-mono transition-all ${
+                                    actief
+                                      ? "bg-sky-700 text-sky-100 border border-sky-600"
+                                      : "bg-zinc-800 text-zinc-400 border border-zinc-700 hover:border-zinc-500"
+                                  }`}
+                                >
+                                  {label} <span className="opacity-60">({count})</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 2027 toggle */}
+                      <div className="space-y-1">
+                        <label className="flex items-center gap-2 cursor-pointer group" onClick={() => {
+                          const next = !filterJaar2027;
+                          setFilterJaar2027(next);
+                          // verwijder 2027 maanden uit filter als we 2027 uitzetten
+                          if (!next) {
+                            setGeselecteerdeFilterMaanden(prev => {
+                              const updated = new Set(prev);
+                              maandenMetVves2027.forEach(m => updated.delete(m.key));
+                              return updated;
+                            });
+                          }
+                        }}>
+                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${filterJaar2027 ? "bg-emerald-600 border-emerald-600" : "border-zinc-600 hover:border-zinc-400"}`}>
+                            {filterJaar2027 && <span className="text-white text-[9px] font-bold">✓</span>}
+                          </div>
+                          <span className="text-[10px] text-zinc-400 group-hover:text-zinc-300 transition-colors">{nextYear} (voorkeursdatums)</span>
+                        </label>
+
+                        {filterJaar2027 && maandenMetVves2027.length > 0 && (
+                          <div className="flex flex-wrap gap-1 pl-1">
+                            {maandenMetVves2027.map(({ key, label, count }) => {
+                              const actief = geselecteerdeFilterMaanden.has(key);
+                              return (
+                                <button
+                                  key={key}
+                                  onClick={() => toggleFilterMaand(key)}
+                                  className={`text-[10px] px-2 py-0.5 rounded font-mono transition-all ${
+                                    actief
+                                      ? "bg-emerald-700 text-emerald-100 border border-emerald-600"
+                                      : "bg-zinc-800 text-zinc-400 border border-zinc-700 hover:border-zinc-500"
+                                  }`}
+                                >
+                                  {label} <span className="opacity-60">({count})</span>
+                                </button>
+                              );
+                            })}
+                            {maandenMetVves2027.length === 0 && (
+                              <p className="text-[10px] text-zinc-600">Nog geen voorkeursdatums ingevuld voor {nextYear}.</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Wis filter knop */}
+                      {geselecteerdeFilterMaanden.size > 0 && (
+                        <button
+                          onClick={() => setGeselecteerdeFilterMaanden(new Set())}
+                          className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors underline"
+                        >
+                          Wis filter ({geselecteerdeFilterMaanden.size} actief)
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                </div>
+              );
+            })()}
+
+            {/* VvE lijst */}
+            <div className="flex-1 space-y-4">
+
+              {/* Notification panel — FIX 3: klikbare naam */}
+              {urgentItems.length > 0 && (
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-2">
+                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">⚡ Actie vereist</p>
+                  {urgentItems.map(item => (
+                    <div key={item.id} className={`flex items-start gap-3 rounded-lg px-3 py-2 text-xs ${
+                      item.type==="overdue" ? "bg-red-950/30 border border-red-900/40 text-red-300" :
+                      item.type==="geen2e"  ? "bg-amber-950/30 border border-amber-900/40 text-amber-300" :
+                      "bg-amber-950/20 border border-amber-900/30 text-amber-300"}`}>
+                      <span className="shrink-0 mt-0.5">
+                        {item.type==="overdue" ? "✉" : item.type==="geen2e" ? "↩" : "⏰"}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        {/* FIX 3: klikbare naam → scroll + open VvE kaart */}
+                        <button
+                          onClick={() => {
+                            setForceOpenId(item.vveId);
+                            // zorg dat de VvE zichtbaar is (verberg afgerond uitzetten indien nodig)
+                            const vve = data.vves.find(v => v.id === item.vveId);
+                            if (vve && isAfgerond(vve) && hideAfgerond) setHideAfgerond(false);
+                            // verwijder maandfilter als VvE erdoor gefilterd wordt
+                            if (geselecteerdeFilterMaanden.size > 0) setGeselecteerdeFilterMaanden(new Set());
+                          }}
+                          className="font-medium underline underline-offset-2 hover:opacity-80 transition-opacity cursor-pointer"
+                        >
+                          {item.naam}
+                        </button>
+                        {item.is2e && <span className="ml-1 opacity-60">(2e reglementaire vergadering)</span>}
+                        {item.isExtra && <span className="ml-1 opacity-60">(extra vergadering)</span>}
+                        <span className="ml-2 opacity-70">
+                          {item.type==="overdue"  ? `— uitnodigingstermijn verlopen, vergadering ${fmtDate(item.datum)}` :
+                           item.type==="geen2e"   ? `— 1e vergadering voorbij (${fmtDate(item.datum)}), geen 2e gepland` :
+                           `— uitnodigen vóór ${fmtDate(item.deadline)} (vergadering ${fmtDate(item.datum)})`}
+                        </span>
                       </div>
                     </div>
                   ))}
                 </div>
+              )}
 
-                {/* Countdown naar jaareinde */}
-                {(() => {
-                  const nu = new Date();
-                  const jaareinde = new Date(nu.getFullYear(), 11, 31);
-                  const dagenOver = Math.ceil((jaareinde - nu) / 86400000);
-                  const opSchema = onTrackDiff >= -5;
-                  return (
-                    <div className="border-t border-zinc-800 pt-3 space-y-1">
-                      <p className="text-[10px] text-zinc-500">
-                        <span className="text-zinc-300 font-medium">Nog {dagenOver} dagen</span> tot eind {nu.getFullYear()}
-                      </p>
-                      <p className={`text-[10px] font-medium ${opSchema ? "text-emerald-400" : "text-amber-400"}`}>
-                        {opSchema ? "✓ Je bent op schema" : "⚠ Je loopt achter op schema"}
+              {/* Planning preview banner */}
+              {planningPreview && (
+                <div className="bg-sky-950/40 border border-sky-800/50 rounded-xl p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold text-sky-300">Voorgestelde planning</p>
+                      <p className="text-xs text-sky-500 mt-0.5">
+                        {planningPreview.filter(v=>v.datum1).length - data.vves.filter(v=>v.datum1).length} VvE's automatisch ingepland. Controleer de datums en bevestig.
                       </p>
                     </div>
-                  );
-                })()}
-
-                {/* Drukste maand */}
-                {(() => {
-                  const year = new Date().getFullYear();
-                  const counts = {};
-                  data.vves.forEach(v => {
-                    [v.datum1, v.datum2, v.datumExtra].forEach(d => {
-                      if (d && d.startsWith(String(year))) {
-                        const m = parseInt(d.slice(5,7)) - 1;
-                        counts[m] = (counts[m] || 0) + 1;
-                      }
-                    });
-                  });
-                  const entries = Object.entries(counts);
-                  if (entries.length === 0) return null;
-                  const [maandIdx, aantal] = entries.sort((a,b) => b[1]-a[1])[0];
-                  const maandNaam = NL_MONTHS_FULL[parseInt(maandIdx)];
-                  return (
-                    <div className="border-t border-zinc-800 pt-3">
-                      <p className="text-[10px] text-zinc-500">
-                        <span className="text-amber-400 font-medium">📅 {maandNaam}</span> wordt je drukste maand
-                      </p>
-                      <p className="text-[10px] text-zinc-600">{aantal} vergadering{aantal !== 1 ? "en" : ""} gepland</p>
+                    <div className="flex gap-2 shrink-0">
+                      <button onClick={handleConfirmPlanning} className="px-4 py-1.5 bg-sky-700 hover:bg-sky-600 text-white text-xs rounded-lg transition-colors font-medium">Bevestigen</button>
+                      <button onClick={handleRejectPlanning} className="px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs rounded-lg transition-colors">Annuleren</button>
                     </div>
-                  );
-                })()}
+                  </div>
+                  <div className="pt-1">
+                    <p className="text-[10px] text-sky-600 mb-1.5 uppercase tracking-wide">Spreiding na planning</p>
+                    <MonthBar counts={spreadScore(planningPreview)} vakanties={data.vakanties}/>
+                  </div>
+                </div>
+              )}
 
-                {/* Week agenda */}
-                {(() => {
-                  const nu = new Date();
-                  const startWeek = new Date(nu);
-                  startWeek.setDate(nu.getDate() - ((nu.getDay() + 6) % 7)); // maandag
-                  const eindWeek = new Date(startWeek);
-                  eindWeek.setDate(startWeek.getDate() + 6);
-                  const isoStart = startWeek.toISOString().slice(0,10);
-                  const isoEind = eindWeek.toISOString().slice(0,10);
-                  const dezeWeek = data.vves.flatMap(v => {
-                    const items = [];
-                    if (v.datum1 && v.datum1 >= isoStart && v.datum1 <= isoEind)
-                      items.push({ naam: v.naam, datum: v.datum1, type: "1e" });
-                    if (v.datum2 && v.datum2 >= isoStart && v.datum2 <= isoEind)
-                      items.push({ naam: v.naam, datum: v.datum2, type: "2e" });
-                    if (v.datumExtra && v.datumExtra >= isoStart && v.datumExtra <= isoEind)
-                      items.push({ naam: v.naam, datum: v.datumExtra, type: "extra" });
-                    return items;
-                  }).sort((a,b) => a.datum.localeCompare(b.datum));
-                  return (
-                    <div className="border-t border-zinc-800 pt-3 space-y-2">
-                      <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide">Deze week</p>
-                      {dezeWeek.length === 0 ? (
-                        <p className="text-[10px] text-zinc-600">Geen vergaderingen deze week.</p>
-                      ) : (
-                        dezeWeek.map((item, i) => (
-                          <div key={i} className="flex items-start gap-2">
-                            <span className="text-[9px] text-zinc-500 shrink-0 mt-0.5 w-12">{fmtDate(item.datum).slice(0,6)}</span>
-                            <div className="min-w-0">
-                              <p className="text-[10px] text-zinc-300 truncate">{item.naam}</p>
-                              <p className="text-[9px] text-zinc-600">{item.type === "1e" ? "1e vergadering" : item.type === "2e" ? "2e reglementair" : "Extra"}</p>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  );
-                })()}
-
+              <div className="flex gap-2 flex-wrap">
+                <input value={newVveName} onChange={e=>setNewVveName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addVve()} placeholder="VvE naam toevoegen…"
+                  className="flex-1 min-w-48 bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-600"/>
+                <button onClick={addVve} className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm rounded-lg transition-colors">+</button>
+                <button onClick={()=>setShowImport(i=>!i)} className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-sm rounded-lg transition-colors whitespace-nowrap">Bulk import</button>
+                {ongepland > 0 && !planningPreview && (
+                  <button onClick={handleGeneratePlanning} className="px-4 py-2 bg-sky-900/60 hover:bg-sky-800/60 border border-sky-800/60 text-sky-300 text-sm rounded-lg transition-colors whitespace-nowrap">
+                    ✦ Stel planning voor ({ongepland} ongepland)
+                  </button>
+                )}
+                {/* FIX 1: Sorteerknop */}
+                <button
+                  onClick={handleSorteer}
+                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 text-sm rounded-lg transition-colors whitespace-nowrap"
+                  title="Sorteer VvE's op vergaderdatum. VvE's met voorkeursdatum volgend jaar komen onderaan."
+                >
+                  ↕ Sorteer
+                </button>
               </div>
-            );
-          })()}
 
-          {/* VvE lijst */}
-          <div className="flex-1 space-y-4">
+              {showImport && (
+                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-3">
+                  <p className="text-xs text-zinc-500">Plak VvE-namen, één per regel. Datum en tijd worden automatisch herkend als je ze tab-gescheiden aanlevert (naam ⇥ d-m-jjjj ⇥ tijd).</p>
+                  <textarea rows={6} value={importText} onChange={e=>setImportText(e.target.value)}
+                    placeholder={"Zwolsestraat 253\t16-4-2026\t15.00\nTak van Poortvlietstraat 9 AB\t1-6-2026\t15:00 uur\n..."}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-300 placeholder-zinc-600 focus:outline-none resize-none font-mono"/>
+                  <div className="flex gap-2">
+                    <button onClick={handleImport} className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm rounded-lg transition-colors">Importeer</button>
+                    <button onClick={()=>setShowImport(false)} className="text-sm text-zinc-500 hover:text-zinc-400">Annuleer</button>
+                  </div>
+                </div>
+              )}
 
-            {/* Notification panel */}
-            {urgentItems.length > 0 && (
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-2">
-                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">⚡ Actie vereist</p>
-                {urgentItems.map(item => (
-                  <div key={item.id} className={`flex items-start gap-3 rounded-lg px-3 py-2 text-xs ${
-                    item.type==="overdue" ? "bg-red-950/30 border border-red-900/40 text-red-300" :
-                    item.type==="geen2e"  ? "bg-amber-950/30 border border-amber-900/40 text-amber-300" :
-                    "bg-amber-950/20 border border-amber-900/30 text-amber-300"}`}>
-                    <span className="shrink-0 mt-0.5">
-                      {item.type==="overdue" ? "✉" : item.type==="geen2e" ? "↩" : "⏰"}
+              {/* Search + hide toggle */}
+              <div className="flex gap-3 items-center flex-wrap">
+                {data.vves.length>5 && (
+                  <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Zoek VvE…"
+                    className="flex-1 min-w-40 bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2 text-sm text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-zinc-700"/>
+                )}
+                <label className="flex items-center gap-2 cursor-pointer shrink-0 group" onClick={()=>setHideAfgerond(h=>!h)}>
+                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${hideAfgerond?"bg-emerald-600 border-emerald-600":"border-zinc-600 hover:border-zinc-400"}`}>
+                    {hideAfgerond && <span className="text-white text-xs font-bold">✓</span>}
+                  </div>
+                  <span className="text-xs text-zinc-400 group-hover:text-zinc-300 transition-colors whitespace-nowrap">
+                    Verberg afgerond {afgerond > 0 && <span className="text-zinc-600">({afgerond})</span>}
+                  </span>
+                </label>
+              </div>
+
+              {/* Selectie toolbar */}
+              {filtered.length > 0 && (
+                <div className="flex items-center gap-3 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg">
+                  <label className="flex items-center gap-2 cursor-pointer group" onClick={()=> selectie.size === filtered.length ? deselecteerAlles() : selecteerAlles()}>
+                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${selectie.size === filtered.length && filtered.length > 0 ? "bg-zinc-400 border-zinc-400" : selectie.size > 0 ? "bg-zinc-600 border-zinc-600" : "border-zinc-600 hover:border-zinc-400"}`}>
+                      {selectie.size === filtered.length && filtered.length > 0 && <span className="text-zinc-900 text-xs font-bold">✓</span>}
+                      {selectie.size > 0 && selectie.size < filtered.length && <span className="text-zinc-300 text-xs font-bold">−</span>}
+                    </div>
+                    <span className="text-xs text-zinc-400 group-hover:text-zinc-300 transition-colors">
+                      {selectie.size === 0 ? "Selecteer alles" : selectie.size === filtered.length ? "Alles geselecteerd" : `${selectie.size} geselecteerd`}
                     </span>
+                  </label>
+                  {selectie.size > 0 && (
+                    <button onClick={verwijderSelectie} className="ml-auto px-3 py-1 bg-red-900/50 hover:bg-red-800/60 border border-red-800/50 text-red-300 text-xs rounded-lg transition-colors">
+                      Verwijder {selectie.size} VvE{selectie.size > 1 ? "'s" : ""}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {loading && <p className="text-sm text-zinc-500">Laden…</p>}
+              {!loading && filtered.length===0 && (
+                <p className="text-sm text-zinc-600 text-center py-8">
+                  {data.vves.length===0 ? "Nog geen VvE's. Voeg er een toe."
+                    : hideAfgerond && afgerond===data.vves.length ? "Alle VvE's zijn afgerond. 🎉"
+                    : geselecteerdeFilterMaanden.size > 0 ? "Geen VvE's gevonden voor de geselecteerde maanden."
+                    : "Geen resultaten."}
+                </p>
+              )}
+
+              <div className="space-y-2">
+                {filtered.map(vve=>(
+                  <div key={vve.id} className="flex items-center gap-2">
+                    <div
+                      onClick={()=>toggleSelectie(vve.id)}
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all cursor-pointer shrink-0 ${selectie.has(vve.id)?"bg-zinc-400 border-zinc-400":"border-zinc-700 hover:border-zinc-500"}`}
+                    >
+                      {selectie.has(vve.id) && <span className="text-zinc-900 text-xs font-bold">✓</span>}
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <span className="font-medium">{item.naam}</span>
-                      {item.is2e && <span className="ml-1 opacity-60">(2e reglementaire vergadering)</span>}
-                      {item.isExtra && <span className="ml-1 opacity-60">(extra vergadering)</span>}
-                      <span className="ml-2 opacity-70">
-                        {item.type==="overdue"  ? `— uitnodigingstermijn verlopen, vergadering ${fmtDate(item.datum)}` :
-                         item.type==="geen2e"   ? `— 1e vergadering voorbij (${fmtDate(item.datum)}), geen 2e gepland` :
-                         `— uitnodigen vóór ${fmtDate(item.deadline)} (vergadering ${fmtDate(item.datum)})`}
-                      </span>
+                      <VveRow
+                        vve={vve}
+                        vakanties={data.vakanties}
+                        onUpdate={planningPreview ? (u) => setPlanningPreview(prev => prev.map(v=>v.id===u.id?u:v)) : updateVve}
+                        onDelete={planningPreview ? ()=>{} : deleteVve}
+                        onAdd2nd={planningPreview ? ()=>{} : add2nd}
+                        forceOpen={forceOpenId === vve.id}
+                        onForceOpenHandled={() => setForceOpenId(null)}
+                      />
                     </div>
                   </div>
                 ))}
               </div>
-            )}
-
-            {/* Planning preview banner */}
-            {planningPreview && (
-              <div className="bg-sky-950/40 border border-sky-800/50 rounded-xl p-4 space-y-3">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-sky-300">Voorgestelde planning</p>
-                    <p className="text-xs text-sky-500 mt-0.5">
-                      {planningPreview.filter(v=>v.datum1).length - data.vves.filter(v=>v.datum1).length} VvE's automatisch ingepland. Controleer de datums en bevestig.
-                    </p>
-                  </div>
-                  <div className="flex gap-2 shrink-0">
-                    <button onClick={handleConfirmPlanning} className="px-4 py-1.5 bg-sky-700 hover:bg-sky-600 text-white text-xs rounded-lg transition-colors font-medium">Bevestigen</button>
-                    <button onClick={handleRejectPlanning} className="px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs rounded-lg transition-colors">Annuleren</button>
-                  </div>
-                </div>
-                <div className="pt-1">
-                  <p className="text-[10px] text-sky-600 mb-1.5 uppercase tracking-wide">Spreiding na planning</p>
-                  <MonthBar counts={spreadScore(planningPreview)} vakanties={data.vakanties}/>
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-2 flex-wrap">
-              <input value={newVveName} onChange={e=>setNewVveName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addVve()} placeholder="VvE naam toevoegen…" className="flex-1 min-w-48 bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-600"/>
-              <button onClick={addVve} className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm rounded-lg transition-colors">+</button>
-              <button onClick={()=>setShowImport(i=>!i)} className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-sm rounded-lg transition-colors whitespace-nowrap">Bulk import</button>
-              {ongepland > 0 && !planningPreview && (
-                <button onClick={handleGeneratePlanning} className="px-4 py-2 bg-sky-900/60 hover:bg-sky-800/60 border border-sky-800/60 text-sky-300 text-sm rounded-lg transition-colors whitespace-nowrap">
-                  ✦ Stel planning voor ({ongepland} ongepland)
-                </button>
-              )}
             </div>
-
-            {showImport && (
-              <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-3">
-                <p className="text-xs text-zinc-500">Plak VvE-namen, één per regel. Datum en tijd worden automatisch herkend als je ze tab-gescheiden aanlevert (naam ⇥ d-m-jjjj ⇥ tijd).</p>
-                <textarea rows={6} value={importText} onChange={e=>setImportText(e.target.value)} placeholder={"Zwolsestraat 253\t16-4-2026\t15.00\nTak van Poortvlietstraat 9 AB\t1-6-2026\t15:00 uur\n..."} className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-300 placeholder-zinc-600 focus:outline-none resize-none font-mono"/>
-                <div className="flex gap-2">
-                  <button onClick={handleImport} className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm rounded-lg transition-colors">Importeer</button>
-                  <button onClick={()=>setShowImport(false)} className="text-sm text-zinc-500 hover:text-zinc-400">Annuleer</button>
-                </div>
-              </div>
-            )}
-
-            {/* Search + hide toggle */}
-            {/* Search + hide toggle + selecteer alles */}
-            <div className="flex gap-3 items-center flex-wrap">
-              {data.vves.length>5 && <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Zoek VvE…" className="flex-1 min-w-40 bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2 text-sm text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-zinc-700"/>}
-              <label className="flex items-center gap-2 cursor-pointer shrink-0 group" onClick={()=>setHideAfgerond(h=>!h)}>
-                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${hideAfgerond?"bg-emerald-600 border-emerald-600":"border-zinc-600 hover:border-zinc-400"}`}>
-                  {hideAfgerond && <span className="text-white text-xs font-bold">✓</span>}
-                </div>
-                <span className="text-xs text-zinc-400 group-hover:text-zinc-300 transition-colors whitespace-nowrap">
-                  Verberg afgerond {afgerond > 0 && <span className="text-zinc-600">({afgerond})</span>}
-                </span>
-              </label>
-            </div>
-
-            {/* Selectie toolbar */}
-            {filtered.length > 0 && (
-              <div className="flex items-center gap-3 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg">
-                <label className="flex items-center gap-2 cursor-pointer group" onClick={()=> selectie.size === filtered.length ? deselecteerAlles() : selecteerAlles()}>
-                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${selectie.size === filtered.length && filtered.length > 0 ? "bg-zinc-400 border-zinc-400" : selectie.size > 0 ? "bg-zinc-600 border-zinc-600" : "border-zinc-600 hover:border-zinc-400"}`}>
-                    {selectie.size === filtered.length && filtered.length > 0 && <span className="text-zinc-900 text-xs font-bold">✓</span>}
-                    {selectie.size > 0 && selectie.size < filtered.length && <span className="text-zinc-300 text-xs font-bold">−</span>}
-                  </div>
-                  <span className="text-xs text-zinc-400 group-hover:text-zinc-300 transition-colors">
-                    {selectie.size === 0 ? "Selecteer alles" : selectie.size === filtered.length ? "Alles geselecteerd" : `${selectie.size} geselecteerd`}
-                  </span>
-                </label>
-                {selectie.size > 0 && (
-                  <button onClick={verwijderSelectie} className="ml-auto px-3 py-1 bg-red-900/50 hover:bg-red-800/60 border border-red-800/50 text-red-300 text-xs rounded-lg transition-colors">
-                    Verwijder {selectie.size} VvE{selectie.size > 1 ? "'s" : ""}
-                  </button>
-                )}
-              </div>
-            )}
-
-            {loading && <p className="text-sm text-zinc-500">Laden…</p>}
-            {!loading && filtered.length===0 && (
-              <p className="text-sm text-zinc-600 text-center py-8">
-                {data.vves.length===0 ? "Nog geen VvE's. Voeg er een toe." : hideAfgerond && afgerond===data.vves.length ? "Alle VvE's zijn afgerond. 🎉" : "Geen resultaten."}
-              </p>
-            )}
-            <div className="space-y-2">
-              {filtered.map(vve=>(
-                <div key={vve.id} className="flex items-center gap-2">
-                  <div
-                    onClick={()=>toggleSelectie(vve.id)}
-                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all cursor-pointer shrink-0 ${selectie.has(vve.id)?"bg-zinc-400 border-zinc-400":"border-zinc-700 hover:border-zinc-500"}`}
-                  >
-                    {selectie.has(vve.id) && <span className="text-zinc-900 text-xs font-bold">✓</span>}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <VveRow
-                      vve={vve}
-                      vakanties={data.vakanties}
-                      onUpdate={planningPreview ? (u) => setPlanningPreview(prev => prev.map(v=>v.id===u.id?u:v)) : updateVve}
-                      onDelete={planningPreview ? ()=>{} : deleteVve}
-                      onAdd2nd={planningPreview ? ()=>{} : add2nd}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
           </div>
         )}
 
         {/* ── SPREIDING ── */}
         {tab==="overzicht" && (
           <div className="space-y-6">
-
-            {/* Progress scorecard */}
             {data.vves.length > 0 && (() => {
               const total = data.vves.length;
               const pctAfgerond = Math.round((afgerond / total) * 100);
               const pctUitgenodigd = Math.round((uitgenodigd / total) * 100);
               const pctNiet = 100 - pctAfgerond - pctUitgenodigd;
-
-              // SVG donut
               const R = 54; const C = 2 * Math.PI * R;
               const dasAfgerond = (pctAfgerond / 100) * C;
               const dasUitgenodigd = (pctUitgenodigd / 100) * C;
-              const offsetAfgerond = 0;
-              const offsetUitgenodigd = dasAfgerond;
-              const offsetNiet = dasAfgerond + dasUitgenodigd;
-
-              const label = pctAfgerond === 100 ? "Alles afgerond! 🎉"
-                : pctAfgerond >= 75 ? "Bijna klaar"
-                : pctAfgerond >= 50 ? "Op de helft"
-                : pctAfgerond >= 25 ? "Goed op weg"
-                : "Net begonnen";
-
+              const label = pctAfgerond === 100 ? "Alles afgerond! 🎉" : pctAfgerond >= 75 ? "Bijna klaar" : pctAfgerond >= 50 ? "Op de helft" : pctAfgerond >= 25 ? "Goed op weg" : "Net begonnen";
               return (
                 <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-                  <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-6">Voortgang {new Date().getFullYear()}</h2>
+                  <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-6">Voortgang {year}</h2>
                   <div className="flex items-center gap-8">
-                    {/* Donut */}
                     <div className="relative shrink-0">
                       <svg width="140" height="140" viewBox="0 0 140 140">
-                        {/* Background ring */}
                         <circle cx="70" cy="70" r={R} fill="none" stroke="#27272a" strokeWidth="14"/>
-                        {/* Niet uitgenodigd — render first (bottom layer) */}
-                        {pctNiet > 0 && (
-                          <circle cx="70" cy="70" r={R} fill="none" stroke="#3f3f46" strokeWidth="14"
-                            strokeDasharray={`${(pctNiet/100)*C} ${C}`}
-                            strokeDashoffset={-offsetNiet}
-                            transform="rotate(-90 70 70)" strokeLinecap="butt"/>
-                        )}
-                        {/* Uitgenodigd */}
-                        {pctUitgenodigd > 0 && (
-                          <circle cx="70" cy="70" r={R} fill="none" stroke="#0ea5e9" strokeWidth="14"
-                            strokeDasharray={`${dasUitgenodigd} ${C}`}
-                            strokeDashoffset={-offsetUitgenodigd}
-                            transform="rotate(-90 70 70)" strokeLinecap="butt"/>
-                        )}
-                        {/* Afgerond — on top */}
-                        {pctAfgerond > 0 && (
-                          <circle cx="70" cy="70" r={R} fill="none" stroke="#10b981" strokeWidth="14"
-                            strokeDasharray={`${dasAfgerond} ${C}`}
-                            strokeDashoffset={0}
-                            transform="rotate(-90 70 70)" strokeLinecap="butt"/>
-                        )}
-                        {/* Centre text */}
+                        {pctNiet > 0 && <circle cx="70" cy="70" r={R} fill="none" stroke="#3f3f46" strokeWidth="14" strokeDasharray={`${(pctNiet/100)*C} ${C}`} strokeDashoffset={-(dasAfgerond+dasUitgenodigd)} transform="rotate(-90 70 70)" strokeLinecap="butt"/>}
+                        {pctUitgenodigd > 0 && <circle cx="70" cy="70" r={R} fill="none" stroke="#0ea5e9" strokeWidth="14" strokeDasharray={`${dasUitgenodigd} ${C}`} strokeDashoffset={-dasAfgerond} transform="rotate(-90 70 70)" strokeLinecap="butt"/>}
+                        {pctAfgerond > 0 && <circle cx="70" cy="70" r={R} fill="none" stroke="#10b981" strokeWidth="14" strokeDasharray={`${dasAfgerond} ${C}`} strokeDashoffset={0} transform="rotate(-90 70 70)" strokeLinecap="butt"/>}
                         <text x="70" y="65" textAnchor="middle" fill="#f4f4f5" fontSize="22" fontWeight="700" fontFamily="monospace">{pctAfgerond}%</text>
                         <text x="70" y="82" textAnchor="middle" fill="#71717a" fontSize="9" fontFamily="sans-serif">afgerond</text>
                       </svg>
                     </div>
-
-                    {/* Stats */}
                     <div className="flex-1 space-y-4">
                       <div>
                         <p className="text-base font-semibold text-zinc-200">{label}</p>
                         <p className="text-xs text-zinc-500 mt-0.5">{afgerond} van {total} vergaderingen volledig afgerond</p>
                       </div>
                       <div className="space-y-2.5">
-                        {[
-                          ["Afgerond", afgerond, total, "#10b981", "bg-emerald-500"],
-                          ["Uitgenodigd", uitgenodigd, total, "#0ea5e9", "bg-sky-500"],
-                          ["Niet uitgenodigd", nietUitgenodigd, total, "#52525b", "bg-zinc-600"],
-                        ].map(([lbl, val, tot, , barColor]) => (
+                        {[["Afgerond",afgerond,total,"bg-emerald-500"],["Uitgenodigd",uitgenodigd,total,"bg-sky-500"],["Niet uitgenodigd",nietUitgenodigd,total,"bg-zinc-600"]].map(([lbl,val,tot,,barColor])=>(
                           <div key={lbl}>
-                            <div className="flex justify-between mb-1">
-                              <span className="text-xs text-zinc-400">{lbl}</span>
-                              <span className="text-xs font-mono text-zinc-400">{val} <span className="text-zinc-600">/ {tot}</span></span>
-                            </div>
-                            <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                              <div className={`h-full rounded-full transition-all duration-700 ${barColor}`} style={{width:`${tot===0?0:Math.round((val/tot)*100)}%`}}/>
-                            </div>
+                            <div className="flex justify-between mb-1"><span className="text-xs text-zinc-400">{lbl}</span><span className="text-xs font-mono text-zinc-400">{val} <span className="text-zinc-600">/ {tot}</span></span></div>
+                            <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden"><div className={`h-full rounded-full transition-all duration-700 ${barColor}`} style={{width:`${tot===0?0:Math.round((val/tot)*100)}%`}}/></div>
                           </div>
                         ))}
                       </div>
@@ -1644,10 +1696,8 @@ export default function App() {
                 </div>
               );
             })()}
-
-            {/* Month chart */}
             <div>
-              <h2 className="text-sm font-semibold text-zinc-300 mb-1">Vergaderingen per maand — {new Date().getFullYear()}</h2>
+              <h2 className="text-sm font-semibold text-zinc-300 mb-1">Vergaderingen per maand — {year}</h2>
               <p className="text-xs text-zinc-600 mb-4">Geel = vakantieperiode &nbsp;·&nbsp; Groen ≤4 &nbsp;·&nbsp; Oranje 5–7 &nbsp;·&nbsp; Rood ≥8</p>
               <MonthBar counts={counts} vakanties={data.vakanties}/>
             </div>
@@ -1661,7 +1711,6 @@ export default function App() {
             )}
             <div className="space-y-3">
               {NL_MONTHS_FULL.map((m,i)=>{
-                const year=new Date().getFullYear();
                 const key=`${year}-${String(i+1).padStart(2,"0")}`;
                 const vves=data.vves.filter(v=>monthKey(v.datum1)===key||monthKey(v.datum2)===key);
                 if(vves.length===0) return null;
@@ -1731,16 +1780,11 @@ export default function App() {
               <div className="mt-3 flex flex-wrap gap-1">
                 {[1,2,3,4,5,6,0].map((dow,i) => {
                   const labels=["Ma","Di","Wo","Do","Vr","Za","Zo"];
-                  return werkdagen[dow] ? (
-                    <span key={dow} className="text-[10px] bg-zinc-700 text-zinc-300 px-2 py-0.5 rounded font-mono">{labels[i]}</span>
-                  ) : null;
+                  return werkdagen[dow] ? <span key={dow} className="text-[10px] bg-zinc-700 text-zinc-300 px-2 py-0.5 rounded font-mono">{labels[i]}</span> : null;
                 })}
-                {[1,2,3,4,5,6,0].filter(dow=>werkdagen[dow]).length===0 && (
-                  <span className="text-xs text-red-400">⚠ Geen werkdagen geselecteerd — auto-planning werkt niet.</span>
-                )}
+                {[1,2,3,4,5,6,0].filter(dow=>werkdagen[dow]).length===0 && <span className="text-xs text-red-400">⚠ Geen werkdagen geselecteerd — auto-planning werkt niet.</span>}
               </div>
             </div>
-
             <div className="border-t border-zinc-800 pt-6">
               <h2 className="text-sm font-semibold text-zinc-300 mb-1">Auto-planning</h2>
               <p className="text-xs text-zinc-500 mb-4">Verdeelt alle ongeplande VvE's gelijkmatig over het jaar. Slaat vakantieperiodes en niet-werkdagen over. Je kunt het voorstel bekijken en aanpassen vóór je bevestigt.</p>
