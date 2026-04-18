@@ -127,7 +127,10 @@ function fmtDate(iso) {
   return `${d.getDate()} ${NL_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 function addDays(iso, n) {
-  const d = new Date(iso+"T00:00:00"); d.setDate(d.getDate()+n);
+  if (!iso) return "";
+  const d = new Date(iso+"T00:00:00");
+  if (isNaN(d.getTime())) return "";
+  d.setDate(d.getDate()+n);
   return d.toISOString().slice(0,10);
 }
 function today() { return new Date().toISOString().slice(0,10); }
