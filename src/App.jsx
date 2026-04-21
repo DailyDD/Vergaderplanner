@@ -7,52 +7,60 @@ const NL_MONTHS_FULL = ["Januari","Februari","Maart","April","Mei","Juni","Juli"
 const NL_DAYS = ["Zo","Ma","Di","Wo","Do","Vr","Za"];
 const WORK_DAYS_DEFAULT = [false, true, true, true, true, true, false];
 
-// ── Accounts ─────────────────────────────────────────────────────
-const ACCOUNTS = [
-  { naam: "Jeffrey",   wachtwoord: "kp4mR9",    rol: "beheerder" },
-  { naam: "Daley",     wachtwoord: "xT7nL2",    rol: "beheerder" },
-  { naam: "Jan-Jaap",  wachtwoord: "bW3qZ8",    rol: "beheerder" },
-  { naam: "Tahir",     wachtwoord: "mF6vD1",    rol: "beheerder" },
-  { naam: "Diana",     wachtwoord: "yH9cJ5",    rol: "beheerder" },
-  { naam: "Fred",      wachtwoord: "rS2pK7",    rol: "beheerder" },
-  { naam: "Laura",     wachtwoord: "nG8tX3",    rol: "beheerder" },
-  { naam: "Isaac",     wachtwoord: "wQ5hM4",    rol: "beheerder" },
-  { naam: "Kelvin",    wachtwoord: "dB1fN6",    rol: "beheerder" },
-  { naam: "Martijn",   wachtwoord: "zU7wR9",    rol: "beheerder" },
-  { naam: "Bryan",     wachtwoord: "cE4sV2",    rol: "beheerder" },
-  { naam: "Alwart",    wachtwoord: "jL3kP8",    rol: "beheerder" },
-  { naam: "Radjesh",   wachtwoord: "oT6mY1",    rol: "beheerder" },
-  { naam: "Rob",       wachtwoord: "hA9nQ5",    rol: "beheerder" },
-  { naam: "Jaap",      wachtwoord: "gX2bF7",    rol: "beheerder" },
-  { naam: "Vinny",     wachtwoord: "uD5cW3",    rol: "beheerder" },
-  { naam: "Brian",     wachtwoord: "vJ8zH4",    rol: "beheerder" },
-  { naam: "Pascalle",  wachtwoord: "iK1rS6",    rol: "beheerder" },
-  { naam: "Joerie",    wachtwoord: "lM4tB9",    rol: "beheerder" },
-  { naam: "Jasper",    wachtwoord: "eN7xC2",    rol: "beheerder" },
-  { naam: "Frank",     wachtwoord: "pR3dU8",    rol: "beheerder" },
-  { naam: "Janette",   wachtwoord: "qW6yA5",    rol: "beheerder" },
-  { naam: "Admin",     wachtwoord: "totaal2025", rol: "admin"     },
-];
-
-function findAccount(naam, wachtwoord) {
-  return ACCOUNTS.find(a =>
-    a.naam.toLowerCase() === naam.trim().toLowerCase() &&
-    a.wachtwoord === wachtwoord.trim()
-  );
-}
 
 // ── Supabase client ──────────────────────────────────────────────
 const SUPABASE_URL = "https://nuipelnbbhvnotxpyxdj.supabase.co";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51aXBlbG5iYmh2bm90eHB5eGRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzMjk3MjcsImV4cCI6MjA5MDkwNTcyN30.Y9CoxrTN3X49miiRjp3ieZmamcbKp_y9YK9RLKIc68s";
 
+// Houdt het huidige access token bij na inloggen
+let _accessToken = null;
+
+function getAuthHeaders() {
+  return {
+    "apikey": SUPABASE_ANON,
+    "Authorization": `Bearer ${_accessToken || SUPABASE_ANON}`,
+    "Content-Type": "application/json",
+    "Prefer": "return=representation",
+  };
+}
+
+// ── Supabase Auth ────────────────────────────────────────────────
+async function signIn(email, wachtwoord) {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    method: "POST",
+    headers: { "apikey": SUPABASE_ANON, "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password: wachtwoord }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error_description || data.msg || "Inloggen mislukt");
+  _accessToken = data.access_token;
+  return data;
+}
+
+async function signOut() {
+  try {
+    await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
+      method: "POST",
+      headers: { "apikey": SUPABASE_ANON, "Authorization": `Bearer ${_accessToken}` },
+    });
+  } catch(e) { console.error("signOut", e); }
+  _accessToken = null;
+}
+
+async function getUserRole() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/user_roles?select=naam,rol`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error("Rol ophalen mislukt");
+  const rows = await res.json();
+  return rows[0] || null;
+}
+
 async function sbFetch(path, options = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...options,
     headers: {
-      "apikey": SUPABASE_ANON,
-      "Authorization": `Bearer ${SUPABASE_ANON}`,
-      "Content-Type": "application/json",
-      "Prefer": "return=representation",
+      ...getAuthHeaders(),
       ...(options.headers || {}),
     },
   });
@@ -116,9 +124,9 @@ async function loadAllData(beheerderList) {
   } catch(e) { console.error("loadAllData", e); return {}; }
 }
 
-function getBeheerderList() {
-  return ACCOUNTS.filter(a => a.rol === "beheerder").map(a => a.naam);
-}
+// Beheerderlijst komt uit Supabase user_roles
+const BEHEERDER_NAMEN = ["Jeffrey","Daley","Jan-Jaap","Tahir","Diana","Fred","Laura","Isaac","Kelvin","Martijn","Bryan","Alwart","Radjesh","Rob","Jaap","Vinny","Brian","Pascalle","Joerie","Jasper","Frank","Janette"];
+function getBeheerderList() { return BEHEERDER_NAMEN; }
 
 // ── Date helpers ─────────────────────────────────────────────────
 function fmtDate(iso) {
@@ -602,121 +610,6 @@ function WerkdagenSelector({ werkdagen, onChange }) {
   );
 }
 
-// ── Heatmap Kalender ─────────────────────────────────────────────
-function HeatmapKalender({ vves }) {
-  const year = new Date().getFullYear();
-  const todayIso = new Date().toISOString().slice(0,10);
-  const NL_MONTHS_HM = ["Januari","Februari","Maart","April","Mei","Juni","Juli","Augustus","September","Oktober","November","December"];
-  const DOW_LABELS = ["Ma","Di","Wo","Do","Vr","Za","Zo"];
-
-  const dagMap = {};
-  vves.forEach(v => {
-    [v.datum1, v.datum2, v.datumExtra].filter(Boolean).forEach(d => {
-      if (d.startsWith(String(year))) {
-        if (!dagMap[d]) dagMap[d] = [];
-        dagMap[d].push(v.naam);
-      }
-    });
-  });
-
-  const allCounts = Object.values(dagMap).map(a => a.length);
-  const totalVergaderingen = allCounts.reduce((s,n) => s+n, 0);
-
-  const maandCounts = {};
-  Object.keys(dagMap).forEach(d => {
-    const m = parseInt(d.slice(5,7)) - 1;
-    maandCounts[m] = (maandCounts[m]||0) + dagMap[d].length;
-  });
-  const busyEntry = Object.entries(maandCounts).sort((a,b) => b[1]-a[1])[0];
-  const druksteMaand = busyEntry ? NL_MONTHS_HM[parseInt(busyEntry[0])].slice(0,3) + ` (${busyEntry[1]})` : "—";
-  const todayCount = dagMap[todayIso]?.length || 0;
-
-  function cellClass(count) {
-    if (!count) return "bg-zinc-800";
-    if (count === 1) return "bg-green-800";
-    if (count === 2) return "bg-green-600";
-    if (count <= 3) return "bg-amber-500";
-    return "bg-red-500";
-  }
-
-  const [tooltip, setTooltip] = useState(null);
-
-  return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-4 gap-3">
-        {[
-          ["Totaal dit jaar", totalVergaderingen, "vergaderingen"],
-          ["Drukste maand", druksteMaand, ""],
-          ["Vandaag", todayCount || "—", todayCount ? "ingepland" : "vrij"],
-          ["Gem. per maand", Math.round(totalVergaderingen/12), "vergaderingen"],
-        ].map(([label, value, sub]) => (
-          <div key={label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-center">
-            <p className="text-[10px] text-zinc-500 uppercase tracking-wide mb-1">{label}</p>
-            <p className="text-xl font-mono font-bold text-zinc-100">{value}</p>
-            {sub && <p className="text-[10px] text-zinc-600 mt-0.5">{sub}</p>}
-          </div>
-        ))}
-      </div>
-
-      <div className="flex items-center gap-2 text-[10px] text-zinc-500">
-        <span>Minder</span>
-        {["bg-zinc-800","bg-green-800","bg-green-600","bg-amber-500","bg-red-500"].map((c,i) => (
-          <div key={i} className={`w-3 h-3 rounded-sm ${c}`}/>
-        ))}
-        <span>Meer</span>
-        <span className="ml-3 text-zinc-600">Weekend = gedempt</span>
-      </div>
-
-      <div className="grid grid-cols-4 gap-5">
-        {NL_MONTHS_HM.map((maand, m) => {
-          const daysInMonth = new Date(year, m+1, 0).getDate();
-          const firstDow = new Date(year, m, 1).getDay();
-          const offset = firstDow === 0 ? 6 : firstDow - 1;
-          return (
-            <div key={m}>
-              <p className="text-xs font-medium text-zinc-400 mb-1.5">{maand}</p>
-              <div className="grid grid-cols-7 gap-0.5">
-                {DOW_LABELS.map(d => (
-                  <div key={d} className="text-center text-[8px] text-zinc-600 pb-0.5">{d[0]}</div>
-                ))}
-                {Array.from({length: offset}).map((_,i) => <div key={`e${i}`}/>)}
-                {Array.from({length: daysInMonth}).map((_, i) => {
-                  const day = i + 1;
-                  const iso = `${year}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-                  const names = dagMap[iso] || [];
-                  const count = names.length;
-                  const dow = new Date(year, m, day).getDay();
-                  const isWeekend = dow === 0 || dow === 6;
-                  const isToday = iso === todayIso;
-                  return (
-                    <div
-                      key={day}
-                      className={`aspect-square rounded-sm cursor-default transition-transform hover:scale-125 hover:z-10 relative ${cellClass(count)} ${isWeekend ? "opacity-30" : ""} ${isToday ? "ring-1 ring-white ring-offset-1 ring-offset-zinc-950" : ""}`}
-                      onMouseEnter={e => { if (count > 0) setTooltip({ iso, names, x: e.clientX, y: e.clientY }); }}
-                      onMouseLeave={() => setTooltip(null)}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {tooltip && (
-        <div
-          className="fixed z-50 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-200 pointer-events-none shadow-xl"
-          style={{ left: tooltip.x + 12, top: tooltip.y - 10 }}
-        >
-          <p className="font-medium text-zinc-100 mb-1">{fmtDate(tooltip.iso)}</p>
-          <p className="text-zinc-400">{tooltip.names.length} vergadering{tooltip.names.length > 1 ? "en" : ""}</p>
-          <p className="text-zinc-500 mt-0.5">{tooltip.names.slice(0,3).join(", ")}{tooltip.names.length > 3 ? ` +${tooltip.names.length-3}` : ""}</p>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Admin stats ──────────────────────────────────────────────────
 function calcStats(data) {
   if (!data) return null;
@@ -1023,16 +916,26 @@ export default function App() {
   };
 
   const handleLogin = async () => {
-    const account = findAccount(loginNaam, loginPw);
-    if (!account) { setLoginError("Naam of wachtwoord onjuist."); return; }
-    if (account.rol === "admin") { setScreen("admin"); setLoginError(""); return; }
+    if (!loginNaam.trim() || !loginPw.trim()) { setLoginError("Vul je e-mail en wachtwoord in."); return; }
     setLoading(true);
-    setBeheerder(account.naam);
-    const d = await loadData(account.naam);
-    setData(d || defaultData());
-    setLoading(false);
-    setScreen("main");
     setLoginError("");
+    try {
+      await signIn(loginNaam.trim(), loginPw.trim());
+      const rol = await getUserRole();
+      if (!rol) throw new Error("Geen rol gevonden voor dit account.");
+      if (rol.rol === "admin") {
+        setLoading(false);
+        setScreen("admin");
+        return;
+      }
+      setBeheerder(rol.naam);
+      const d = await loadData(rol.naam);
+      setData(d || defaultData());
+      setScreen("main");
+    } catch(e) {
+      setLoginError(e.message === "Invalid login credentials" ? "E-mail of wachtwoord onjuist." : e.message);
+    }
+    setLoading(false);
   };
 
   const [saving, setSaving] = useState(false);
@@ -1276,7 +1179,7 @@ export default function App() {
   }).filter(m => m.count > 0);
 
   // ── Screens ──────────────────────────────────────────────────
-  if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBack={()=>{ setScreen("login"); setLoginNaam(""); setLoginPw(""); }}/>;
+  if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBack={async ()=>{ await signOut(); setScreen("login"); setLoginNaam(""); setLoginPw(""); setBeheerder(""); setData(defaultData()); }}/>;
 
   if (screen==="login") return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6">
@@ -1288,8 +1191,8 @@ export default function App() {
         </div>
         <div className="space-y-3">
           <div>
-            <label className="text-xs text-zinc-500 block mb-1">Naam</label>
-            <input autoFocus value={loginNaam} onChange={e=>{ setLoginNaam(e.target.value); setLoginError(""); }} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="Jouw naam"
+            <label className="text-xs text-zinc-500 block mb-1">E-mailadres</label>
+            <input autoFocus value={loginNaam} onChange={e=>{ setLoginNaam(e.target.value); setLoginError(""); }} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="naam@vveplanner.nl"
               className={`w-full bg-zinc-800 border rounded-lg px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none ${loginError?"border-red-700":"border-zinc-700 focus:border-zinc-600"}`}/>
           </div>
           <div>
@@ -1322,7 +1225,7 @@ export default function App() {
           <button onClick={toggleTheme} className={`text-xs px-3 py-1.5 rounded-lg border ${t.border} ${t.btnSec} transition-colors`}>
             {darkMode ? "☀️ Licht" : "🌙 Donker"}
           </button>
-          <button onClick={()=>{ setScreen("login"); setLoginNaam(""); setLoginPw(""); }} className={`text-xs ${t.textDim} hover:${t.textMuted} transition-colors`}>Uitloggen</button>
+          <button onClick={async ()=>{ await signOut(); setScreen("login"); setLoginNaam(""); setLoginPw(""); setBeheerder(""); setData(defaultData()); }} className={`text-xs ${t.textDim} hover:${t.textMuted} transition-colors`}>Uitloggen</button>
           {saving && <span className={`text-[10px] ${t.textDim} animate-pulse`}>Opslaan…</span>}
         </div>
       </div>
@@ -1338,7 +1241,7 @@ export default function App() {
 
       <div className={`border-b ${t.border} px-6 flex gap-1 items-center justify-between`}>
         <div className="flex gap-1">
-          {[["vergaderingen","Vergaderingen"],["overzicht","Spreiding"],["kalender","Kalender"],["vakantie","Vakantie"],["instellingen","Instellingen"]].map(([key,label])=>(
+          {[["vergaderingen","Vergaderingen"],["overzicht","Spreiding"],["vakantie","Vakantie"],["instellingen","Instellingen"]].map(([key,label])=>(
             <button key={key} onClick={()=>setTab(key)} className={`px-4 py-3 text-sm transition-colors border-b-2 -mb-px ${tab===key ? t.tabActive : t.tabInact}`}>{label}</button>
           ))}
         </div>
@@ -1847,17 +1750,6 @@ export default function App() {
                 );
               })}
             </div>
-          </div>
-        )}
-
-        {/* ── KALENDER ── */}
-        {tab==="kalender" && (
-          <div className="space-y-2">
-            <div className="mb-4">
-              <h2 className="text-sm font-semibold text-zinc-300">Jaarkalender {new Date().getFullYear()}</h2>
-              <p className="text-xs text-zinc-600 mt-0.5">Elke cel is één dag. Kleur toont het aantal geplande vergaderingen. Hover voor details.</p>
-            </div>
-            <HeatmapKalender vves={data.vves}/>
           </div>
         )}
 
