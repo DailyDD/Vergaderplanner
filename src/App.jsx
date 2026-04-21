@@ -53,7 +53,26 @@ async function getUserRole() {
   });
   if (!res.ok) throw new Error("Rol ophalen mislukt");
   const rows = await res.json();
-  return rows[0] || null;
+  if (!rows[0]) return null;
+  // Sla laatste login op
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/user_roles`, {
+      method: "PATCH",
+      headers: { ...getAuthHeaders(), "Prefer": "" },
+      body: JSON.stringify({ laatste_login: new Date().toISOString() }),
+    });
+  } catch(e) { console.error("laatste_login opslaan mislukt", e); }
+  return rows[0];
+}
+
+async function loadAllRoles() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/user_roles?select=naam,rol,laatste_login`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch(e) { console.error("loadAllRoles", e); return []; }
 }
 
 async function sbFetch(path, options = {}) {
@@ -683,8 +702,53 @@ function exportTotaalExcel(allData, beheerderList) {
   a.click(); URL.revokeObjectURL(url);
 }
 
+function exportAdminPDF(allData, beheerderList) {
+  const year = new Date().getFullYear();
+  let html = `<html><head><meta charset="utf-8"><style>
+    body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a;margin:20px}
+    h1{font-size:16px;color:#991A21;margin-bottom:4px}
+    h2{font-size:12px;color:#991A21;margin:16px 0 6px;border-bottom:1px solid #991A21;padding-bottom:2px}
+    table{width:100%;border-collapse:collapse;margin-bottom:8px}
+    th{background:#991A21;color:white;padding:4px 8px;text-align:left;font-size:10px}
+    td{padding:4px 8px;border-bottom:1px solid #eee}
+    tr:nth-child(even) td{background:#faf7f7}
+    .bar-wrap{background:#e5e7eb;border-radius:4px;height:8px;width:120px;display:inline-block;vertical-align:middle}
+    .bar-fill{background:#059669;height:8px;border-radius:4px;display:block}
+    .sub{color:#888;font-size:9px}
+    @media print{body{margin:10px}}
+  </style></head><body>`;
+  html += `<h1>VvE Vergaderplanning ${year} — Beheerdersoverzicht</h1>`;
+  html += `<p class="sub">Gegenereerd op ${fmtDate(new Date().toISOString().slice(0,10))}</p>`;
+  html += `<table><tr><th>Beheerder</th><th>Totaal VvE's</th><th>Gepland</th><th>Uitgenodigd</th><th>Afgerond</th><th>Voortgang</th></tr>`;
+  for (const naam of beheerderList) {
+    const vves = allData[naam]?.vves || [];
+    const total = vves.length;
+    const gepland = vves.filter(v => v.datum1).length;
+    const uitgenodigd = vves.filter(v => (v.uitgenodigd1 || v.uitgenodigd2) && !isAfgerond(v)).length;
+    const afgerond = vves.filter(v => isAfgerond(v)).length;
+    const pct = total === 0 ? 0 : Math.round((afgerond / total) * 100);
+    html += `<tr>
+      <td><strong>${naam}</strong></td>
+      <td>${total}</td>
+      <td>${gepland}</td>
+      <td>${uitgenodigd}</td>
+      <td>${afgerond}</td>
+      <td>
+        <span class="bar-wrap"><span class="bar-fill" style="width:${pct}%"></span></span>
+        <span style="margin-left:6px;font-weight:bold">${pct}%</span>
+      </td>
+    </tr>`;
+  }
+  html += `</table></body></html>`;
+  const win = window.open("", "_blank");
+  win.document.write(html);
+  win.document.close();
+  win.print();
+}
+
 function AdminDashboard({ beheerderList, onBack }) {
   const [allData, setAllData] = useState({});
+  const [allRoles, setAllRoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
   const [herindelenVan, setHerindelenVan] = useState(null);
@@ -715,8 +779,12 @@ function AdminDashboard({ beheerderList, onBack }) {
   useEffect(() => {
     async function fetchAll() {
       setLoading(true);
-      const result = await loadAllData(beheerderList);
+      const [result, roles] = await Promise.all([
+        loadAllData(beheerderList),
+        loadAllRoles(),
+      ]);
       setAllData(result);
+      setAllRoles(roles);
       setLoading(false);
     }
     fetchAll();
@@ -746,7 +814,8 @@ function AdminDashboard({ beheerderList, onBack }) {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={()=>exportTotaalExcel(allData, beheerderList)} className="text-xs px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 rounded-lg transition-colors">⬇ Export totaal</button>
+          <button onClick={()=>exportTotaalExcel(allData, beheerderList)} className="text-xs px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 rounded-lg transition-colors">⬇ Excel</button>
+          <button onClick={()=>exportAdminPDF(allData, beheerderList)} className="text-xs px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 rounded-lg transition-colors">⬇ PDF</button>
           <button onClick={onBack} className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors">← Terug</button>
         </div>
       </div>
@@ -813,6 +882,39 @@ function AdminDashboard({ beheerderList, onBack }) {
                 </div>
               );
             })()}
+          {/* Inactieve beheerders */}
+          {(() => {
+            const nu = new Date();
+            const inactief = allRoles.filter(r => {
+              if (r.rol === "admin") return false;
+              if (!r.laatste_login) return true;
+              const diff = (nu - new Date(r.laatste_login)) / 86400000;
+              return diff >= 10;
+            }).sort((a, b) => {
+              if (!a.laatste_login) return -1;
+              if (!b.laatste_login) return 1;
+              return new Date(a.laatste_login) - new Date(b.laatste_login);
+            });
+            if (inactief.length === 0) return null;
+            return (
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-2">
+                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">⚠ Inactief ≥10 dagen</p>
+                {inactief.map(r => {
+                  const dagen = r.laatste_login
+                    ? Math.floor((nu - new Date(r.laatste_login)) / 86400000)
+                    : null;
+                  return (
+                    <div key={r.naam} className="flex items-center justify-between text-xs bg-zinc-800/60 rounded-lg px-3 py-2">
+                      <span className="text-zinc-300 font-medium">{r.naam}</span>
+                      <span className="text-amber-500 font-mono">
+                        {dagen === null ? "Nooit ingelogd" : `${dagen}d geleden`}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
           </div>
 
           {/* ── Hoofdinhoud ── */}
