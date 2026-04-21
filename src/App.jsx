@@ -763,7 +763,60 @@ function AdminDashboard({ beheerderList, onBack }) {
           </div>
         ))}
       </div>
-      <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <div className="p-6 max-w-6xl mx-auto">
+        <div className="flex gap-6 items-start">
+
+          {/* ── Leaderboard zijbalk ── */}
+          <div className="w-52 shrink-0 sticky top-4 bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-3">
+            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">🏆 Voortgang ranking</p>
+            {(() => {
+              const ranking = beheerderList
+                .map(naam => {
+                  const stats = calcStats(allData[naam]);
+                  return { naam, pct: stats?.pctAfgerond || 0, afgerond: stats?.afgerond || 0, total: stats?.total || 0 };
+                })
+                .filter(r => r.total > 0)
+                .sort((a, b) => b.pct - a.pct);
+
+              if (ranking.length === 0) return <p className="text-[10px] text-zinc-600">Nog geen data.</p>;
+
+              const medals = ["🥇","🥈","🥉"];
+              return (
+                <div className="space-y-2">
+                  {ranking.map((r, i) => {
+                    const opSchema = r.pct >= yearPct - 5;
+                    const kleur = i === 0 ? "text-amber-400" : i === 1 ? "text-zinc-300" : i === 2 ? "text-amber-600" : "text-zinc-500";
+                    const barKleur = r.pct >= yearPct + 5 ? "bg-emerald-500" : r.pct >= yearPct - 5 ? "bg-sky-500" : "bg-red-500";
+                    return (
+                      <div key={r.naam} className={`rounded-lg p-2 ${i < 3 ? "bg-zinc-800/60" : ""}`}>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className="text-sm shrink-0">{medals[i] || <span className="text-[10px] text-zinc-600 w-4 text-center">{i+1}</span>}</span>
+                          <span className={`text-xs font-medium truncate flex-1 ${kleur}`}>{r.naam}</span>
+                          <span className={`text-[10px] font-mono shrink-0 ${kleur}`}>{r.pct}%</span>
+                        </div>
+                        <div className="h-1 bg-zinc-700 rounded-full overflow-hidden relative">
+                          <div className={`h-full rounded-full ${barKleur}`} style={{width:`${r.pct}%`}}/>
+                          <div className="absolute top-0 bottom-0 w-px bg-zinc-400/50" style={{left:`${yearPct}%`}}/>
+                        </div>
+                        <p className="text-[9px] text-zinc-600 mt-0.5">{r.afgerond}/{r.total} afgerond</p>
+                      </div>
+                    );
+                  })}
+                  <div className="border-t border-zinc-800 pt-2 mt-1">
+                    <p className="text-[9px] text-zinc-600">Streepje = {yearPct}% van jaar verstreken</p>
+                    <div className="flex gap-2 mt-1">
+                      <span className="text-[9px] text-emerald-500">■ Voor</span>
+                      <span className="text-[9px] text-sky-500">■ Op schema</span>
+                      <span className="text-[9px] text-red-500">■ Achter</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* ── Hoofdinhoud ── */}
+          <div className="flex-1 space-y-6">
         {allVves.length > 0 && (() => {
           const avgAfgerondPct = Math.round((totaalAfgerond / allVves.length) * 100);
           const diff = avgAfgerondPct - yearPct;
@@ -894,6 +947,8 @@ function AdminDashboard({ beheerderList, onBack }) {
                 </div>
               );
             })}
+          </div>
+        </div>
           </div>
         </div>
       </div>
