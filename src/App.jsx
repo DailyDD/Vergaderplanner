@@ -522,6 +522,12 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
             <input type="text" value={vve.notitie||""} onChange={e=>onUpdate({...vve,notitie:e.target.value})}
               placeholder="Bijv. altijd dinsdag…"
               className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-400 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"/>
+            {vve.voorkeurVolgendjaar && vve.notitie && (
+              <div className="mt-2 flex items-start gap-2 bg-amber-950/30 border border-amber-800/50 rounded-lg px-3 py-2">
+                <span className="text-amber-400 shrink-0 mt-0.5">💡</span>
+                <p className="text-xs text-amber-300"><span className="font-medium">Let op:</span> {vve.notitie}</p>
+              </div>
+            )}
           </div>
 
           {/* Extra vergadering */}
@@ -643,6 +649,40 @@ function riskLevel(stats) {
 }
 
 // ── Admin Dashboard ──────────────────────────────────────────────
+function exportTotaalExcel(allData, beheerderList) {
+  const year = new Date().getFullYear();
+  const rows = [["Beheerder","VvE","1e vergadering","Uitgenodigd 1e","Vergaderd 1e","2e reglementair","2e vergadering","Uitgenodigd 2e","Vergaderd 2e","Extra vergadering","Extra datum","Voorkeur volgend jaar","Notitie","Status"]];
+  for (const naam of beheerderList) {
+    const vves = allData[naam]?.vves || [];
+    for (const v of vves) {
+      const afg = isAfgerond(v);
+      const status = afg ? "Afgerond" : v.uitgenodigd1 ? "Uitgenodigd" : v.datum1 ? "Gepland" : "Niet gepland";
+      rows.push([
+        naam,
+        v.naam,
+        v.datum1 ? fmtDate(v.datum1) : "",
+        v.uitgenodigd1 ? "Ja" : "Nee",
+        v.vergaderd1 ? "Ja" : "Nee",
+        v.needs2e ? "Ja" : "Nee",
+        v.datum2 ? fmtDate(v.datum2) : "",
+        v.uitgenodigd2 ? "Ja" : "Nee",
+        v.vergaderd2 ? "Ja" : "Nee",
+        v.extraVergadering ? "Ja" : "Nee",
+        v.datumExtra ? fmtDate(v.datumExtra) : "",
+        v.voorkeurVolgendjaar ? fmtDate(v.voorkeurVolgendjaar) : "",
+        v.notitie || "",
+        status,
+      ]);
+    }
+  }
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(";")).join("\n");
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `VvE_Totaaloverzicht_${year}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
 function AdminDashboard({ beheerderList, onBack }) {
   const [allData, setAllData] = useState({});
   const [loading, setLoading] = useState(true);
@@ -705,7 +745,10 @@ function AdminDashboard({ beheerderList, onBack }) {
             <p className="text-xs text-zinc-500">Overzicht alle beheerders — {new Date().getFullYear()}</p>
           </div>
         </div>
-        <button onClick={onBack} className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors">← Terug</button>
+        <div className="flex items-center gap-3">
+          <button onClick={()=>exportTotaalExcel(allData, beheerderList)} className="text-xs px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 rounded-lg transition-colors">⬇ Export totaal</button>
+          <button onClick={onBack} className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors">← Terug</button>
+        </div>
       </div>
       <div className="border-b border-zinc-800 px-6 py-4 grid grid-cols-4 gap-3">
         {[
