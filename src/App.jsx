@@ -925,6 +925,8 @@ export default function App() {
   // FIX 1: gesorteerde volgorde staat los van data
   // We bewaren een gesorteerde ID-volgorde en passen die toe bij weergave
   const [sortedOrder, setSortedOrder] = useState(null); // null = nog niet gesorteerd
+  // Jaarwisseling
+  const [toonJaarwisselingPrompt, setToonJaarwisselingPrompt] = useState(false);
   // FIX 3: welke VvE moet geforceerd opengaan
   const [forceOpenId, setForceOpenId] = useState(null);
   // FIX 2: maandfilter
@@ -989,6 +991,47 @@ export default function App() {
     await saveData(beheerder, newData);
     setSaving(false);
   }, [beheerder]);
+
+  // Jaarwisseling detectie: controleer of opgeslagen data nog van vorig jaar is
+  useEffect(() => {
+    if (screen !== "main" || !data.vves || data.vves.length === 0) return;
+    const huidigJaar = new Date().getFullYear();
+    const opslaanJaar = (() => {
+      // Kijk naar het jaar van de meeste vergaderdatums
+      const jaren = data.vves
+        .map(v => v.datum1 || v.datum2 || "")
+        .filter(Boolean)
+        .map(d => parseInt(d.slice(0, 4)));
+      if (jaren.length === 0) return huidigJaar;
+      return Math.round(jaren.reduce((a, b) => a + b, 0) / jaren.length);
+    })();
+    if (opslaanJaar < huidigJaar) {
+      setToonJaarwisselingPrompt(true);
+    }
+  }, [screen, beheerder]);
+
+  const handleJaarwisselingBevestigen = async () => {
+    const vernieuwd = data.vves.map(v => ({
+      id: v.id,
+      naam: v.naam,
+      notitie: v.notitie || "",
+      datum1: v.voorkeurVolgendjaar || "",
+      datum2: "",
+      datumExtra: "",
+      uitgenodigd1: false,
+      uitgenodigd2: false,
+      uitgenodigdExtra: false,
+      vergaderd1: false,
+      vergaderd2: false,
+      vergaderdExtra: false,
+      needs2e: false,
+      extraVergadering: false,
+      voorkeurVolgendjaar: "",
+    }));
+    await persist({ ...data, vves: vernieuwd });
+    setSortedOrder(null);
+    setToonJaarwisselingPrompt(false);
+  };
 
   const addVve = async () => {
     const naam = newVveName.trim(); if (!naam) return;
@@ -1295,6 +1338,42 @@ export default function App() {
       </div>
 
       <div className="p-6 max-w-6xl mx-auto">
+
+        {/* Jaarwisseling prompt */}
+        {toonJaarwisselingPrompt && (
+          <div className="mb-4 bg-amber-950/40 border border-amber-700/60 rounded-xl p-5 space-y-3">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl shrink-0">🎉</span>
+              <div>
+                <p className="text-sm font-semibold text-amber-200">Nieuw jaar — planning vernieuwen?</p>
+                <p className="text-xs text-amber-400/80 mt-1">
+                  De planning bevat nog vergaderingen van vorig jaar. Je kunt het overzicht nu opschonen voor {new Date().getFullYear()}.
+                  VvE's met een voorkeursdatum worden automatisch ingepland. Notities blijven bewaard.
+                </p>
+              </div>
+            </div>
+            <div className="bg-amber-950/30 border border-amber-800/40 rounded-lg px-3 py-2">
+              <p className="text-[10px] text-amber-500 font-medium mb-1">Wat wordt gereset:</p>
+              <p className="text-[10px] text-amber-600">Alle vergaderdatums, uitnodigingen, vergaderd-vinkjes, 2e reglementaire en extra vergaderingen.</p>
+              <p className="text-[10px] text-amber-500 font-medium mt-1.5 mb-1">Wat blijft bewaard:</p>
+              <p className="text-[10px] text-amber-600">VvE namen, notities, vakantieperiodes, werkdagen. Voorkeursdatums worden de nieuwe vergaderdatum.</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleJaarwisselingBevestigen}
+                className="px-4 py-2 bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                ✓ Ja, vernieuw planning voor {new Date().getFullYear()}
+              </button>
+              <button
+                onClick={() => setToonJaarwisselingPrompt(false)}
+                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-sm rounded-lg transition-colors"
+              >
+                Niet nu
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Begroeting */}
         {tab==="vergaderingen" && (
