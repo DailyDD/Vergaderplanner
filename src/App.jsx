@@ -707,6 +707,283 @@ function exportTotaalExcel(allData, beheerderList) {
   a.click(); URL.revokeObjectURL(url);
 }
 
+
+// ── VvE Calculator ───────────────────────────────────────────────
+const LOGO_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAb8AAAG/CAMAAAD/zSlAAAAA81BMVEX///+bHSEjHSEAAAD8//8nISH//f/n5+f9//2ZHiGIAACRAAC5t7iUAAAfGBiNAAAkIyEKAAA6Ojp7enqrqaofHhza2dpJSEf5+fmenZ7Rz9APAAUYERS/vb5DQkLz8vIxKinq0tKcGRvmx8jXsrHPqqufJiyBAADbv7/fvL/s4eEdFhvBkJOycXHIxsf78fKze3rcyMfJnp9oZ2eiQ0ORkJFWVFTBi4eXMzfAgYHLm5W0ZGWWAA4UExDBeXarV1e0VFuoPj6PJCShR02lVV6vcnqkABCaKTKfXmGwaHGdT0eDFhepZmKLDh7fyLugAACKNDUK/lRAAAAgAElEQVR4nO1dCXuiyNYmgiAq4i4qESWaGNe4RlvtTDozk567+878///XfKeq2FRKTTrpztjnfe6dNgoF1MvZaxEEBAKBQCAQCAQCgUAgEAgEAoFAIBAIBAKBQCAQCAQCgUAgEAgEAoFAIBAIBAKBQCAQCAQCgUAgEAgEAoFAIBAIBAKBQCAQCAQCgUAgEAgEAoFAIBAIBAKBQCAQCAQCgUAgEAgEAoFAIBAIBAKBQCAQCAQCgUAgEAgEAoFAIBAIBAKBQCAQCAQCgUAgEAgEAoFAIBAIBAKBQCAQCASC/w8A';
+
+const CALC_S = {
+  bordeaux: '#991A21', bordeauxDark: '#6B1217', bordeauxLight: '#F5E6E7',
+  cream: '#FAF7F2', ink: '#1A1614', muted: '#8A7E7B', border: '#E5DEDA',
+  green: '#2D6A4F', greenBg: '#EAF4EE', amber: '#92550A', amberBg: '#FEF3E2',
+  redBg: '#FDEAEB', blue: '#1A4D7A', blueBg: '#EAF1F8',
+};
+
+const calcFmt = (n) => {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return '€ ' + Number(n).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+const calcToday = () => new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' });
+
+let _calcId = 0;
+const calcUid = () => ++_calcId;
+
+function CalcSecTitle({ children }) {
+  return (
+    <div style={{ fontSize:11, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.08em', color:'#8A7E7B', marginBottom:10, marginTop:26, display:'flex', alignItems:'center', gap:8 }}>
+      {children}<div style={{ flex:1, height:1, background:'#E5DEDA' }} />
+    </div>
+  );
+}
+function CalcCard({ header, children }) {
+  return <div style={{ background:'#fff', border:'1px solid #E5DEDA', borderRadius:12, overflow:'hidden', marginBottom:14 }}>{header}{children}</div>;
+}
+function CalcCardHdr({ icon, bg, title, sub }) {
+  return (
+    <div style={{ padding:'14px 20px', borderBottom:'1px solid #E5DEDA', display:'flex', alignItems:'center', gap:10 }}>
+      <div style={{ width:30, height:30, borderRadius:7, background:bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14 }}>{icon}</div>
+      <div><div style={{ fontSize:13, fontWeight:600 }}>{title}</div><div style={{ fontSize:11, color:'#8A7E7B', marginTop:1 }}>{sub}</div></div>
+    </div>
+  );
+}
+function CalcField({ label, children }) {
+  return <div style={{ marginBottom:4 }}><label style={{ display:'block', fontSize:11, fontWeight:600, color:'#8A7E7B', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>{label}</label>{children}</div>;
+}
+function CalcInp(props) {
+  return <input {...props} style={{ width:'100%', padding:'8px 11px', border:'1.5px solid #E5DEDA', borderRadius:8, fontFamily:'monospace', fontSize:14, color:'#1A1614', background:'#FAF7F2', outline:'none' }}
+    onFocus={e=>{e.target.style.borderColor='#991A21';e.target.style.background='#fff'}}
+    onBlur={e=>{e.target.style.borderColor='#E5DEDA';e.target.style.background='#FAF7F2'}} />;
+}
+function CalcTag({ c, t, children }) {
+  return <span style={{ display:'inline-block', padding:'2px 7px', borderRadius:4, fontSize:11, fontWeight:500, background:c, color:t }}>{children}</span>;
+}
+function CalcMethodBlock({ tag, name, rows, total }) {
+  return (
+    <div style={{ background:'#fff', border:'1px solid #E5DEDA', borderRadius:12, overflow:'hidden' }}>
+      <div style={{ padding:'12px 18px 10px', borderBottom:'1px solid #E5DEDA' }}>
+        <div style={{ fontSize:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.07em', color:'#8A7E7B' }}>{tag}</div>
+        <div style={{ fontFamily:'Georgia,serif', fontSize:15, color:'#1A1614', marginTop:2 }}>{name}</div>
+      </div>
+      {rows.map(([l,v],i) => (
+        <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', padding:'7px 18px', borderBottom:'1px solid #E5DEDA', fontSize:13 }}>
+          <span style={{ color:'#8A7E7B' }}>{l}</span><span style={{ fontFamily:'monospace', fontWeight:500 }}>{v}</span>
+        </div>
+      ))}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', padding:'10px 18px', fontSize:13 }}>
+        <span style={{ color:'#8A7E7B' }}>Maandlasten VvE totaal</span>
+        <span style={{ fontFamily:'Georgia,serif', fontSize:22, color:'#991A21' }}>{total}</span>
+      </div>
+    </div>
+  );
+}
+
+function VveCalculator({ onTerug }) {
+  const [complexNaam, setComplexNaam] = useState('');
+  const [herbouwwaarde, setHerbouwwaarde] = useState('');
+  const [mjopTotaal, setMjopTotaal] = useState('');
+  const [planPeriode, setPlanPeriode] = useState('10');
+  const [verzekering, setVerzekering] = useState('');
+  const [administratie, setAdministratie] = useState('');
+  const [overig, setOverig] = useState('');
+  const [rows, setRows] = useState([
+    { id: calcUid(), naam: '', teller: '', noemer: '' },
+    { id: calcUid(), naam: '', teller: '', noemer: '' },
+    { id: calcUid(), naam: '', teller: '', noemer: '' },
+  ]);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+
+  const formula = (() => {
+    const t = parseFloat(mjopTotaal) || 0;
+    const p = parseFloat(planPeriode) || 10;
+    if (!t) return 'Jaarlijkse dotatie = Totale MJOP-kosten ÷ Planperiode';
+    return calcFmt(t) + ' ÷ ' + p + ' jaar = ' + calcFmt(t / p) + ' jaarlijkse dotatie';
+  })();
+
+  const breukCheck = (() => {
+    const filled = rows.filter(r => r.teller !== '' && r.noemer !== '' && parseFloat(r.noemer) > 0);
+    if (!filled.length) return null;
+    const total = filled.reduce((s, r) => s + parseFloat(r.teller) / parseFloat(r.noemer), 0);
+    return { ok: Math.abs(total - 1) < 0.0011, pct: (total * 100).toFixed(3) };
+  })();
+
+  const addRow = () => setRows(p => [...p, { id: calcUid(), naam: '', teller: '', noemer: '' }]);
+  const delRow = (id) => setRows(p => p.filter(r => r.id !== id));
+  const updRow = (id, f, v) => setRows(p => p.map(r => r.id === id ? { ...r, [f]: v } : r));
+
+  const bereken = () => {
+    setError('');
+    const hv = parseFloat(herbouwwaarde) || 0;
+    const mt = parseFloat(mjopTotaal) || 0;
+    const pp = parseFloat(planPeriode) || 10;
+    const vz = parseFloat(verzekering) || 0;
+    const ad = parseFloat(administratie) || 0;
+    const ov = parseFloat(overig) || 0;
+    const validRows = rows.filter(r => r.teller !== '' && r.noemer !== '' && parseFloat(r.noemer) > 0);
+    if (!validRows.length) { setError('Voeg eerst eigenaren toe met breukdelen.'); return; }
+    if (!hv && !mt) { setError('Vul minimaal de herbouwwaarde of MJOP-kosten in.'); return; }
+    const dotatie = mt > 0 ? mt / pp : 0;
+    const exploit = vz + ad + ov;
+    const jaarMjop = dotatie + exploit;
+    const mndMjop = jaarMjop / 12;
+    const jaar05 = hv * 0.005;
+    const jaarTot05 = jaar05 + exploit;
+    const mnd05 = jaarTot05 / 12;
+    const totalFrac = validRows.reduce((s, r) => s + parseFloat(r.teller) / parseFloat(r.noemer), 0);
+    const eigenaren = validRows.map(r => {
+      const frac = parseFloat(r.teller) / parseFloat(r.noemer);
+      const aandeel = totalFrac > 0 ? frac / totalFrac : 0;
+      return { naam: r.naam || ('App. ' + r.id), teller: r.teller, noemer: r.noemer, aandeel, bijdrMjop: mt > 0 ? aandeel * mndMjop : null, bijdr05: hv > 0 ? aandeel * mnd05 : null };
+    });
+    setResult({ complexNaam: complexNaam || 'Complex', mjopTotaal: mt, planPeriode: pp, dotatie, exploitatie: exploit, jaarMjop, mndMjop, hasMjop: mt > 0, herbouwwaarde: hv, jaar05, jaar05Totaal: jaarTot05, mnd05, has05: hv > 0, eigenaren });
+    setTimeout(() => document.getElementById('calc-res-anker')?.scrollIntoView({ behavior: 'smooth' }), 50);
+  };
+
+  return (
+    <div className="min-h-screen bg-[#F2EFEC]">
+      <style>{CSS_FONT}</style>
+      {/* Topbar */}
+      <div className="border-b border-gray-200 px-6 h-14 flex items-center justify-between bg-white shadow-sm sticky top-0 z-50">
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1">
+            <div className="w-7 h-7 bg-[#991A21] rounded-md flex items-center justify-center"><span className="text-white text-xs">🏠</span></div>
+            <div className="w-7 h-7 bg-[#2D2D2D] rounded-md flex items-center justify-center"><span className="text-white text-xs">📋</span></div>
+          </div>
+          <div className="w-px h-5 bg-gray-200" />
+          <span className="text-sm font-bold text-[#2D2D2D]">VvE Calculator</span>
+        </div>
+        <button onClick={onTerug} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-gray-600 hover:text-[#991A21] transition-colors">
+          ← Terug naar portaal
+        </button>
+      </div>
+
+      <div style={{ maxWidth: 960, margin: '0 auto', padding: '28px 20px 80px' }}>
+        <CalcSecTitle>Stap 1 — Algemene gegevens</CalcSecTitle>
+        <CalcCard header={<CalcCardHdr icon="🏢" bg={CALC_S.redBg} title="Complexgegevens" sub="Naam en herbouwwaarde" />}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, padding:'18px 20px' }}>
+            <CalcField label="Naam complex"><CalcInp placeholder="bijv. VvE Reinkenstraat 1–24" value={complexNaam} onChange={e=>setComplexNaam(e.target.value)} /></CalcField>
+            <CalcField label="Herbouwwaarde (€)"><CalcInp type="number" placeholder="bijv. 2500000" value={herbouwwaarde} onChange={e=>setHerbouwwaarde(e.target.value)} /></CalcField>
+          </div>
+        </CalcCard>
+
+        <CalcSecTitle>Stap 2 — MJOP gegevens</CalcSecTitle>
+        <CalcCard header={<CalcCardHdr icon="📋" bg={CALC_S.amberBg} title="Meerjarenonderhoudsplan (MJOP)" sub="Totale kosten over de planperiode" />}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, padding:'18px 20px 0' }}>
+            <CalcField label="Totale MJOP-kosten (€)"><CalcInp type="number" placeholder="bijv. 150000" value={mjopTotaal} onChange={e=>setMjopTotaal(e.target.value)} /></CalcField>
+            <CalcField label="Planperiode (jaren)"><CalcInp type="number" placeholder="10" value={planPeriode} onChange={e=>setPlanPeriode(e.target.value)} /></CalcField>
+          </div>
+          <div style={{ margin:'10px 20px 18px', padding:'9px 13px', background:CALC_S.cream, border:'1px solid '+CALC_S.border, borderRadius:7, fontFamily:'monospace', fontSize:12, color:CALC_S.muted }}>{formula}</div>
+        </CalcCard>
+
+        <CalcSecTitle>Stap 3 — Overige exploitatiekosten (jaarlijks)</CalcSecTitle>
+        <CalcCard header={<CalcCardHdr icon="💼" bg={CALC_S.blueBg} title="Exploitatiekosten" sub="Buiten het MJOP — optioneel maar van invloed op totale bijdrage" />}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:14, padding:'18px 20px' }}>
+            <CalcField label="Opstalverzekering (€/jaar)"><CalcInp type="number" placeholder="bijv. 3200" value={verzekering} onChange={e=>setVerzekering(e.target.value)} /></CalcField>
+            <CalcField label="Administratie/beheer (€/jaar)"><CalcInp type="number" placeholder="bijv. 2400" value={administratie} onChange={e=>setAdministratie(e.target.value)} /></CalcField>
+            <CalcField label="Overig (€/jaar)"><CalcInp type="number" placeholder="bijv. 1800" value={overig} onChange={e=>setOverig(e.target.value)} /></CalcField>
+          </div>
+        </CalcCard>
+
+        <CalcSecTitle>Stap 4 — Eigenaren &amp; breukdelen</CalcSecTitle>
+        <CalcCard header={<CalcCardHdr icon="👥" bg={CALC_S.greenBg} title="Eigenaren" sub="Naam en breukdeel conform splitsingsakte" />}>
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse' }}>
+              <thead>
+                <tr style={{ background:CALC_S.cream, borderBottom:'1px solid '+CALC_S.border }}>
+                  {['#','Naam / appartement','Breukdeel teller','Breukdeel noemer',''].map((h,i)=>(
+                    <th key={i} style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:CALC_S.muted, textTransform:'uppercase', letterSpacing:'0.06em', width:[36,null,150,150,44][i] }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r,i)=>(
+                  <tr key={r.id} style={{ borderBottom: i < rows.length-1 ? '1px solid '+CALC_S.border : 'none' }}>
+                    <td style={{ textAlign:'center', fontFamily:'monospace', fontSize:11, color:CALC_S.muted, padding:'7px 8px' }}>{i+1}</td>
+                    <td style={{ padding:'5px 6px' }}><CalcInp placeholder="bijv. App. 1 · De Vries" value={r.naam} onChange={e=>updRow(r.id,'naam',e.target.value)} /></td>
+                    <td style={{ padding:'5px 6px' }}><CalcInp type="number" placeholder="1" value={r.teller} onChange={e=>updRow(r.id,'teller',e.target.value)} /></td>
+                    <td style={{ padding:'5px 6px' }}><CalcInp type="number" placeholder="bijv. 100" value={r.noemer} onChange={e=>updRow(r.id,'noemer',e.target.value)} /></td>
+                    <td style={{ padding:'5px 6px', textAlign:'center' }}>
+                      <button onClick={()=>delRow(r.id)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:16, color:CALC_S.muted, padding:'2px 6px', borderRadius:4 }}>×</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {breukCheck && (
+            <div style={{ margin:'8px 20px 4px', padding:'6px 10px', borderRadius:6, fontSize:12, fontFamily:'monospace', background:breukCheck.ok?CALC_S.greenBg:CALC_S.amberBg, color:breukCheck.ok?CALC_S.green:CALC_S.amber }}>
+              {breukCheck.ok ? '✓ Breukdelen correct — totaal 100%' : '⚠ Breukdelen tellen op tot '+breukCheck.pct+'% — controleer splitsingsakte'}
+            </div>
+          )}
+          <button onClick={addRow} style={{ margin:'10px 20px', padding:'8px 14px', background:'#fff', border:'1.5px dashed '+CALC_S.border, borderRadius:8, fontFamily:'inherit', fontSize:13, color:CALC_S.muted, cursor:'pointer', width:'calc(100% - 40px)' }}>
+            + Eigenaar toevoegen
+          </button>
+        </CalcCard>
+
+        {error && <div style={{ background:CALC_S.redBg, color:CALC_S.bordeaux, padding:'10px 14px', borderRadius:8, fontSize:13, marginBottom:10 }}>{error}</div>}
+
+        <button onClick={bereken} style={{ width:'100%', padding:14, background:CALC_S.bordeaux, border:'none', borderRadius:12, fontFamily:'Georgia,serif', fontSize:17, color:'#fff', cursor:'pointer', marginTop:4 }}>
+          Bereken maandelijkse bijdragen →
+        </button>
+
+        {result && (
+          <div id="calc-res-anker">
+            <CalcSecTitle style={{ marginTop:36 }}>Resultaat</CalcSecTitle>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:14 }}>
+              <CalcMethodBlock tag="Methode 1 — Wettelijke voorkeur" name="Op basis van MJOP" rows={[['Totale MJOP-kosten',calcFmt(result.mjopTotaal)],['Planperiode',result.planPeriode+' jaar'],['Jaarlijkse MJOP-dotatie',calcFmt(result.dotatie)],['Overige exploitatiekosten',calcFmt(result.exploitatie)],['Totale jaarlasten VvE',calcFmt(result.jaarMjop)]]} total={result.hasMjop?calcFmt(result.mndMjop):'—'} />
+              <CalcMethodBlock tag="Methode 2 — Wettelijk minimum" name="0,5% van herbouwwaarde" rows={[['Herbouwwaarde',calcFmt(result.herbouwwaarde)],['0,5% jaarlijkse reservering',calcFmt(result.jaar05)],['Overige exploitatiekosten',calcFmt(result.exploitatie)],['Totale jaarlasten VvE',calcFmt(result.jaar05Totaal)],['Toelichting','Minimumeis bij geen/oud MJOP']]} total={result.has05?calcFmt(result.mnd05):'—'} />
+            </div>
+            <CalcCard header={<CalcCardHdr icon="🔢" bg={CALC_S.redBg} title="Maandelijkse bijdrage per eigenaar" sub="Verdeling naar rato breukdeel" />}>
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                  <thead>
+                    <tr style={{ background:CALC_S.cream, borderBottom:'1px solid '+CALC_S.border }}>
+                      {['Eigenaar','Breukdeel','Aandeel %','Bijdrage MJOP/mnd','Bijdrage 0,5%/mnd','Verschil'].map((h,i)=>(
+                        <th key={i} style={{ padding:'8px 12px', textAlign:i>1?'right':'left', fontSize:10, fontWeight:600, color:CALC_S.muted, textTransform:'uppercase', letterSpacing:'0.06em' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.eigenaren.map((e,i)=>{
+                      const diff = e.bijdrMjop!==null&&e.bijdr05!==null?e.bijdrMjop-e.bijdr05:null;
+                      let tag = null;
+                      if (diff!==null) {
+                        if (Math.abs(diff)<0.01) tag=<CalcTag c={CALC_S.blueBg} t={CALC_S.blue}>Gelijk</CalcTag>;
+                        else if (diff>0) tag=<CalcTag c={CALC_S.amberBg} t={CALC_S.amber}>MJOP +{calcFmt(Math.abs(diff))}</CalcTag>;
+                        else tag=<CalcTag c={CALC_S.greenBg} t={CALC_S.green}>MJOP −{calcFmt(Math.abs(diff))}</CalcTag>;
+                      }
+                      return (
+                        <tr key={i} style={{ borderBottom:i<result.eigenaren.length-1?'1px solid '+CALC_S.border:'none' }}>
+                          <td style={{ padding:'8px 12px',fontWeight:500,fontSize:13 }}>{e.naam}</td>
+                          <td style={{ padding:'8px 12px',fontFamily:'monospace',fontSize:13,textAlign:'right' }}>{e.teller}/{e.noemer}</td>
+                          <td style={{ padding:'8px 12px',fontFamily:'monospace',fontSize:13,textAlign:'right' }}>{(e.aandeel*100).toFixed(2)}%</td>
+                          <td style={{ padding:'8px 12px',fontFamily:'monospace',fontSize:13,textAlign:'right' }}>{e.bijdrMjop!==null?calcFmt(e.bijdrMjop):'—'}</td>
+                          <td style={{ padding:'8px 12px',fontFamily:'monospace',fontSize:13,textAlign:'right' }}>{e.bijdr05!==null?calcFmt(e.bijdr05):'—'}</td>
+                          <td style={{ padding:'8px 12px' }}>{tag||'—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot style={{ borderTop:'2px solid '+CALC_S.bordeaux }}>
+                    <tr style={{ background:CALC_S.cream }}>
+                      <td colSpan={2} style={{ padding:'9px 12px',fontSize:13,fontWeight:600,color:CALC_S.muted }}>Totaal VvE</td>
+                      <td style={{ padding:'9px 12px',fontFamily:'monospace',fontSize:13,fontWeight:600,textAlign:'right' }}>100%</td>
+                      <td style={{ padding:'9px 12px',fontFamily:'monospace',fontSize:13,fontWeight:600,color:CALC_S.bordeaux,textAlign:'right' }}>{result.hasMjop?calcFmt(result.eigenaren.reduce((s,e)=>s+(e.bijdrMjop||0),0)):'—'}</td>
+                      <td style={{ padding:'9px 12px',fontFamily:'monospace',fontSize:13,fontWeight:600,color:CALC_S.bordeaux,textAlign:'right' }}>{result.has05?calcFmt(result.eigenaren.reduce((s,e)=>s+(e.bijdr05||0),0)):'—'}</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </CalcCard>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 function exportAdminPDF(allData, beheerderList) {
   const year = new Date().getFullYear();
   let html = `<html><head><meta charset="utf-8"><style>
@@ -1065,7 +1342,7 @@ function AdminDashboard({ beheerderList, onBack }) {
 
 // ── Main App ─────────────────────────────────────────────────────
 export default function App() {
-  const [screen, setScreen] = useState("login");
+  const [screen, setScreen] = useState("login"); // login | portaal | vergaderingen | calculator | admin
   const [beheerder, setBeheerder] = useState("");
   const [beheerderList] = useState(getBeheerderList());
   const [data, setData] = useState(defaultData());
@@ -1118,14 +1395,15 @@ export default function App() {
       const rol = await getUserRole();
       if (!rol) throw new Error("Geen rol gevonden voor dit account.");
       if (rol.rol === "admin") {
+        setBeheerder("Admin");
         setLoading(false);
-        setScreen("admin");
+        setScreen("portaal");
         return;
       }
       setBeheerder(rol.naam);
       const d = await loadData(rol.naam);
       setData(d || defaultData());
-      setScreen("main");
+      setScreen("portaal");
     } catch(e) {
       setLoginError(e.message === "Invalid login credentials" ? "E-mail of wachtwoord onjuist." : e.message);
     }
@@ -1414,7 +1692,8 @@ export default function App() {
   }).filter(m => m.count > 0);
 
   // ── Screens ──────────────────────────────────────────────────
-  if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBack={async ()=>{ await signOut(); setScreen("login"); setLoginNaam(""); setLoginPw(""); setBeheerder(""); setData(defaultData()); }}/>;
+  if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBack={()=>setScreen("portaal")}/>;
+  if (screen==="calculator") return <VveCalculator onTerug={()=>setScreen("portaal")}/>;
 
   if (screen==="login") return (
     <div className="min-h-screen grid grid-cols-2">
@@ -1473,6 +1752,138 @@ export default function App() {
     </div>
   );
 
+  // ── Portaal screen ──────────────────────────────────────────
+  if (screen==="portaal") {
+    const isAdmin = beheerder === "Admin";
+    // Recente activiteit: laatste 3 vergaderde VvE's
+    const recenteActiviteit = (data.vves || [])
+      .filter(v => v.vergaderd1 || v.vergaderd2 || v.uitgenodigd1)
+      .slice(-3)
+      .reverse()
+      .map(v => ({
+        naam: v.naam,
+        tekst: v.vergaderd1 ? "vergadering afgerond" : v.uitgenodigd1 ? "uitnodiging verstuurd" : "bijgewerkt",
+        kleur: v.vergaderd1 ? "#1a7a45" : v.uitgenodigd1 ? "#991A21" : "#1a4f7a",
+      }));
+
+    return (
+      <div className="min-h-screen bg-[#F2EFEC]">
+        <style>{CSS_FONT}</style>
+        {/* Topbar */}
+        <div className="border-b border-gray-200 px-6 h-14 flex items-center justify-between bg-white shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex gap-1">
+              <div className="w-7 h-7 bg-[#991A21] rounded-md flex items-center justify-center"><span className="text-white text-xs">🏠</span></div>
+              <div className="w-7 h-7 bg-[#2D2D2D] rounded-md flex items-center justify-center"><span className="text-white text-xs">📋</span></div>
+            </div>
+            <div className="w-px h-5 bg-gray-200" />
+            <span className="text-sm font-bold text-[#2D2D2D]">Totaal VvE Beheer</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-[#991A21] rounded-full flex items-center justify-center">
+              <span className="text-white text-xs font-bold">{beheerder.charAt(0)}</span>
+            </div>
+            <span className="text-sm font-medium text-[#2D2D2D]">{beheerder}</span>
+            <button onClick={async ()=>{ await signOut(); setScreen("login"); setLoginNaam(""); setLoginPw(""); setBeheerder(""); setData(defaultData()); }}
+              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-[#991A21] hover:border-red-200 hover:bg-red-50 transition-colors">
+              Uitloggen
+            </button>
+          </div>
+        </div>
+
+        <div className="p-8 max-w-4xl mx-auto">
+          {/* Welkom */}
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold text-[#2D2D2D] mb-1">
+              {(() => { const h = new Date().getHours(); return h < 12 ? "Goedemorgen" : h < 18 ? "Goedemiddag" : "Goedenavond"; })()}, {beheerder}
+            </h1>
+            <p className="text-sm text-gray-500">Kies een tool om mee te beginnen</p>
+          </div>
+
+          {/* Tool tegels */}
+          <div className="grid grid-cols-3 gap-5 mb-8">
+            {/* Vergaderplanner */}
+            <div
+              onClick={()=>setScreen("main")}
+              className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
+            >
+              <div className="absolute top-0 left-0 right-0 h-1 bg-[#991A21] rounded-t-2xl" />
+              <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-2xl mb-4">📅</div>
+              <h3 className="text-base font-bold text-[#2D2D2D] mb-2">Vergaderplanner</h3>
+              <p className="text-xs text-gray-500 mb-4 leading-relaxed">Plan en beheer alle VvE-vergaderingen, uitnodigingen en voortgang.</p>
+              <div className="flex items-center justify-between">
+                {data.vves.length > 0
+                  ? <span className="text-xs bg-red-50 text-[#991A21] px-2 py-1 rounded-full font-semibold border border-red-100">{data.vves.length} VvE's actief</span>
+                  : <span className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full font-semibold border border-gray-200">Openen</span>
+                }
+                <span className="text-[#991A21] font-bold group-hover:translate-x-1 transition-transform">→</span>
+              </div>
+            </div>
+
+            {/* VvE Calculator */}
+            <div
+              onClick={()=>setScreen("calculator")}
+              className="bg-white border-2 border-gray-200 hover:border-[#2D2D2D] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
+            >
+              <div className="absolute top-0 left-0 right-0 h-1 bg-[#2D2D2D] rounded-t-2xl" />
+              <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center text-2xl mb-4">🧮</div>
+              <h3 className="text-base font-bold text-[#2D2D2D] mb-2">VvE Calculator</h3>
+              <p className="text-xs text-gray-500 mb-4 leading-relaxed">Bereken bijdragen, reservefondsen en financiële overzichten.</p>
+              <div className="flex items-center justify-between">
+                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full font-semibold border border-gray-200">Beschikbaar</span>
+                <span className="text-[#2D2D2D] font-bold group-hover:translate-x-1 transition-transform">→</span>
+              </div>
+            </div>
+
+            {/* Admin dashboard — alleen voor admin */}
+            {isAdmin && (
+              <div
+                onClick={()=>setScreen("admin")}
+                className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
+              >
+                <div className="absolute top-0 left-0 right-0 h-1 bg-[#991A21] rounded-t-2xl" />
+                <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-2xl mb-4">🛡️</div>
+                <h3 className="text-base font-bold text-[#2D2D2D] mb-2">Admin Dashboard</h3>
+                <p className="text-xs text-gray-500 mb-4 leading-relaxed">Overzicht alle beheerders, voortgang en leaderboard.</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs bg-red-50 text-[#991A21] px-2 py-1 rounded-full font-semibold border border-red-100">Beheerder</span>
+                  <span className="text-[#991A21] font-bold group-hover:translate-x-1 transition-transform">→</span>
+                </div>
+              </div>
+            )}
+
+            {/* Toekomstige tool placeholder */}
+            {!isAdmin && (
+              <div className="bg-white border-2 border-dashed border-gray-200 rounded-2xl p-6 opacity-50 relative overflow-hidden">
+                <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center text-2xl mb-4">＋</div>
+                <h3 className="text-base font-bold text-gray-400 mb-2">Nieuwe tool</h3>
+                <p className="text-xs text-gray-400 leading-relaxed">Toekomstige tools verschijnen hier automatisch.</p>
+              </div>
+            )}
+          </div>
+
+          {/* Recente activiteit */}
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Recente activiteit</p>
+            {recenteActiviteit.length === 0 ? (
+              <p className="text-sm text-gray-400">Nog geen activiteit. Open de vergaderplanner om te beginnen.</p>
+            ) : (
+              <div className="space-y-3">
+                {recenteActiviteit.map((item, i) => (
+                  <div key={i} className="flex items-center gap-3 text-sm">
+                    <div className="w-2 h-2 rounded-full shrink-0" style={{background: item.kleur}} />
+                    <span className="font-medium text-[#2D2D2D]">{item.naam}</span>
+                    <span className="text-gray-400">— {item.tekst}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Main screen
   return (
     <div className={`min-h-screen ${t.bg} ${t.text}`}>
@@ -1494,6 +1905,10 @@ export default function App() {
             <span className="text-white text-xs font-bold">{beheerder.charAt(0)}</span>
           </div>
           <span className="text-sm font-medium text-[#2D2D2D]">{beheerder}</span>
+          <button onClick={()=>setScreen("portaal")}
+            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-[#991A21] hover:border-red-200 hover:bg-red-50 transition-colors">
+            ← Portaal
+          </button>
           <button onClick={async ()=>{ await signOut(); setScreen("login"); setLoginNaam(""); setLoginPw(""); setBeheerder(""); setData(defaultData()); }}
             className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-[#991A21] hover:border-red-200 hover:bg-red-50 transition-colors">
             Uitloggen
