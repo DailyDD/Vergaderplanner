@@ -1844,9 +1844,9 @@ export default function App() {
                   <p className="text-xs font-bold text-[#991A21] uppercase tracking-wider mb-3">⚡ Actie vereist</p>
                   {urgentItems.map(item => (
                     <div key={item.id} className={`flex items-start gap-3 rounded-lg px-3 py-2 text-xs ${
-                      item.type==="overdue" ? "bg-red-950/30 border border-red-900/40 text-red-300" :
-                      item.type==="geen2e"  ? "bg-amber-950/30 border border-amber-900/40 text-amber-300" :
-                      "bg-amber-950/20 border border-amber-900/30 text-amber-300"}`}>
+                      item.type==="overdue" ? "bg-red-50 border border-red-300 text-red-900" :
+                      item.type==="geen2e"  ? "bg-amber-50 border border-amber-300 text-amber-900" :
+                      "bg-amber-50 border border-amber-300 text-amber-900"}`}>
                       <span className="shrink-0 mt-0.5">
                         {item.type==="overdue" ? "✉" : item.type==="geen2e" ? "↩" : "⏰"}
                       </span>
@@ -1865,9 +1865,9 @@ export default function App() {
                         >
                           {item.naam}
                         </button>
-                        {item.is2e && <span className="ml-1 opacity-60">(2e reglementaire vergadering)</span>}
-                        {item.isExtra && <span className="ml-1 opacity-60">(extra vergadering)</span>}
-                        <span className="ml-2 opacity-70">
+                        {item.is2e && <span className="ml-1 opacity-80">(2e reglementaire vergadering)</span>}
+                        {item.isExtra && <span className="ml-1 opacity-80">(extra vergadering)</span>}
+                        <span className="ml-2 opacity-90">
                           {item.type==="overdue"  ? `— uitnodigingstermijn verlopen, vergadering ${fmtDate(item.datum)}` :
                            item.type==="geen2e"   ? `— 1e vergadering voorbij (${fmtDate(item.datum)}), geen 2e gepland` :
                            `— uitnodigen vóór ${fmtDate(item.deadline)} (vergadering ${fmtDate(item.datum)})`}
