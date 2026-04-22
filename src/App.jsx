@@ -385,7 +385,7 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
     : inv1 === "overdue" || inv2 === "overdue" ? "bg-red-500"
     : inv1 === "warning" || inv2 === "warning" ? "bg-amber-400"
     : vve.datum1 ? "bg-zinc-500"
-    : "bg-zinc-700";
+    : "bg-gray-300";
 
   const updateDatum1 = (val) => onUpdate({ ...vve, datum1: val, uitgenodigd1: false });
   const updateDatum2 = (val) => onUpdate({ ...vve, datum2: val, uitgenodigd2: false });
@@ -441,12 +441,12 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
                 inv1==="overdue" ? "border-red-900/50 bg-red-950/20" :
                 inv1==="warning" ? "border-amber-900/50 bg-amber-950/20" :
                 inv1==="confirmed" ? "border-emerald-900/40 bg-emerald-950/10" :
-                "border-zinc-700/50 bg-zinc-800/40"}`}>
+                "border-gray-200 bg-gray-50"}`}>
                 <div className="flex items-center justify-between">
                   <span className={`text-xs font-medium ${
-                    inv1==="overdue" ? "text-red-400" :
+                    inv1==="overdue" ? "text-[#991A21]" :
                     inv1==="warning" ? "text-amber-400" :
-                    inv1==="confirmed" ? "text-emerald-400" : "text-zinc-400"}`}>
+                    inv1==="confirmed" ? "text-emerald-600" : "text-zinc-400"}`}>
                     {inv1==="confirmed" ? "✉ Uitnodiging verstuurd" :
                      inv1==="overdue" ? "✉ Uitnodigingstermijn verlopen" :
                      inv1==="warning" ? `✉ Uitnodigen vóór ${fmtDate(addDays(vve.datum1,-INVITE_DAYS))}` :
@@ -485,7 +485,7 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
 
           {/* 2e vergadering */}
           {vve.needs2e && (
-            <div className="space-y-2 border-t border-zinc-800/40 pt-4">
+            <div className="space-y-2 border-t border-gray-200 pt-4">
               <span className="text-xs text-zinc-400 font-medium">2e reglementaire vergadering</span>
               <div className="flex gap-2">
                 <input type="date" value={vve.datum2||""} onChange={e=>updateDatum2(e.target.value)}
@@ -499,12 +499,12 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
                   inv2==="overdue" ? "border-red-900/50 bg-red-950/20" :
                   inv2==="warning" ? "border-amber-900/50 bg-amber-950/20" :
                   inv2==="confirmed" ? "border-emerald-900/40 bg-emerald-950/10" :
-                  "border-zinc-700/50 bg-zinc-800/40"}`}>
+                  "border-gray-200 bg-gray-50"}`}>
                   <div className="flex items-center justify-between">
                     <span className={`text-xs font-medium ${
-                      inv2==="overdue" ? "text-red-400" :
+                      inv2==="overdue" ? "text-[#991A21]" :
                       inv2==="warning" ? "text-amber-400" :
-                      inv2==="confirmed" ? "text-emerald-400" : "text-zinc-400"}`}>
+                      inv2==="confirmed" ? "text-emerald-600" : "text-zinc-400"}`}>
                       {inv2==="confirmed" ? "✉ Uitnodiging verstuurd" :
                        inv2==="overdue" ? "✉ Uitnodigingstermijn verlopen" :
                        inv2==="warning" ? `✉ Uitnodigen vóór ${fmtDate(addDays(vve.datum2,-INVITE_DAYS))}` :
@@ -555,7 +555,7 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
           </div>
 
           {/* Extra vergadering */}
-          <div className="space-y-2 border-t border-zinc-800/40 pt-4">
+          <div className="space-y-2 border-t border-gray-200 pt-4">
             <Checkbox checked={!!vve.extraVergadering} disabled={false}
               onChange={v=>onUpdate({...vve, extraVergadering: v, datumExtra: v ? vve.datumExtra : "", uitgenodigdExtra: false, vergaderdExtra: false})}
               label="Extra vergadering"/>
@@ -569,12 +569,12 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
                     inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="overdue" ? "border-red-900/50 bg-red-950/20" :
                     inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="warning" ? "border-amber-900/50 bg-amber-950/20" :
                     inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="confirmed" ? "border-emerald-900/40 bg-emerald-950/10" :
-                    "border-zinc-700/50 bg-zinc-800/40"}`}>
+                    "border-gray-200 bg-gray-50"}`}>
                     <div className="flex items-center justify-between">
                       <span className={`text-xs font-medium ${
-                        inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="overdue" ? "text-red-400" :
+                        inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="overdue" ? "text-[#991A21]" :
                         inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="warning" ? "text-amber-400" :
-                        inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="confirmed" ? "text-emerald-400" : "text-zinc-400"}`}>
+                        inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="confirmed" ? "text-emerald-600" : "text-zinc-400"}`}>
                         {inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="confirmed" ? "✉ Uitnodiging verstuurd" :
                          inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="overdue" ? "✉ Uitnodigingstermijn verlopen" :
                          inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="warning" ? `✉ Uitnodigen vóór ${fmtDate(addDays(vve.datumExtra,-INVITE_DAYS))}` :
@@ -826,10 +826,10 @@ function AdminDashboard({ beheerderList, onBack }) {
       </div>
       <div className="border-b border-gray-200 px-6 py-4 grid grid-cols-4 gap-3 bg-white">
         {[
-          [allVves.length, "Totaal VvE's", "text-zinc-100", false],
-          [totaalAfgerond, "Afgerond", "text-emerald-400", false],
-          [totaalUitgenodigd, "Uitgenodigd", "text-sky-400", false],
-          [totaalUitnodiging, "Uitnodiging urgent", totaalUitnodiging>0?"text-red-400":"text-zinc-600", totaalUitnodiging>0],
+          [allVves.length, "Totaal VvE's", "text-[#2D2D2D]", false],
+          [totaalAfgerond, "Afgerond", "text-emerald-600", false],
+          [totaalUitgenodigd, "Uitgenodigd", "text-blue-600", false],
+          [totaalUitnodiging, "Uitnodiging urgent", totaalUitnodiging>0?"text-[#991A21]":"text-gray-400", totaalUitnodiging>0],
         ].map(([val,label,color,ring])=>(
           <div key={label} className={`bg-white rounded-xl p-3 text-center border border-gray-200 shadow-sm ${ring?"ring-2 ring-[#991A21]/30":""}`}>
             <div className={`text-2xl font-mono font-bold ${color}`}>{val}</div>
@@ -859,24 +859,24 @@ function AdminDashboard({ beheerderList, onBack }) {
                 <div className="space-y-2">
                   {ranking.map((r, i) => {
                     const opSchema = r.pct >= yearPct - 5;
-                    const kleur = i === 0 ? "text-amber-400" : i === 1 ? "text-zinc-300" : i === 2 ? "text-amber-600" : "text-zinc-500";
+                    const kleur = i === 0 ? "text-amber-600" : i === 1 ? "text-gray-500" : i === 2 ? "text-amber-700" : "text-gray-400";
                     const barKleur = r.pct >= yearPct + 5 ? "bg-emerald-500" : r.pct >= yearPct - 5 ? "bg-sky-500" : "bg-red-500";
                     return (
                       <div key={r.naam} className={`rounded-lg p-2 ${i < 3 ? "bg-gray-50" : ""}`}>
                         <div className="flex items-center gap-1.5 mb-1">
                           <span className="text-sm shrink-0">{medals[i] || <span className="text-[10px] text-zinc-600 w-4 text-center">{i+1}</span>}</span>
-                          <span className={`text-xs font-medium truncate flex-1 ${kleur}`}>{r.naam}</span>
+                          <span className={`text-xs font-semibold truncate flex-1 ${kleur}`}>{r.naam}</span>
                           <span className={`text-[10px] font-mono shrink-0 ${kleur}`}>{r.pct}%</span>
                         </div>
-                        <div className="h-1 bg-zinc-700 rounded-full overflow-hidden relative">
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden relative">
                           <div className={`h-full rounded-full ${barKleur}`} style={{width:`${r.pct}%`}}/>
-                          <div className="absolute top-0 bottom-0 w-px bg-zinc-400/50" style={{left:`${yearPct}%`}}/>
+                          <div className="absolute top-0 bottom-0 w-px bg-gray-400/60" style={{left:`${yearPct}%`}}/>
                         </div>
-                        <p className="text-[9px] text-zinc-600 mt-0.5">{r.afgerond}/{r.total} afgerond</p>
+                        <p className="text-[9px] text-gray-400 mt-0.5">{r.afgerond}/{r.total} afgerond</p>
                       </div>
                     );
                   })}
-                  <div className="border-t border-zinc-800 pt-2 mt-1">
+                  <div className="border-t border-gray-100 pt-2 mt-1">
                     <p className="text-[9px] text-gray-400">Streepje = {yearPct}% van jaar verstreken</p>
                     <div className="flex gap-2 mt-1">
                       <span className="text-[9px] text-emerald-500">■ Voor</span>
@@ -931,17 +931,17 @@ function AdminDashboard({ beheerderList, onBack }) {
           const label = diff >= 5 ? "Voorloopt op schema" : diff >= -5 ? "Loopt op schema" : diff >= -15 ? "Loopt licht achter" : "Loopt achter op schema";
           return (
             <div className={`rounded-xl border p-4 flex items-center gap-4 shadow-sm ${color==="emerald"?"border-emerald-200 bg-emerald-50":color==="amber"?"border-amber-200 bg-amber-50":"border-red-200 bg-red-50"}`}>
-              <div className={`text-2xl font-mono font-bold ${color==="emerald"?"text-emerald-400":color==="amber"?"text-amber-400":"text-red-400"}`}>{avgAfgerondPct}%</div>
+              <div className={`text-2xl font-mono font-bold ${color==="emerald"?"text-emerald-600":color==="amber"?"text-amber-600":"text-red-600"}`}>{avgAfgerondPct}%</div>
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-1">
-                  <span className={`text-sm font-medium ${color==="emerald"?"text-emerald-300":color==="amber"?"text-amber-300":"text-red-300"}`}>{label}</span>
+                  <span className={`text-sm font-semibold ${color==="emerald"?"text-emerald-700":color==="amber"?"text-amber-700":"text-red-700"}`}>{label}</span>
                   <span className="text-xs text-gray-500">{yearPct}% van het jaar verstreken</span>
                 </div>
-                <div className="h-2 bg-zinc-800 rounded-full overflow-hidden relative">
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden relative">
                   <div className={`h-full rounded-full ${color==="emerald"?"bg-emerald-600":color==="amber"?"bg-amber-500":"bg-red-600"}`} style={{width:`${avgAfgerondPct}%`}}/>
-                  <div className="absolute top-0 bottom-0 w-0.5 bg-zinc-400/60" style={{left:`${yearPct}%`}}/>
+                  <div className="absolute top-0 bottom-0 w-0.5 bg-gray-500/50" style={{left:`${yearPct}%`}}/>
                 </div>
-                <p className="text-[10px] text-zinc-600 mt-1">Streepje = huidig punt in het jaar · Balk = % afgerond</p>
+                <p className="text-[10px] text-gray-500 mt-1">Streepje = huidig punt in het jaar · Balk = % afgerond</p>
               </div>
             </div>
           );
@@ -978,7 +978,7 @@ function AdminDashboard({ beheerderList, onBack }) {
                         <div className="flex gap-3 mt-1">
                           <span className="text-[9px] text-emerald-700">■ Afgerond</span>
                           <span className="text-[9px] text-sky-700">■ Uitgenodigd</span>
-                          <span className="text-[9px] text-zinc-700">■ Niet uitgenodigd</span>
+                          <span className="text-[9px] text-gray-400">■ Niet uitgenodigd</span>
                         </div>
                       </div>
                       <div className="flex gap-1.5 flex-wrap justify-end w-56 shrink-0">
@@ -1019,7 +1019,7 @@ function AdminDashboard({ beheerderList, onBack }) {
                           ))}
                           {(allData[naam]?.vves||[]).filter(v=>!v.uitgenodigd1&&!v.uitgenodigd2&&!v.vergaderd1).slice(0,5).map(v=>(
                             <div key={v.id} className="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
-                              <span className="text-zinc-600">·</span><span className="font-medium">{v.naam}</span><span className="text-zinc-600">— nog niet uitgenodigd</span>
+                              <span className="text-gray-400">·</span><span className="font-medium">{v.naam}</span><span className="text-gray-400">— nog niet uitgenodigd</span>
                             </div>
                           ))}
                           {stats.nietUitgenodigd>5 && <p className="text-[10px] text-zinc-600 pl-3">… en {stats.nietUitgenodigd-5} andere niet-uitgenodigde VvE's</p>}
@@ -1642,11 +1642,11 @@ export default function App() {
                           strokeDasharray={`${dasAfgerond} ${C}`} strokeDashoffset={0}
                           transform="rotate(-90 48 48)" strokeLinecap="butt"/>
                       )}
-                      <text x="48" y="44" textAnchor="middle" fill="#f4f4f5" fontSize="18" fontWeight="700" fontFamily="monospace">{pctAfgerond}%</text>
-                      <text x="48" y="57" textAnchor="middle" fill="#71717a" fontSize="8" fontFamily="sans-serif">afgerond</text>
+                      <text x="48" y="44" textAnchor="middle" fill="#2D2D2D" fontSize="18" fontWeight="700" fontFamily="DM Sans, sans-serif">{pctAfgerond}%</text>
+                      <text x="48" y="57" textAnchor="middle" fill="#8A8A8A" fontSize="8" fontFamily="DM Sans, sans-serif">afgerond</text>
                     </svg>
-                    <p className="text-sm font-semibold text-zinc-200 text-center">{label}</p>
-                    <p className="text-[10px] text-zinc-500 text-center">{afgerond} van {total} vergaderingen volledig afgerond</p>
+                    <p className="text-sm font-semibold text-[#2D2D2D] text-center">{label}</p>
+                    <p className="text-[10px] text-gray-500 text-center">{afgerond} van {total} vergaderingen volledig afgerond</p>
                   </div>
                   <div className="space-y-2 pt-1">
                     {[
@@ -1657,7 +1657,7 @@ export default function App() {
                       <div key={lbl}>
                         <div className="flex justify-between mb-0.5">
                           <span className="text-[10px] text-gray-500">{lbl}</span>
-                          <span className="text-[10px] font-mono text-gray-600 font-semibold">{val} <span className="text-zinc-600">/ {tot}</span></span>
+                          <span className="text-[10px] font-mono text-gray-600 font-semibold">{val} <span className="text-gray-400">/ {tot}</span></span>
                         </div>
                         <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                           <div className={`h-full rounded-full ${barColor}`} style={{width:`${tot===0?0:Math.round((val/tot)*100)}%`}}/>
@@ -1677,7 +1677,7 @@ export default function App() {
                         <p className="text-[10px] text-gray-500">
                           <span className="text-[#2D2D2D] font-semibold">Nog {dagenOver} dagen</span> tot eind {nu.getFullYear()}
                         </p>
-                        <p className={`text-[10px] font-medium ${opSchema ? "text-emerald-400" : "text-amber-400"}`}>
+                        <p className={`text-[10px] font-medium ${opSchema ? "text-emerald-600" : "text-amber-400"}`}>
                           {opSchema ? "✓ Je bent op schema" : "⚠ Je loopt achter op schema"}
                         </p>
                       </div>
@@ -1763,7 +1763,7 @@ export default function App() {
                                   className={`text-[10px] px-2 py-0.5 rounded font-mono transition-all ${
                                     actief
                                       ? "bg-sky-700 text-sky-100 border border-sky-600"
-                                      : "bg-zinc-800 text-zinc-400 border border-zinc-700 hover:border-zinc-500"
+                                      : "bg-gray-100 text-gray-600 border border-gray-200 hover:border-[#991A21]"
                                   }`}
                                 >
                                   {label} <span className="opacity-60">({count})</span>
@@ -1805,7 +1805,7 @@ export default function App() {
                                   className={`text-[10px] px-2 py-0.5 rounded font-mono transition-all ${
                                     actief
                                       ? "bg-emerald-700 text-emerald-100 border border-emerald-600"
-                                      : "bg-zinc-800 text-zinc-400 border border-zinc-700 hover:border-zinc-500"
+                                      : "bg-gray-100 text-gray-600 border border-gray-200 hover:border-[#991A21]"
                                   }`}
                                 >
                                   {label} <span className="opacity-60">({count})</span>
@@ -1861,7 +1861,7 @@ export default function App() {
                             // verwijder maandfilter als VvE erdoor gefilterd wordt
                             if (geselecteerdeFilterMaanden.size > 0) setGeselecteerdeFilterMaanden(new Set());
                           }}
-                          className="font-medium underline underline-offset-2 hover:opacity-80 transition-opacity cursor-pointer"
+                          className="font-semibold underline underline-offset-2 hover:opacity-70 transition-opacity cursor-pointer text-inherit"
                         >
                           {item.naam}
                         </button>
@@ -1944,7 +1944,7 @@ export default function App() {
                     {hideAfgerond && <span className="text-white text-xs font-bold">✓</span>}
                   </div>
                   <span className="text-xs text-gray-600 group-hover:text-[#2D2D2D] transition-colors whitespace-nowrap">
-                    Verberg afgerond {afgerond > 0 && <span className="text-zinc-600">({afgerond})</span>}
+                    Verberg afgerond {afgerond > 0 && <span className="text-gray-400">({afgerond})</span>}
                   </span>
                 </label>
               </div>
@@ -1954,7 +1954,7 @@ export default function App() {
                 <div className="flex items-center gap-3 px-3 py-2 bg-white border border-gray-200 rounded-xl shadow-sm">
                   <label className="flex items-center gap-2 cursor-pointer group" onClick={()=> selectie.size === filtered.length ? deselecteerAlles() : selecteerAlles()}>
                     <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${selectie.size === filtered.length && filtered.length > 0 ? "bg-[#991A21] border-[#991A21]" : selectie.size > 0 ? "bg-[#991A21]/60 border-[#991A21]/60" : "border-gray-300 hover:border-[#991A21]"}`}>
-                      {selectie.size === filtered.length && filtered.length > 0 && <span className="text-zinc-900 text-xs font-bold">✓</span>}
+                      {selectie.size === filtered.length && filtered.length > 0 && <span className="text-white text-xs font-bold">✓</span>}
                       {selectie.size > 0 && selectie.size < filtered.length && <span className="text-zinc-300 text-xs font-bold">−</span>}
                     </div>
                     <span className="text-xs text-gray-600 group-hover:text-[#2D2D2D] transition-colors">
@@ -1986,7 +1986,7 @@ export default function App() {
                       onClick={()=>toggleSelectie(vve.id)}
                       className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all cursor-pointer shrink-0 ${selectie.has(vve.id)?"bg-[#991A21] border-[#991A21]":"border-gray-300 hover:border-[#991A21]"}`}
                     >
-                      {selectie.has(vve.id) && <span className="text-zinc-900 text-xs font-bold">✓</span>}
+                      {selectie.has(vve.id) && <span className="text-white text-xs font-bold">✓</span>}
                     </div>
                     <div className="flex-1 min-w-0">
                       <VveRow
@@ -2028,8 +2028,8 @@ export default function App() {
                         {pctNiet > 0 && <circle cx="70" cy="70" r={R} fill="none" stroke="#3f3f46" strokeWidth="14" strokeDasharray={`${(pctNiet/100)*C} ${C}`} strokeDashoffset={-(dasAfgerond+dasUitgenodigd)} transform="rotate(-90 70 70)" strokeLinecap="butt"/>}
                         {pctUitgenodigd > 0 && <circle cx="70" cy="70" r={R} fill="none" stroke="#0ea5e9" strokeWidth="14" strokeDasharray={`${dasUitgenodigd} ${C}`} strokeDashoffset={-dasAfgerond} transform="rotate(-90 70 70)" strokeLinecap="butt"/>}
                         {pctAfgerond > 0 && <circle cx="70" cy="70" r={R} fill="none" stroke="#10b981" strokeWidth="14" strokeDasharray={`${dasAfgerond} ${C}`} strokeDashoffset={0} transform="rotate(-90 70 70)" strokeLinecap="butt"/>}
-                        <text x="70" y="65" textAnchor="middle" fill="#f4f4f5" fontSize="22" fontWeight="700" fontFamily="monospace">{pctAfgerond}%</text>
-                        <text x="70" y="82" textAnchor="middle" fill="#71717a" fontSize="9" fontFamily="sans-serif">afgerond</text>
+                        <text x="70" y="65" textAnchor="middle" fill="#2D2D2D" fontSize="22" fontWeight="700" fontFamily="DM Sans, sans-serif">{pctAfgerond}%</text>
+                        <text x="70" y="82" textAnchor="middle" fill="#8A8A8A" fontSize="9" fontFamily="DM Sans, sans-serif">afgerond</text>
                       </svg>
                     </div>
                     <div className="flex-1 space-y-4">
@@ -2040,8 +2040,8 @@ export default function App() {
                       <div className="space-y-2.5">
                         {[["Afgerond",afgerond,total,"bg-emerald-500"],["Uitgenodigd",uitgenodigd,total,"bg-sky-500"],["Niet uitgenodigd",nietUitgenodigd,total,"bg-zinc-600"]].map(([lbl,val,tot,,barColor])=>(
                           <div key={lbl}>
-                            <div className="flex justify-between mb-1"><span className="text-xs text-zinc-400">{lbl}</span><span className="text-xs font-mono text-zinc-400">{val} <span className="text-zinc-600">/ {tot}</span></span></div>
-                            <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden"><div className={`h-full rounded-full transition-all duration-700 ${barColor}`} style={{width:`${tot===0?0:Math.round((val/tot)*100)}%`}}/></div>
+                            <div className="flex justify-between mb-1"><span className="text-xs text-zinc-400">{lbl}</span><span className="text-xs font-mono text-zinc-400">{val} <span className="text-gray-400">/ {tot}</span></span></div>
+                            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden"><div className={`h-full rounded-full transition-all duration-700 ${barColor}`} style={{width:`${tot===0?0:Math.round((val/tot)*100)}%`}}/></div>
                           </div>
                         ))}
                       </div>
@@ -2107,16 +2107,16 @@ export default function App() {
                     </div>
                     <div>
                       <label className="text-xs text-zinc-500 block mb-1">Van</label>
-                      <input type="date" value={v.van} onChange={e=>updateVakantie({...v,van:e.target.value})} className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-300 focus:outline-none focus:border-zinc-500"/>
+                      <input type="date" value={v.van} onChange={e=>updateVakantie({...v,van:e.target.value})} className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] focus:outline-none focus:border-[#991A21] transition-colors"/>
                     </div>
                     <div>
                       <label className="text-xs text-zinc-500 block mb-1">Tot en met</label>
-                      <input type="date" value={v.tot} onChange={e=>updateVakantie({...v,tot:e.target.value})} className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-300 focus:outline-none focus:border-zinc-500"/>
+                      <input type="date" value={v.tot} onChange={e=>updateVakantie({...v,tot:e.target.value})} className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] focus:outline-none focus:border-[#991A21] transition-colors"/>
                     </div>
                   </div>
                   <div className="flex justify-between items-center">
                     {v.van&&v.tot&&<span className="text-xs text-gray-500">{fmtDate(v.van)} → {fmtDate(v.tot)}</span>}
-                    <button onClick={()=>deleteVakantie(v.id)} className="text-xs text-red-500 hover:text-red-400 transition-colors ml-auto">Verwijder</button>
+                    <button onClick={()=>deleteVakantie(v.id)} className="text-xs text-gray-400 hover:text-[#991A21] transition-colors ml-auto">Verwijder</button>
                   </div>
                 </div>
               ))}
