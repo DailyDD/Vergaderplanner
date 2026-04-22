@@ -819,9 +819,9 @@ function AdminDashboard({ beheerderList, onBack }) {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={()=>exportTotaalExcel(allData, beheerderList)} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 text-gray-600 rounded-lg transition-colors">⬇ Excel</button>
-          <button onClick={()=>exportAdminPDF(allData, beheerderList)} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 text-gray-600 rounded-lg transition-colors">⬇ PDF</button>
-          <button onClick={onBack} className="text-xs text-gray-500 hover:text-[#991A21] transition-colors">← Terug</button>
+          <button onClick={()=>exportTotaalExcel(allData, beheerderList)} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 border-2 border-gray-400 hover:border-[#991A21] text-gray-700 font-medium rounded-lg transition-colors">⬇ Excel</button>
+          <button onClick={()=>exportAdminPDF(allData, beheerderList)} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 border-2 border-gray-400 hover:border-[#991A21] text-gray-700 font-medium rounded-lg transition-colors">⬇ PDF</button>
+          <button onClick={onBack} className="text-xs px-3 py-1.5 bg-white hover:bg-red-50 border-2 border-gray-300 hover:border-[#991A21] text-gray-600 hover:text-[#991A21] rounded-lg transition-colors font-medium">Uitloggen</button>
         </div>
       </div>
       <div className="border-b border-gray-200 px-6 py-4 grid grid-cols-4 gap-3 bg-white">
@@ -831,7 +831,7 @@ function AdminDashboard({ beheerderList, onBack }) {
           [totaalUitgenodigd, "Uitgenodigd", "text-blue-600", false],
           [totaalUitnodiging, "Uitnodiging urgent", totaalUitnodiging>0?"text-[#991A21]":"text-gray-400", totaalUitnodiging>0],
         ].map(([val,label,color,ring])=>(
-          <div key={label} className={`bg-white rounded-xl p-3 text-center border border-gray-200 shadow-sm ${ring?"ring-2 ring-[#991A21]/30":""}`}>
+          <div key={label} className={`bg-white rounded-xl p-3 text-center border-2 shadow-sm ${ring?"border-[#991A21]":"border-gray-400"}`}>
             <div className={`text-2xl font-mono font-bold ${color}`}>{val}</div>
             <div className="text-[10px] text-gray-500 uppercase tracking-wide mt-0.5 font-medium">{label}</div>
           </div>
@@ -841,7 +841,7 @@ function AdminDashboard({ beheerderList, onBack }) {
         <div className="flex gap-6 items-start">
 
           {/* ── Leaderboard zijbalk ── */}
-          <div className="w-52 shrink-0 sticky top-4 bg-white border border-gray-200 rounded-xl p-4 space-y-3 shadow-sm">
+          <div className="w-52 shrink-0 sticky top-4 bg-white border-2 border-gray-400 rounded-xl p-4 space-y-3 shadow-sm">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">🏆 Voortgang ranking</p>
             {(() => {
               const ranking = beheerderList
