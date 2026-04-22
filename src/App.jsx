@@ -429,7 +429,7 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
       </div>
 
       {expanded && (
-        <div className="border-t border-gray-200 px-4 py-4 bg-[#F2EFEC] space-y-5">
+        <div className="border-t border-gray-200 px-4 py-4 bg-[#E4DED8] space-y-5">
 
           {/* 1e vergadering */}
           <div className="space-y-2">
@@ -1442,7 +1442,7 @@ export default function App() {
           </div>
           <div className="text-center">
             <p className="text-white text-xl font-bold mb-2">Vergaderplanner</p>
-            <p className="text-gray-400 text-sm leading-relaxed max-w-xs">Plan, beheer en monitor alle VvE-vergaderingen voor Den Haag en omstreken</p>
+            <p className="text-gray-400 text-sm leading-relaxed max-w-xs">Plan, beheer en monitor alle VvE-vergaderingen</p>
           </div>
         </div>
       </div>
