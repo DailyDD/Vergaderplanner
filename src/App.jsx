@@ -1,5 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
+// ── Huisstijl Totaal VvE Beheer ──────────────────────────────────
+// Primair: #991A21 (donkerrood), Antraciet: #2D2D2D, Achtergrond: #F2EFEC
+const CSS_FONT = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
+* { font-family: 'DM Sans', sans-serif !important; }`;
+
 // ── Config ───────────────────────────────────────────────────────
 const INVITE_DAYS = 21;
 const NL_MONTHS = ["jan","feb","mrt","apr","mei","jun","jul","aug","sep","okt","nov","dec"];
@@ -270,13 +275,13 @@ function generatePlanning(vves, vakanties, werkdagen) {
 // ── Shared UI ────────────────────────────────────────────────────
 function Badge({ color, children }) {
   const c = {
-    green:"bg-emerald-900/40 text-emerald-300 border border-emerald-700/40",
-    orange:"bg-amber-900/40 text-amber-300 border border-amber-700/40",
-    red:"bg-red-900/40 text-red-300 border border-red-700/40",
-    blue:"bg-sky-900/40 text-sky-300 border border-sky-700/40",
-    gray:"bg-zinc-800 text-zinc-400 border border-zinc-700",
+    green:"bg-emerald-50 text-emerald-700 border border-emerald-200",
+    orange:"bg-orange-50 text-orange-700 border border-orange-200",
+    red:"bg-red-50 text-[#991A21] border border-red-200",
+    blue:"bg-blue-50 text-blue-700 border border-blue-200",
+    gray:"bg-gray-100 text-gray-600 border border-gray-200",
   };
-  return <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${c[color]||c.gray}`}>{children}</span>;
+  return <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${c[color]||c.gray}`}>{children}</span>;
 }
 
 function MonthBar({ counts, vakanties }) {
@@ -297,11 +302,11 @@ function MonthBar({ counts, vakanties }) {
         const color = count===0?"#27272a":count>=8?"#dc2626":count>=5?"#d97706":"#059669";
         return (
           <div key={m} className="flex flex-col items-center gap-1">
-            <div className="w-full rounded-sm overflow-hidden bg-zinc-800 h-16 flex items-end relative">
+            <div className="w-full rounded-sm overflow-hidden bg-gray-100 h-16 flex items-end relative">
               {inVak && <div className="absolute inset-0 opacity-20 bg-amber-400 pointer-events-none"/>}
               <div className="w-full transition-all duration-500 rounded-sm" style={{height:`${Math.max(pct,count>0?8:0)}%`,backgroundColor:color}}/>
             </div>
-            <span className="text-[9px] text-zinc-500 font-mono uppercase">{m}</span>
+            <span className="text-[9px] text-gray-400 font-mono uppercase">{m}</span>
             <span className="text-[10px] font-mono" style={{color:count===0?"#52525b":color}}>{count||"·"}</span>
           </div>
         );
@@ -328,13 +333,13 @@ function Checkbox({ checked, disabled, onChange, label }) {
     <label className="flex items-center gap-2 cursor-pointer group shrink-0" onClick={e=>e.stopPropagation()}>
       <div
         onClick={()=>!disabled && onChange(!checked)}
-        className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all
+        className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all
           ${disabled ? "opacity-30 cursor-not-allowed" : "cursor-pointer"}
-          ${checked ? "bg-emerald-600 border-emerald-600" : "border-zinc-600 hover:border-zinc-400"}`}
+          ${checked ? "bg-[#991A21] border-[#991A21]" : "border-gray-300 hover:border-[#991A21]"}`}
       >
         {checked && <span className="text-white text-xs font-bold">✓</span>}
       </div>
-      <span className={`text-xs transition-colors ${disabled ? "text-zinc-700" : "text-zinc-400 group-hover:text-zinc-300"}`}>{label}</span>
+      <span className={`text-xs transition-colors ${disabled ? "text-gray-300" : "text-gray-600 group-hover:text-[#2D2D2D]"}`}>{label}</span>
     </label>
   );
 }
@@ -386,12 +391,12 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
   const updateDatum2 = (val) => onUpdate({ ...vve, datum2: val, uitgenodigd2: false });
 
   return (
-    <div ref={rowRef} className={`border rounded-lg overflow-hidden transition-colors ${afgerond ? "border-emerald-900/50 bg-emerald-950/10" : "border-zinc-800"}`}>
-      <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-zinc-800/30 transition-colors" onClick={()=>setExpanded(e=>!e)}>
+    <div ref={rowRef} className={`border rounded-xl overflow-hidden transition-all shadow-sm ${afgerond ? "border-emerald-200 bg-emerald-50/30" : "border-gray-200 bg-white"}`}>
+      <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors" onClick={()=>setExpanded(e=>!e)}>
         <div className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`}/>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-sm font-medium truncate ${afgerond ? "text-emerald-300" : "text-zinc-200"}`}>{vve.naam}</span>
+            <span className={`text-sm font-semibold truncate ${afgerond ? "text-emerald-700" : "text-[#2D2D2D]"}`}>{vve.naam}</span>
             {afgerond && <Badge color="green">✓ Afgerond</Badge>}
             {afgerond && vve.voorkeurVolgendjaar && <Badge color="blue">📅 {new Date().getFullYear()+1} gepland</Badge>}
             {!afgerond && vergaderd1 && vve.datum2 && !vergaderd2 && <Badge color="blue">1e ✓ · 2e loopt</Badge>}
@@ -403,7 +408,7 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
           </div>
           <div className="flex gap-4 mt-0.5 flex-wrap">
             {vve.datum1 && (
-              <span className="text-xs text-zinc-500">
+              <span className="text-xs text-gray-500">
                 1e: <span className={vergaderd1 ? "text-emerald-600 line-through" : "text-zinc-400"}>{fmtDate(vve.datum1)}</span>
                 {!uitgenodigd1 && !vergaderd1 && <span className="text-zinc-600 ml-1">· uitnodigen uiterlijk {fmtDate(addDays(vve.datum1, -INVITE_DAYS))}</span>}
                 {uitgenodigd1 && !vergaderd1 && <span className="text-emerald-700 ml-1">· uitnodiging verstuurd</span>}
@@ -411,7 +416,7 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
               </span>
             )}
             {vve.datum2 && (
-              <span className="text-xs text-zinc-500">
+              <span className="text-xs text-gray-500">
                 2e: <span className={vergaderd2 ? "text-emerald-600 line-through" : "text-zinc-400"}>{fmtDate(vve.datum2)}</span>
                 {!uitgenodigd2 && !vergaderd2 && <span className="text-zinc-600 ml-1">· uitnodigen uiterlijk {fmtDate(addDays(vve.datum2, -INVITE_DAYS))}</span>}
                 {uitgenodigd2 && !vergaderd2 && <span className="text-emerald-700 ml-1">· uitnodiging verstuurd</span>}
@@ -420,17 +425,17 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
             )}
           </div>
         </div>
-        <span className="text-zinc-600 text-xs">{expanded?"▲":"▼"}</span>
+        <span className="text-gray-400 text-xs">{expanded?"▲":"▼"}</span>
       </div>
 
       {expanded && (
-        <div className="border-t border-zinc-800/60 px-4 py-4 bg-zinc-900/60 space-y-5">
+        <div className="border-t border-gray-200 px-4 py-4 bg-[#F2EFEC] space-y-5">
 
           {/* 1e vergadering */}
           <div className="space-y-2">
             <span className="text-xs text-zinc-400 font-medium">1e vergadering</span>
             <input type="date" value={vve.datum1} onChange={e=>updateDatum1(e.target.value)}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-zinc-500"/>
+              className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] focus:outline-none focus:border-[#991A21] transition-colors"/>
             {vve.datum1 && (
               <div className={`rounded-lg px-3 py-2.5 border ${
                 inv1==="overdue" ? "border-red-900/50 bg-red-950/20" :
@@ -462,17 +467,17 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
                 label="2e reglementaire vergadering nodig"/>
             </div>
             {vergaderd1 && !vve.needs2e && (
-              <div className="border border-emerald-900/40 bg-emerald-950/10 rounded-lg px-3 py-2.5 space-y-1.5">
-                <label className="text-xs text-emerald-400 font-medium block">📅 Voorkeursdatum volgend jaar</label>
-                <p className="text-[10px] text-zinc-500">Optioneel — wordt meegenomen in de auto-planning voor {new Date().getFullYear() + 1}.</p>
+              <div className="border border-emerald-200 bg-emerald-50 rounded-lg px-3 py-2.5 space-y-1.5">
+                <label className="text-xs text-emerald-700 font-semibold block">📅 Voorkeursdatum volgend jaar</label>
+                <p className="text-[10px] text-gray-500">Optioneel — wordt meegenomen in de auto-planning voor {new Date().getFullYear() + 1}.</p>
                 <input
                   type="date"
                   value={vve.voorkeurVolgendjaar || ""}
                   onChange={e => onUpdate({ ...vve, voorkeurVolgendjaar: e.target.value })}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-emerald-600"
+                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] focus:outline-none focus:border-emerald-600 transition-colors"
                 />
                 {vve.voorkeurVolgendjaar && (
-                  <p className="text-[10px] text-emerald-600">✓ Voorkeur opgeslagen: {fmtDate(vve.voorkeurVolgendjaar)}</p>
+                  <p className="text-[10px] text-emerald-700 font-medium">✓ Voorkeur opgeslagen: {fmtDate(vve.voorkeurVolgendjaar)}</p>
                 )}
               </div>
             )}
@@ -484,9 +489,9 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
               <span className="text-xs text-zinc-400 font-medium">2e reglementaire vergadering</span>
               <div className="flex gap-2">
                 <input type="date" value={vve.datum2||""} onChange={e=>updateDatum2(e.target.value)}
-                  className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-zinc-500"/>
+                  className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] focus:outline-none focus:border-[#991A21] transition-colors"/>
                 {vve.datum1 && !vve.datum2 && (
-                  <button onClick={()=>onAdd2nd(vve)} className="text-xs bg-zinc-700 hover:bg-zinc-600 text-zinc-300 px-3 rounded transition-colors whitespace-nowrap">+3w</button>
+                  <button onClick={()=>onAdd2nd(vve)} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 border border-gray-200 px-3 py-2 rounded-lg transition-colors whitespace-nowrap">+3w</button>
                 )}
               </div>
               {vve.datum2 && (
@@ -519,17 +524,17 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
                 </div>
               )}
               {vergaderd2 && (
-                <div className="border border-emerald-900/40 bg-emerald-950/10 rounded-lg px-3 py-2.5 space-y-1.5">
-                  <label className="text-xs text-emerald-400 font-medium block">📅 Voorkeursdatum volgend jaar</label>
-                  <p className="text-[10px] text-zinc-500">Optioneel — wordt meegenomen in de auto-planning voor {new Date().getFullYear() + 1}.</p>
+                <div className="border border-emerald-200 bg-emerald-50 rounded-lg px-3 py-2.5 space-y-1.5">
+                  <label className="text-xs text-emerald-700 font-semibold block">📅 Voorkeursdatum volgend jaar</label>
+                  <p className="text-[10px] text-gray-500">Optioneel — wordt meegenomen in de auto-planning voor {new Date().getFullYear() + 1}.</p>
                   <input
                     type="date"
                     value={vve.voorkeurVolgendjaar || ""}
                     onChange={e => onUpdate({ ...vve, voorkeurVolgendjaar: e.target.value })}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-emerald-600"
+                    className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] focus:outline-none focus:border-emerald-600 transition-colors"
                   />
                   {vve.voorkeurVolgendjaar && (
-                    <p className="text-[10px] text-emerald-600">✓ Voorkeur opgeslagen: {fmtDate(vve.voorkeurVolgendjaar)}</p>
+                    <p className="text-[10px] text-emerald-700 font-medium">✓ Voorkeur opgeslagen: {fmtDate(vve.voorkeurVolgendjaar)}</p>
                   )}
                 </div>
               )}
@@ -540,7 +545,7 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
             <label className="text-xs text-zinc-500 block mb-1">Notitie</label>
             <input type="text" value={vve.notitie||""} onChange={e=>onUpdate({...vve,notitie:e.target.value})}
               placeholder="Bijv. altijd dinsdag…"
-              className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-400 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"/>
+              className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none focus:border-[#991A21] transition-colors"/>
             {vve.voorkeurVolgendjaar && vve.notitie && (
               <div className="mt-2 flex items-start gap-2 bg-amber-950/30 border border-amber-800/50 rounded-lg px-3 py-2">
                 <span className="text-amber-400 shrink-0 mt-0.5">💡</span>
@@ -558,7 +563,7 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
               <div className="space-y-2 pl-1">
                 <input type="date" value={vve.datumExtra||""}
                   onChange={e=>onUpdate({...vve, datumExtra: e.target.value, uitgenodigdExtra: false})}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-zinc-500"/>
+                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] focus:outline-none focus:border-[#991A21] transition-colors"/>
                 {vve.datumExtra && (
                   <div className={`rounded-lg px-3 py-2.5 border ${
                     inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="overdue" ? "border-red-900/50 bg-red-950/20" :
@@ -595,7 +600,7 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
 
           {/* Kosten reminder */}
           {(vve.needs2e || vve.extraVergadering) && (
-            <p className="text-[10px] text-amber-600/80 border-t border-zinc-800/40 pt-3">
+            <p className="text-[10px] text-orange-700 border-t border-gray-200 pt-3">
               💡 Vergeet niet de kosten in rekening te brengen
               {vve.needs2e && vve.extraVergadering ? " voor de 2e reglementaire vergadering en de extra vergadering." :
                vve.needs2e ? " voor de 2e reglementaire vergadering." :
@@ -604,7 +609,7 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
           )}
 
           <div className="flex justify-end">
-            <button onClick={()=>onDelete(vve.id)} className="text-xs text-red-500 hover:text-red-400 transition-colors">Verwijder VvE</button>
+            <button onClick={()=>onDelete(vve.id)} className="text-xs text-gray-400 hover:text-[#991A21] transition-colors">Verwijder VvE</button>
           </div>
         </div>
       )}
@@ -626,7 +631,7 @@ function WerkdagenSelector({ werkdagen, onChange }) {
             updated[dow] = !updated[dow];
             onChange(updated);
           }}
-          className={`w-9 h-9 rounded-lg text-xs font-medium transition-all ${werkdagen[dow] ? "bg-zinc-200 text-zinc-900" : "bg-zinc-800 text-zinc-500 border border-zinc-700"}`}
+          className={`w-9 h-9 rounded-lg text-xs font-semibold transition-all ${werkdagen[dow] ? "bg-[#991A21] text-white shadow-sm" : "bg-white text-gray-500 border border-gray-200 hover:border-[#991A21]"}`}
         >
           {displayLabels[i]}
         </button>
@@ -801,34 +806,34 @@ function AdminDashboard({ beheerderList, onBack }) {
            (!v.vergaderd2 && v.datum2 && (s2==="warning"||s2==="overdue"));
   }).length;
   const globalCounts = spreadScore(allVves);
-  const riskBorder = { red:"border-red-800/60 bg-red-950/20", orange:"border-amber-800/50 bg-amber-950/10", blue:"border-sky-800/40 bg-sky-950/10", green:"border-zinc-800 bg-zinc-900", gray:"border-zinc-800 bg-zinc-900" };
+  const riskBorder = { red:"border-red-200 bg-red-50", orange:"border-amber-200 bg-amber-50", blue:"border-blue-200 bg-blue-50", green:"border-gray-200 bg-white", gray:"border-gray-200 bg-white" };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-200">
-      <div className="border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-[#F2EFEC] text-[#2D2D2D]">
+      <div className="border-b border-gray-200 px-6 py-3.5 flex items-center justify-between bg-white shadow-sm">
         <div className="flex items-center gap-3">
           <span className="text-lg">🛡️</span>
           <div>
-            <h1 className="text-sm font-semibold text-zinc-100">Admin Dashboard</h1>
-            <p className="text-xs text-zinc-500">Overzicht alle beheerders — {new Date().getFullYear()}</p>
+            <h1 className="text-sm font-bold text-[#2D2D2D]">Admin Dashboard</h1>
+            <p className="text-xs text-gray-500">Overzicht alle beheerders — {new Date().getFullYear()}</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={()=>exportTotaalExcel(allData, beheerderList)} className="text-xs px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 rounded-lg transition-colors">⬇ Excel</button>
-          <button onClick={()=>exportAdminPDF(allData, beheerderList)} className="text-xs px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 rounded-lg transition-colors">⬇ PDF</button>
-          <button onClick={onBack} className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors">← Terug</button>
+          <button onClick={()=>exportTotaalExcel(allData, beheerderList)} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 text-gray-600 rounded-lg transition-colors">⬇ Excel</button>
+          <button onClick={()=>exportAdminPDF(allData, beheerderList)} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 text-gray-600 rounded-lg transition-colors">⬇ PDF</button>
+          <button onClick={onBack} className="text-xs text-gray-500 hover:text-[#991A21] transition-colors">← Terug</button>
         </div>
       </div>
-      <div className="border-b border-zinc-800 px-6 py-4 grid grid-cols-4 gap-3">
+      <div className="border-b border-gray-200 px-6 py-4 grid grid-cols-4 gap-3 bg-white">
         {[
           [allVves.length, "Totaal VvE's", "text-zinc-100", false],
           [totaalAfgerond, "Afgerond", "text-emerald-400", false],
           [totaalUitgenodigd, "Uitgenodigd", "text-sky-400", false],
           [totaalUitnodiging, "Uitnodiging urgent", totaalUitnodiging>0?"text-red-400":"text-zinc-600", totaalUitnodiging>0],
         ].map(([val,label,color,ring])=>(
-          <div key={label} className={`bg-zinc-900 rounded-lg p-3 text-center ${ring?"ring-1 ring-red-700/50":""}`}>
+          <div key={label} className={`bg-white rounded-xl p-3 text-center border border-gray-200 shadow-sm ${ring?"ring-2 ring-[#991A21]/30":""}`}>
             <div className={`text-2xl font-mono font-bold ${color}`}>{val}</div>
-            <div className="text-[10px] text-zinc-500 uppercase tracking-wide mt-0.5">{label}</div>
+            <div className="text-[10px] text-gray-500 uppercase tracking-wide mt-0.5 font-medium">{label}</div>
           </div>
         ))}
       </div>
@@ -836,8 +841,8 @@ function AdminDashboard({ beheerderList, onBack }) {
         <div className="flex gap-6 items-start">
 
           {/* ── Leaderboard zijbalk ── */}
-          <div className="w-52 shrink-0 sticky top-4 bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-3">
-            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">🏆 Voortgang ranking</p>
+          <div className="w-52 shrink-0 sticky top-4 bg-white border border-gray-200 rounded-xl p-4 space-y-3 shadow-sm">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">🏆 Voortgang ranking</p>
             {(() => {
               const ranking = beheerderList
                 .map(naam => {
@@ -847,7 +852,7 @@ function AdminDashboard({ beheerderList, onBack }) {
                 .filter(r => r.total > 0)
                 .sort((a, b) => b.pct - a.pct);
 
-              if (ranking.length === 0) return <p className="text-[10px] text-zinc-600">Nog geen data.</p>;
+              if (ranking.length === 0) return <p className="text-[10px] text-gray-400">Nog geen data.</p>;
 
               const medals = ["🥇","🥈","🥉"];
               return (
@@ -857,7 +862,7 @@ function AdminDashboard({ beheerderList, onBack }) {
                     const kleur = i === 0 ? "text-amber-400" : i === 1 ? "text-zinc-300" : i === 2 ? "text-amber-600" : "text-zinc-500";
                     const barKleur = r.pct >= yearPct + 5 ? "bg-emerald-500" : r.pct >= yearPct - 5 ? "bg-sky-500" : "bg-red-500";
                     return (
-                      <div key={r.naam} className={`rounded-lg p-2 ${i < 3 ? "bg-zinc-800/60" : ""}`}>
+                      <div key={r.naam} className={`rounded-lg p-2 ${i < 3 ? "bg-gray-50" : ""}`}>
                         <div className="flex items-center gap-1.5 mb-1">
                           <span className="text-sm shrink-0">{medals[i] || <span className="text-[10px] text-zinc-600 w-4 text-center">{i+1}</span>}</span>
                           <span className={`text-xs font-medium truncate flex-1 ${kleur}`}>{r.naam}</span>
@@ -872,7 +877,7 @@ function AdminDashboard({ beheerderList, onBack }) {
                     );
                   })}
                   <div className="border-t border-zinc-800 pt-2 mt-1">
-                    <p className="text-[9px] text-zinc-600">Streepje = {yearPct}% van jaar verstreken</p>
+                    <p className="text-[9px] text-gray-400">Streepje = {yearPct}% van jaar verstreken</p>
                     <div className="flex gap-2 mt-1">
                       <span className="text-[9px] text-emerald-500">■ Voor</span>
                       <span className="text-[9px] text-sky-500">■ Op schema</span>
@@ -897,16 +902,16 @@ function AdminDashboard({ beheerderList, onBack }) {
             });
             if (inactief.length === 0) return null;
             return (
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-2">
-                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">⚠ Inactief ≥10 dagen</p>
+              <div className="bg-white border border-gray-200 border-l-4 border-l-[#991A21] rounded-xl p-4 space-y-2 shadow-sm">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">⚠ Inactief ≥10 dagen</p>
                 {inactief.map(r => {
                   const dagen = r.laatste_login
                     ? Math.floor((nu - new Date(r.laatste_login)) / 86400000)
                     : null;
                   return (
-                    <div key={r.naam} className="flex items-center justify-between text-xs bg-zinc-800/60 rounded-lg px-3 py-2">
-                      <span className="text-zinc-300 font-medium">{r.naam}</span>
-                      <span className="text-amber-500 font-mono">
+                    <div key={r.naam} className="flex items-center justify-between text-xs bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">
+                      <span className="text-[#2D2D2D] font-semibold">{r.naam}</span>
+                      <span className="text-orange-600 font-mono font-semibold">
                         {dagen === null ? "Nooit ingelogd" : `${dagen}d geleden`}
                       </span>
                     </div>
@@ -925,12 +930,12 @@ function AdminDashboard({ beheerderList, onBack }) {
           const color = diff >= 0 ? "emerald" : diff >= -10 ? "amber" : "red";
           const label = diff >= 5 ? "Voorloopt op schema" : diff >= -5 ? "Loopt op schema" : diff >= -15 ? "Loopt licht achter" : "Loopt achter op schema";
           return (
-            <div className={`rounded-xl border p-4 flex items-center gap-4 ${color==="emerald"?"border-emerald-800/50 bg-emerald-950/20":color==="amber"?"border-amber-800/50 bg-amber-950/20":"border-red-800/50 bg-red-950/20"}`}>
+            <div className={`rounded-xl border p-4 flex items-center gap-4 shadow-sm ${color==="emerald"?"border-emerald-200 bg-emerald-50":color==="amber"?"border-amber-200 bg-amber-50":"border-red-200 bg-red-50"}`}>
               <div className={`text-2xl font-mono font-bold ${color==="emerald"?"text-emerald-400":color==="amber"?"text-amber-400":"text-red-400"}`}>{avgAfgerondPct}%</div>
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-1">
                   <span className={`text-sm font-medium ${color==="emerald"?"text-emerald-300":color==="amber"?"text-amber-300":"text-red-300"}`}>{label}</span>
-                  <span className="text-xs text-zinc-500">{yearPct}% van het jaar verstreken</span>
+                  <span className="text-xs text-gray-500">{yearPct}% van het jaar verstreken</span>
                 </div>
                 <div className="h-2 bg-zinc-800 rounded-full overflow-hidden relative">
                   <div className={`h-full rounded-full ${color==="emerald"?"bg-emerald-600":color==="amber"?"bg-amber-500":"bg-red-600"}`} style={{width:`${avgAfgerondPct}%`}}/>
@@ -942,14 +947,14 @@ function AdminDashboard({ beheerderList, onBack }) {
           );
         })()}
 
-        {herindelenMsg && <div className="bg-emerald-950/30 border border-emerald-800/40 rounded-lg px-4 py-2 text-xs text-emerald-300">{herindelenMsg}</div>}
+        {herindelenMsg && <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2 text-xs text-emerald-700 font-medium">{herindelenMsg}</div>}
 
-        <div className="bg-zinc-900 rounded-xl p-5 border border-zinc-800">
-          <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Totale spreiding alle beheerders</h2>
+        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+          <h2 className="text-xs font-bold text-[#991A21] uppercase tracking-wider mb-3">Totale spreiding alle beheerders</h2>
           <MonthBar counts={globalCounts} vakanties={[]}/>
         </div>
         <div>
-          <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Status per beheerder</h2>
+          <h2 className="text-xs font-bold text-[#991A21] uppercase tracking-wider mb-3">Status per beheerder</h2>
           {loading && <p className="text-sm text-zinc-600">Laden…</p>}
           <div className="space-y-3">
             {beheerderList.map(naam => {
@@ -958,15 +963,15 @@ function AdminDashboard({ beheerderList, onBack }) {
               const isOpen = expanded===naam;
               return (
                 <div key={naam} className={`rounded-xl border overflow-hidden ${riskBorder[risk]}`}>
-                  <div className="px-5 py-4 cursor-pointer hover:bg-white/[0.02] transition-colors" onClick={()=>setExpanded(isOpen?null:naam)}>
+                  <div className="px-5 py-4 cursor-pointer hover:bg-gray-50 transition-colors" onClick={()=>setExpanded(isOpen?null:naam)}>
                     <div className="flex items-center gap-4">
-                      <div className="w-36 shrink-0"><span className="text-sm font-semibold text-zinc-200">{naam}</span></div>
+                      <div className="w-36 shrink-0"><span className="text-sm font-semibold text-[#2D2D2D]">{naam}</span></div>
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] text-zinc-500">{stats?.afgerond||0} afgerond · {stats?.uitgenodigd||0} uitgenodigd / {stats?.total||0}</span>
-                          <span className="text-[10px] font-mono text-zinc-400">{stats?.pctAfgerond||0}%</span>
+                          <span className="text-[10px] text-gray-500">{stats?.afgerond||0} afgerond · {stats?.uitgenodigd||0} uitgenodigd / {stats?.total||0}</span>
+                          <span className="text-[10px] font-mono text-gray-600 font-semibold">{stats?.pctAfgerond||0}%</span>
                         </div>
-                        <div className="h-2 bg-zinc-800 rounded-full overflow-hidden flex">
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden flex">
                           <div className="h-full transition-all duration-700 bg-emerald-600" style={{width:`${stats?.pctAfgerond||0}%`}}/>
                           <div className="h-full transition-all duration-700 bg-sky-600" style={{width:`${stats?.pctUitgenodigd||0}%`}}/>
                         </div>
@@ -990,9 +995,9 @@ function AdminDashboard({ beheerderList, onBack }) {
                     </div>
                   </div>
                   {isOpen && stats && (
-                    <div className="border-t border-zinc-800/60 px-5 py-4 space-y-4 bg-zinc-950/40">
+                    <div className="border-t border-gray-200 px-5 py-4 space-y-4 bg-[#F2EFEC]">
                       <div>
-                        <p className="text-[10px] text-zinc-600 mb-2 uppercase tracking-wide">Spreiding {naam}</p>
+                        <p className="text-[10px] text-gray-500 mb-2 uppercase tracking-wide font-semibold">Spreiding {naam}</p>
                         <MonthBar counts={spreadScore(allData[naam]?.vves||[])} vakanties={allData[naam]?.vakanties||[]}/>
                       </div>
                       {(stats.uitnodigingUrgent>0||stats.voorbijZonder2e>0||stats.nietUitgenodigd>0) && (
@@ -1002,43 +1007,43 @@ function AdminDashboard({ beheerderList, onBack }) {
                             const s = inviteStatus(v.datum1, v.uitgenodigd1);
                             return !v.vergaderd1 && (s==="warning"||s==="overdue");
                           }).map(v=>(
-                            <div key={v.id} className="flex items-center gap-2 text-xs text-red-300 bg-red-950/20 border border-red-900/30 rounded px-3 py-1.5">
+                            <div key={v.id} className="flex items-center gap-2 text-xs text-[#991A21] bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
                               <span>✉</span><span className="font-medium">{v.naam}</span>
                               <span className="text-red-500">— uitnodigen vóór {fmtDate(addDays(v.datum1,-INVITE_DAYS))}</span>
                             </div>
                           ))}
                           {(allData[naam]?.vves||[]).filter(v=>v.datum1&&v.datum1<today()&&!v.datum2&&!v.vergaderd1).map(v=>(
-                            <div key={v.id} className="flex items-center gap-2 text-xs text-amber-300 bg-amber-950/20 border border-amber-900/30 rounded px-3 py-1.5">
+                            <div key={v.id} className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
                               <span>↩</span><span className="font-medium">{v.naam}</span><span className="text-amber-500">— 1e voorbij, geen 2e gepland</span>
                             </div>
                           ))}
                           {(allData[naam]?.vves||[]).filter(v=>!v.uitgenodigd1&&!v.uitgenodigd2&&!v.vergaderd1).slice(0,5).map(v=>(
-                            <div key={v.id} className="flex items-center gap-2 text-xs text-zinc-400 bg-zinc-900 border border-zinc-800 rounded px-3 py-1.5">
+                            <div key={v.id} className="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
                               <span className="text-zinc-600">·</span><span className="font-medium">{v.naam}</span><span className="text-zinc-600">— nog niet uitgenodigd</span>
                             </div>
                           ))}
                           {stats.nietUitgenodigd>5 && <p className="text-[10px] text-zinc-600 pl-3">… en {stats.nietUitgenodigd-5} andere niet-uitgenodigde VvE's</p>}
                         </div>
                       )}
-                      {risk==="green" && <p className="text-xs text-emerald-500">✓ Alles op schema. Geen actie vereist.</p>}
-                      <div className="border-t border-zinc-800/60 pt-3 mt-2">
+                      {risk==="green" && <p className="text-xs text-emerald-700 font-medium">✓ Alles op schema. Geen actie vereist.</p>}
+                      <div className="border-t border-gray-200 pt-3 mt-2">
                         <p className="text-[10px] text-zinc-600 uppercase tracking-wide mb-2">VvE herindelen naar andere beheerder</p>
                         {herindelenVan === naam && herindelenVve ? (
                           <div className="flex gap-2 items-center flex-wrap">
                             <span className="text-xs text-zinc-400 shrink-0">"{herindelenVve.naam}" →</span>
                             <select value={herindelenNaar} onChange={e=>setHerindelenNaar(e.target.value)}
-                              className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 focus:outline-none">
+                              className="flex-1 bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-[#2D2D2D] focus:outline-none focus:border-[#991A21] transition-colors">
                               <option value="">Kies beheerder…</option>
                               {beheerderList.filter(n=>n!==naam).map(n=><option key={n} value={n}>{n}</option>)}
                             </select>
-                            <button onClick={()=>herindelen(herindelenVve, naam, herindelenNaar)} disabled={!herindelenNaar} className="px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 disabled:opacity-40 text-zinc-200 text-xs rounded transition-colors">Verplaats</button>
+                            <button onClick={()=>herindelen(herindelenVve, naam, herindelenNaar)} disabled={!herindelenNaar} className="px-3 py-1.5 bg-[#991A21] hover:bg-[#7a1419] disabled:opacity-40 text-white text-xs rounded-lg transition-colors">Verplaats</button>
                             <button onClick={()=>{setHerindelenVve(null);setHerindelenVan(null);}} className="text-xs text-zinc-500 hover:text-zinc-400">Annuleer</button>
                           </div>
                         ) : (
                           <select value="" onChange={e=>{
                             const vve = (allData[naam]?.vves||[]).find(v=>v.id===e.target.value);
                             if (vve) { setHerindelenVve(vve); setHerindelenVan(naam); setHerindelenNaar(""); }
-                          }} className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-400 focus:outline-none">
+                          }} className="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-500 focus:outline-none focus:border-[#991A21] transition-colors">
                             <option value="">Selecteer VvE om te herindelen…</option>
                             {(allData[naam]?.vves||[]).map(v=><option key={v.id} value={v.id}>{v.naam}</option>)}
                           </select>
@@ -1074,11 +1079,6 @@ export default function App() {
   const [loginPw, setLoginPw] = useState("");
   const [loginError, setLoginError] = useState("");
   const [planningPreview, setPlanningPreview] = useState(null);
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem("vve-theme");
-    return saved ? saved === "dark" : true;
-  });
-
   // FIX 1: gesorteerde volgorde staat los van data
   // We bewaren een gesorteerde ID-volgorde en passen die toe bij weergave
   const [sortedOrder, setSortedOrder] = useState(null); // null = nog niet gesorteerd
@@ -1090,31 +1090,23 @@ export default function App() {
   const [filterJaar2027, setFilterJaar2027] = useState(false);
   const [geselecteerdeFilterMaanden, setGeselecteerdeFilterMaanden] = useState(new Set());
 
-  const toggleTheme = () => {
-    setDarkMode(prev => {
-      const next = !prev;
-      localStorage.setItem("vve-theme", next ? "dark" : "light");
-      return next;
-    });
-  };
-
   const t = {
-    bg:        darkMode ? "bg-zinc-950"    : "bg-gray-50",
-    bgCard:    darkMode ? "bg-zinc-900"    : "bg-white",
-    bgInput:   darkMode ? "bg-zinc-800"    : "bg-gray-100",
-    bgHover:   darkMode ? "hover:bg-zinc-800/30" : "hover:bg-gray-50",
-    border:    darkMode ? "border-zinc-800" : "border-gray-200",
-    borderIn:  darkMode ? "border-zinc-700" : "border-gray-300",
-    text:      darkMode ? "text-zinc-200"  : "text-gray-800",
-    textMuted: darkMode ? "text-zinc-500"  : "text-gray-500",
-    textDim:   darkMode ? "text-zinc-600"  : "text-gray-400",
-    textHead:  darkMode ? "text-zinc-100"  : "text-gray-900",
-    textInput: darkMode ? "text-zinc-200"  : "text-gray-800",
-    tabActive: darkMode ? "border-zinc-400 text-zinc-100" : "border-gray-700 text-gray-900",
-    tabInact:  darkMode ? "border-transparent text-zinc-500 hover:text-zinc-400" : "border-transparent text-gray-500 hover:text-gray-700",
-    btnSec:    darkMode ? "bg-zinc-800 hover:bg-zinc-700 text-zinc-200" : "bg-gray-200 hover:bg-gray-300 text-gray-700",
-    rowBorder: darkMode ? "border-zinc-800" : "border-gray-200",
-    expanded:  darkMode ? "border-zinc-800/60 bg-zinc-900/60" : "border-gray-200 bg-gray-50",
+    bg:        "bg-[#F2EFEC]",
+    bgCard:    "bg-white",
+    bgInput:   "bg-gray-50",
+    bgHover:   "hover:bg-[#F2EFEC]",
+    border:    "border-gray-200",
+    borderIn:  "border-gray-300",
+    text:      "text-[#2D2D2D]",
+    textMuted: "text-gray-500",
+    textDim:   "text-gray-400",
+    textHead:  "text-[#2D2D2D]",
+    textInput: "text-[#2D2D2D]",
+    tabActive: "border-[#991A21] text-[#991A21]",
+    tabInact:  "border-transparent text-gray-500 hover:text-[#2D2D2D]",
+    btnSec:    "bg-white hover:bg-gray-50 text-[#2D2D2D] border border-gray-200",
+    rowBorder: "border-gray-200",
+    expanded:  "border-gray-200 bg-[#F2EFEC]",
   };
 
   const handleLogin = async () => {
@@ -1425,29 +1417,57 @@ export default function App() {
   if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBack={async ()=>{ await signOut(); setScreen("login"); setLoginNaam(""); setLoginPw(""); setBeheerder(""); setData(defaultData()); }}/>;
 
   if (screen==="login") return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-zinc-800 mb-4"><span className="text-xl">🏢</span></div>
-          <h1 className="text-xl font-semibold text-zinc-100 tracking-tight">VvE Vergaderplanner</h1>
-          <p className="text-sm text-zinc-500 mt-1">Log in om door te gaan</p>
+    <div className="min-h-screen grid grid-cols-2">
+      <style>{CSS_FONT}</style>
+      {/* Links — merkpaneel */}
+      <div className="bg-[#2D2D2D] flex flex-col justify-center items-center p-12 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-[#991A21] rounded-full opacity-10 -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#991A21] rounded-full opacity-8 translate-y-1/2 -translate-x-1/2" />
+        <div className="relative z-10 flex flex-col items-center gap-8">
+          <div className="bg-white rounded-2xl px-8 py-6 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="flex gap-1">
+                <div className="w-10 h-10 bg-[#991A21] rounded-md flex items-center justify-center">
+                  <span className="text-white text-lg">🏠</span>
+                </div>
+                <div className="w-10 h-10 bg-[#2D2D2D] rounded-md flex items-center justify-center">
+                  <span className="text-white text-lg">📋</span>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-[#2D2D2D] leading-tight">Totaal VvE Beheer</p>
+                <p className="text-xs text-gray-500">Den Haag en omstreken B.V.</p>
+              </div>
+            </div>
+          </div>
+          <div className="text-center">
+            <p className="text-white text-xl font-bold mb-2">Vergaderplanner</p>
+            <p className="text-gray-400 text-sm leading-relaxed max-w-xs">Plan, beheer en monitor alle VvE-vergaderingen voor Den Haag en omstreken</p>
+          </div>
         </div>
-        <div className="space-y-3">
-          <div>
-            <label className="text-xs text-zinc-500 block mb-1">E-mailadres</label>
-            <input autoFocus value={loginNaam} onChange={e=>{ setLoginNaam(e.target.value); setLoginError(""); }} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="naam@vveplanner.nl"
-              className={`w-full bg-zinc-800 border rounded-lg px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none ${loginError?"border-red-700":"border-zinc-700 focus:border-zinc-600"}`}/>
+      </div>
+      {/* Rechts — loginformulier */}
+      <div className="bg-[#F2EFEC] flex flex-col justify-center px-16 py-12">
+        <div className="max-w-sm w-full mx-auto">
+          <h1 className="text-2xl font-bold text-[#2D2D2D] mb-1">Welkom terug</h1>
+          <p className="text-sm text-gray-500 mb-8">Log in met je account om door te gaan</p>
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide block mb-1.5">E-mailadres</label>
+              <input autoFocus value={loginNaam} onChange={e=>{ setLoginNaam(e.target.value); setLoginError(""); }} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="naam@vveplanner.nl"
+                className={`w-full bg-white border-2 rounded-xl px-4 py-3 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none transition-colors ${loginError?"border-[#991A21]":"border-gray-200 focus:border-[#991A21]"}`}/>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide block mb-1.5">Wachtwoord</label>
+              <input type="password" value={loginPw} onChange={e=>{ setLoginPw(e.target.value); setLoginError(""); }} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="••••••••"
+                className={`w-full bg-white border-2 rounded-xl px-4 py-3 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none transition-colors ${loginError?"border-[#991A21]":"border-gray-200 focus:border-[#991A21]"}`}/>
+            </div>
+            {loginError && <p className="text-xs text-[#991A21] font-medium">{loginError}</p>}
+            <button onClick={handleLogin} disabled={loading}
+              className="w-full py-3 bg-[#991A21] hover:bg-[#7a1419] disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors shadow-lg shadow-red-900/20 mt-2">
+              {loading ? "Laden…" : "Inloggen →"}
+            </button>
           </div>
-          <div>
-            <label className="text-xs text-zinc-500 block mb-1">Wachtwoord</label>
-            <input type="password" value={loginPw} onChange={e=>{ setLoginPw(e.target.value); setLoginError(""); }} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="Wachtwoord"
-              className={`w-full bg-zinc-800 border rounded-lg px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none ${loginError?"border-red-700":"border-zinc-700 focus:border-zinc-600"}`}/>
-          </div>
-          {loginError && <p className="text-xs text-red-400">{loginError}</p>}
-          <button onClick={handleLogin} disabled={loading}
-            className="w-full py-2.5 bg-zinc-700 hover:bg-zinc-600 disabled:opacity-60 text-zinc-200 text-sm font-medium rounded-lg transition-colors mt-1">
-            {loading ? "Laden…" : "Inloggen →"}
-          </button>
         </div>
       </div>
     </div>
@@ -1456,41 +1476,75 @@ export default function App() {
   // Main screen
   return (
     <div className={`min-h-screen ${t.bg} ${t.text}`}>
-      <div className={`border-b ${t.border} px-6 py-4 flex items-center justify-between`}>
+      <style>{CSS_FONT}</style>
+      <div className={`border-b ${t.border} px-6 h-14 flex items-center justify-between bg-white shadow-sm sticky top-0 z-50`}>
         <div className="flex items-center gap-3">
-          <span className="text-lg">🏢</span>
+          <div className="flex gap-1">
+            <div className="w-7 h-7 bg-[#991A21] rounded-md flex items-center justify-center"><span className="text-white text-xs">🏠</span></div>
+            <div className="w-7 h-7 bg-[#2D2D2D] rounded-md flex items-center justify-center"><span className="text-white text-xs">📋</span></div>
+          </div>
+          <div className="w-px h-5 bg-gray-200" />
           <div>
-            <h1 className={`text-sm font-semibold ${t.textHead}`}>VvE Vergaderplanner</h1>
-            <p className={`text-xs ${t.textMuted}`}>{beheerder}</p>
+            <h1 className="text-sm font-bold text-[#2D2D2D]">Vergaderplanner</h1>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={toggleTheme} className={`text-xs px-3 py-1.5 rounded-lg border ${t.border} ${t.btnSec} transition-colors`}>
-            {darkMode ? "☀️ Licht" : "🌙 Donker"}
+          {saving && <span className="text-[10px] text-gray-400 animate-pulse">Opslaan…</span>}
+          <div className="w-8 h-8 bg-[#991A21] rounded-full flex items-center justify-center">
+            <span className="text-white text-xs font-bold">{beheerder.charAt(0)}</span>
+          </div>
+          <span className="text-sm font-medium text-[#2D2D2D]">{beheerder}</span>
+          <button onClick={async ()=>{ await signOut(); setScreen("login"); setLoginNaam(""); setLoginPw(""); setBeheerder(""); setData(defaultData()); }}
+            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-[#991A21] hover:border-red-200 hover:bg-red-50 transition-colors">
+            Uitloggen
           </button>
-          <button onClick={async ()=>{ await signOut(); setScreen("login"); setLoginNaam(""); setLoginPw(""); setBeheerder(""); setData(defaultData()); }} className={`text-xs ${t.textDim} hover:${t.textMuted} transition-colors`}>Uitloggen</button>
-          {saving && <span className={`text-[10px] ${t.textDim} animate-pulse`}>Opslaan…</span>}
         </div>
       </div>
 
-      <div className={`border-b ${t.border} px-6 py-3 flex gap-6`}>
-        <div className="text-center"><div className={`text-lg font-mono font-bold ${t.textHead}`}>{data.vves.length}</div><div className={`text-[10px] ${t.textDim} uppercase tracking-wide`}>VvE's</div></div>
-        <div className="text-center"><div className="text-lg font-mono font-bold text-emerald-500">{afgerond}</div><div className={`text-[10px] ${t.textDim} uppercase tracking-wide`}>Afgerond</div></div>
-        <div className="text-center"><div className="text-lg font-mono font-bold text-sky-500">{uitgenodigd}</div><div className={`text-[10px] ${t.textDim} uppercase tracking-wide`}>Uitgenodigd</div></div>
-        <div className="text-center"><div className={`text-lg font-mono font-bold ${t.textMuted}`}>{nietUitgenodigd}</div><div className={`text-[10px] ${t.textDim} uppercase tracking-wide`}>Niet uitgenodigd</div></div>
-        {metWaarschuwing>0 && <div className="text-center"><div className="text-lg font-mono font-bold text-red-500">{metWaarschuwing}</div><div className={`text-[10px] ${t.textDim} uppercase tracking-wide`}>Uitnodiging!</div></div>}
-        {inVakantie>0 && <div className="text-center"><div className="text-lg font-mono font-bold text-amber-500">{inVakantie}</div><div className={`text-[10px] ${t.textDim} uppercase tracking-wide`}>In vakantie</div></div>}
+      <div className={`border-b ${t.border} px-6 flex bg-white`}>
+        {[
+          [data.vves.length, "VvE's", "text-[#2D2D2D]", "bg-[#2D2D2D]"],
+          [afgerond, "Afgerond", "text-emerald-700", "bg-emerald-500"],
+          [uitgenodigd, "Uitgenodigd", "text-blue-700", "bg-blue-500"],
+          [nietUitgenodigd, "Niet uitgenodigd", "text-gray-500", "bg-gray-400"],
+        ].map(([val, label, textClr, dotClr]) => (
+          <div key={label} className="flex items-center gap-2.5 px-5 py-3.5 border-r border-gray-100">
+            <div className={`w-2 h-2 rounded-full ${dotClr}`} />
+            <div>
+              <div className={`text-lg font-bold ${textClr}`}>{val}</div>
+              <div className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">{label}</div>
+            </div>
+          </div>
+        ))}
+        {metWaarschuwing>0 && (
+          <div className="flex items-center gap-2.5 px-5 py-3.5 border-r border-gray-100">
+            <div className="w-2 h-2 rounded-full bg-[#991A21]" />
+            <div>
+              <div className="text-lg font-bold text-[#991A21]">{metWaarschuwing}</div>
+              <div className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">Uitnodiging!</div>
+            </div>
+          </div>
+        )}
+        {inVakantie>0 && (
+          <div className="flex items-center gap-2.5 px-5 py-3.5">
+            <div className="w-2 h-2 rounded-full bg-orange-500" />
+            <div>
+              <div className="text-lg font-bold text-orange-600">{inVakantie}</div>
+              <div className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">In vakantie</div>
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className={`border-b ${t.border} px-6 flex gap-1 items-center justify-between`}>
-        <div className="flex gap-1">
+      <div className={`border-b ${t.border} px-6 flex gap-0 items-center justify-between bg-white`}>
+        <div className="flex gap-0">
           {[["vergaderingen","Vergaderingen"],["overzicht","Spreiding"],["vakantie","Vakantie"],["instellingen","Instellingen"]].map(([key,label])=>(
-            <button key={key} onClick={()=>setTab(key)} className={`px-4 py-3 text-sm transition-colors border-b-2 -mb-px ${tab===key ? t.tabActive : t.tabInact}`}>{label}</button>
+            <button key={key} onClick={()=>setTab(key)} className={`px-5 py-3.5 text-sm font-medium transition-colors border-b-2 -mb-px ${tab===key ? "border-[#991A21] text-[#991A21] font-semibold" : "border-transparent text-gray-500 hover:text-[#2D2D2D]"}`}>{label}</button>
           ))}
         </div>
         <div className="flex gap-2 pb-1">
-          <button onClick={exportExcel} className={`text-xs px-3 py-1.5 ${t.btnSec} rounded-lg transition-colors`}>⬇ Excel</button>
-          <button onClick={exportPDF} className={`text-xs px-3 py-1.5 ${t.btnSec} rounded-lg transition-colors`}>⬇ PDF</button>
+          <button onClick={exportExcel} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 rounded-lg transition-colors">⬇ Excel</button>
+          <button onClick={exportPDF} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 rounded-lg transition-colors">⬇ PDF</button>
         </div>
       </div>
 
@@ -1498,33 +1552,33 @@ export default function App() {
 
         {/* Jaarwisseling prompt */}
         {toonJaarwisselingPrompt && (
-          <div className="mb-4 bg-amber-950/40 border border-amber-700/60 rounded-xl p-5 space-y-3">
+          <div className="mb-4 bg-amber-50 border border-amber-200 border-l-4 border-l-amber-500 rounded-xl p-5 space-y-3 shadow-sm">
             <div className="flex items-start gap-3">
               <span className="text-2xl shrink-0">🎉</span>
               <div>
-                <p className="text-sm font-semibold text-amber-200">Nieuw jaar — planning vernieuwen?</p>
-                <p className="text-xs text-amber-400/80 mt-1">
+                <p className="text-sm font-semibold text-amber-800">Nieuw jaar — planning vernieuwen?</p>
+                <p className="text-xs text-amber-700 mt-1">
                   De planning bevat nog vergaderingen van vorig jaar. Je kunt het overzicht nu opschonen voor {new Date().getFullYear()}.
                   VvE's met een voorkeursdatum worden automatisch ingepland. Notities blijven bewaard.
                 </p>
               </div>
             </div>
-            <div className="bg-amber-950/30 border border-amber-800/40 rounded-lg px-3 py-2">
-              <p className="text-[10px] text-amber-500 font-medium mb-1">Wat wordt gereset:</p>
-              <p className="text-[10px] text-amber-600">Alle vergaderdatums, uitnodigingen, vergaderd-vinkjes, 2e reglementaire en extra vergaderingen.</p>
+            <div className="bg-amber-100/50 border border-amber-200 rounded-lg px-3 py-2">
+              <p className="text-[10px] text-amber-700 font-semibold mb-1">Wat wordt gereset:</p>
+              <p className="text-[10px] text-amber-700">Alle vergaderdatums, uitnodigingen, vergaderd-vinkjes, 2e reglementaire en extra vergaderingen.</p>
               <p className="text-[10px] text-amber-500 font-medium mt-1.5 mb-1">Wat blijft bewaard:</p>
-              <p className="text-[10px] text-amber-600">VvE namen, notities, vakantieperiodes, werkdagen. Voorkeursdatums worden de nieuwe vergaderdatum.</p>
+              <p className="text-[10px] text-amber-700">VvE namen, notities, vakantieperiodes, werkdagen. Voorkeursdatums worden de nieuwe vergaderdatum.</p>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={handleJaarwisselingBevestigen}
-                className="px-4 py-2 bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors"
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-lg transition-colors"
               >
                 ✓ Ja, vernieuw planning voor {new Date().getFullYear()}
               </button>
               <button
                 onClick={() => setToonJaarwisselingPrompt(false)}
-                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-sm rounded-lg transition-colors"
+                className="px-4 py-2 bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 text-sm rounded-lg transition-colors"
               >
                 Niet nu
               </button>
@@ -1534,10 +1588,10 @@ export default function App() {
 
         {/* Begroeting */}
         {tab==="vergaderingen" && (
-          <div className={`mb-4 px-4 py-3 ${t.bgCard} border ${t.border} rounded-xl flex items-center justify-between`}>
+          <div className={`mb-4 px-4 py-3 bg-white border-l-4 border-l-[#991A21] border border-gray-200 rounded-xl flex items-center justify-between shadow-sm`}>
             <div>
-              <p className="text-sm font-medium text-zinc-200">Hoi {beheerder}! 👋</p>
-              <p className="text-xs text-zinc-500 mt-0.5">
+              <p className="text-sm font-semibold text-[#2D2D2D]">Hoi {beheerder}! 👋</p>
+              <p className="text-xs text-gray-500 mt-0.5">
                 {aantalUitTeNodigen > 0
                   ? `Je hebt ${aantalUitTeNodigen} uitnodiging${aantalUitTeNodigen > 1 ? "en" : ""} te versturen.`
                   : afgerond === data.vves.length && data.vves.length > 0
@@ -1568,8 +1622,8 @@ export default function App() {
                 : pctAfgerond >= 25 ? "Goed op weg"
                 : "Net begonnen";
               return (
-                <div className={`w-52 shrink-0 ${t.bgCard} border ${t.border} rounded-xl p-4 space-y-3 sticky top-4`}>
-                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Voortgang {year}</p>
+                <div className={"w-52 shrink-0 bg-white border border-gray-200 rounded-xl p-4 space-y-3 sticky top-4 shadow-sm"}>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Voortgang {year}</p>
                   <div className="flex flex-col items-center gap-1">
                     <svg width="96" height="96" viewBox="0 0 96 96">
                       <circle cx="48" cy="48" r={R} fill="none" stroke="#27272a" strokeWidth="10"/>
@@ -1602,10 +1656,10 @@ export default function App() {
                     ].map(([lbl, val, tot, barColor]) => (
                       <div key={lbl}>
                         <div className="flex justify-between mb-0.5">
-                          <span className="text-[10px] text-zinc-400">{lbl}</span>
-                          <span className="text-[10px] font-mono text-zinc-400">{val} <span className="text-zinc-600">/ {tot}</span></span>
+                          <span className="text-[10px] text-gray-500">{lbl}</span>
+                          <span className="text-[10px] font-mono text-gray-600 font-semibold">{val} <span className="text-zinc-600">/ {tot}</span></span>
                         </div>
-                        <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                           <div className={`h-full rounded-full ${barColor}`} style={{width:`${tot===0?0:Math.round((val/tot)*100)}%`}}/>
                         </div>
                       </div>
@@ -1619,9 +1673,9 @@ export default function App() {
                     const dagenOver = Math.ceil((jaareinde - nu) / 86400000);
                     const opSchema = onTrackDiff >= -5;
                     return (
-                      <div className="border-t border-zinc-800 pt-3 space-y-1">
-                        <p className="text-[10px] text-zinc-500">
-                          <span className="text-zinc-300 font-medium">Nog {dagenOver} dagen</span> tot eind {nu.getFullYear()}
+                      <div className="border-t border-gray-100 pt-3 space-y-1">
+                        <p className="text-[10px] text-gray-500">
+                          <span className="text-[#2D2D2D] font-semibold">Nog {dagenOver} dagen</span> tot eind {nu.getFullYear()}
                         </p>
                         <p className={`text-[10px] font-medium ${opSchema ? "text-emerald-400" : "text-amber-400"}`}>
                           {opSchema ? "✓ Je bent op schema" : "⚠ Je loopt achter op schema"}
@@ -1646,11 +1700,11 @@ export default function App() {
                     if (entries.length === 0) return null;
                     const [maandIdx, aantal] = entries.sort((a,b) => b[1]-a[1])[0];
                     return (
-                      <div className="border-t border-zinc-800 pt-3">
-                        <p className="text-[10px] text-zinc-500">
+                      <div className="border-t border-gray-100 pt-3">
+                        <p className="text-[10px] text-gray-500">
                           <span className="text-amber-400 font-medium">📅 {NL_MONTHS_FULL[parseInt(maandIdx)]}</span> wordt je drukste maand
                         </p>
-                        <p className="text-[10px] text-zinc-600">{aantal} vergadering{aantal !== 1 ? "en" : ""} gepland</p>
+                        <p className="text-[10px] text-gray-400">{aantal} vergadering{aantal !== 1 ? "en" : ""} gepland</p>
                       </div>
                     );
                   })()}
@@ -1671,17 +1725,17 @@ export default function App() {
                       return items;
                     }).sort((a,b) => a.datum.localeCompare(b.datum));
                     return (
-                      <div className="border-t border-zinc-800 pt-3 space-y-2">
-                        <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide">Deze week</p>
+                      <div className="border-t border-gray-100 pt-3 space-y-2">
+                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wide">Deze week</p>
                         {dezeWeek.length === 0 ? (
-                          <p className="text-[10px] text-zinc-600">Geen vergaderingen deze week.</p>
+                          <p className="text-[10px] text-gray-400">Geen vergaderingen deze week.</p>
                         ) : (
                           dezeWeek.map((item, i) => (
                             <div key={i} className="flex items-start gap-2">
-                              <span className="text-[9px] text-zinc-500 shrink-0 mt-0.5 w-12">{fmtDate(item.datum).slice(0,6)}</span>
+                              <span className="text-[9px] text-gray-400 shrink-0 mt-0.5 w-12">{fmtDate(item.datum).slice(0,6)}</span>
                               <div className="min-w-0">
-                                <p className="text-[10px] text-zinc-300 truncate">{item.naam}</p>
-                                <p className="text-[9px] text-zinc-600">{item.type === "1e" ? "1e vergadering" : item.type === "2e" ? "2e reglementair" : "Extra"}</p>
+                                <p className="text-[10px] text-[#2D2D2D] font-medium truncate">{item.naam}</p>
+                                <p className="text-[9px] text-gray-400">{item.type === "1e" ? "1e vergadering" : item.type === "2e" ? "2e reglementair" : "Extra"}</p>
                               </div>
                             </div>
                           ))
@@ -1692,8 +1746,8 @@ export default function App() {
 
                   {/* ── FIX 2: Maandfilter ───────────────────── */}
                   {(maandenMetVves2026.length > 0 || maandenMetVves2027.length > 0) && (
-                    <div className="border-t border-zinc-800 pt-3 space-y-2">
-                      <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wide">Filter op maand</p>
+                    <div className="border-t border-gray-100 pt-3 space-y-2">
+                      <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wide">Filter op maand</p>
 
                       {/* 2026 maanden */}
                       {maandenMetVves2026.length > 0 && (
@@ -1759,7 +1813,7 @@ export default function App() {
                               );
                             })}
                             {maandenMetVves2027.length === 0 && (
-                              <p className="text-[10px] text-zinc-600">Nog geen voorkeursdatums ingevuld voor {nextYear}.</p>
+                              <p className="text-[10px] text-gray-400">Nog geen voorkeursdatums ingevuld voor {nextYear}.</p>
                             )}
                           </div>
                         )}
@@ -1769,7 +1823,7 @@ export default function App() {
                       {geselecteerdeFilterMaanden.size > 0 && (
                         <button
                           onClick={() => setGeselecteerdeFilterMaanden(new Set())}
-                          className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors underline"
+                          className="text-[10px] text-gray-400 hover:text-[#991A21] transition-colors underline"
                         >
                           Wis filter ({geselecteerdeFilterMaanden.size} actief)
                         </button>
@@ -1786,8 +1840,8 @@ export default function App() {
 
               {/* Notification panel — FIX 3: klikbare naam */}
               {urgentItems.length > 0 && (
-                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-2">
-                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">⚡ Actie vereist</p>
+                <div className="bg-white border border-gray-200 border-l-4 border-l-[#991A21] rounded-xl p-4 space-y-2 shadow-sm">
+                  <p className="text-xs font-bold text-[#991A21] uppercase tracking-wider mb-3">⚡ Actie vereist</p>
                   {urgentItems.map(item => (
                     <div key={item.id} className={`flex items-start gap-3 rounded-lg px-3 py-2 text-xs ${
                       item.type==="overdue" ? "bg-red-950/30 border border-red-900/40 text-red-300" :
@@ -1826,21 +1880,21 @@ export default function App() {
 
               {/* Planning preview banner */}
               {planningPreview && (
-                <div className="bg-sky-950/40 border border-sky-800/50 rounded-xl p-4 space-y-3">
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-sm font-semibold text-sky-300">Voorgestelde planning</p>
-                      <p className="text-xs text-sky-500 mt-0.5">
+                      <p className="text-sm font-semibold text-blue-800">Voorgestelde planning</p>
+                      <p className="text-xs text-blue-600 mt-0.5">
                         {planningPreview.filter(v=>v.datum1).length - data.vves.filter(v=>v.datum1).length} VvE's automatisch ingepland. Controleer de datums en bevestig.
                       </p>
                     </div>
                     <div className="flex gap-2 shrink-0">
-                      <button onClick={handleConfirmPlanning} className="px-4 py-1.5 bg-sky-700 hover:bg-sky-600 text-white text-xs rounded-lg transition-colors font-medium">Bevestigen</button>
-                      <button onClick={handleRejectPlanning} className="px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs rounded-lg transition-colors">Annuleren</button>
+                      <button onClick={handleConfirmPlanning} className="px-4 py-1.5 bg-[#991A21] hover:bg-[#7a1419] text-white text-xs rounded-lg transition-colors font-medium">Bevestigen</button>
+                      <button onClick={handleRejectPlanning} className="px-4 py-1.5 bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 text-xs rounded-lg transition-colors">Annuleren</button>
                     </div>
                   </div>
                   <div className="pt-1">
-                    <p className="text-[10px] text-sky-600 mb-1.5 uppercase tracking-wide">Spreiding na planning</p>
+                    <p className="text-[10px] text-blue-600 mb-1.5 uppercase tracking-wide font-semibold">Spreiding na planning</p>
                     <MonthBar counts={spreadScore(planningPreview)} vakanties={data.vakanties}/>
                   </div>
                 </div>
@@ -1848,18 +1902,18 @@ export default function App() {
 
               <div className="flex gap-2 flex-wrap">
                 <input value={newVveName} onChange={e=>setNewVveName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addVve()} placeholder="VvE naam toevoegen…"
-                  className="flex-1 min-w-48 bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-600"/>
-                <button onClick={addVve} className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm rounded-lg transition-colors">+</button>
-                <button onClick={()=>setShowImport(i=>!i)} className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-sm rounded-lg transition-colors whitespace-nowrap">Bulk import</button>
+                  className="flex-1 min-w-48 bg-white border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none focus:border-[#991A21] transition-colors"/>
+                <button onClick={addVve} className="px-4 py-2 bg-[#991A21] hover:bg-[#7a1419] text-white text-sm font-semibold rounded-xl transition-colors shadow-sm">+</button>
+                <button onClick={()=>setShowImport(i=>!i)} className="px-4 py-2 bg-white hover:bg-gray-50 text-gray-600 text-sm border border-gray-200 rounded-xl transition-colors whitespace-nowrap">Bulk import</button>
                 {ongepland > 0 && !planningPreview && (
-                  <button onClick={handleGeneratePlanning} className="px-4 py-2 bg-sky-900/60 hover:bg-sky-800/60 border border-sky-800/60 text-sky-300 text-sm rounded-lg transition-colors whitespace-nowrap">
+                  <button onClick={handleGeneratePlanning} className="px-4 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-sm rounded-xl transition-colors whitespace-nowrap font-medium">
                     ✦ Stel planning voor ({ongepland} ongepland)
                   </button>
                 )}
                 {/* FIX 1: Sorteerknop */}
                 <button
                   onClick={handleSorteer}
-                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 text-sm rounded-lg transition-colors whitespace-nowrap"
+                  className="px-4 py-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-600 text-sm rounded-xl transition-colors whitespace-nowrap"
                   title="Sorteer VvE's op vergaderdatum. VvE's met voorkeursdatum volgend jaar komen onderaan."
                 >
                   ↕ Sorteer
@@ -1867,14 +1921,14 @@ export default function App() {
               </div>
 
               {showImport && (
-                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-3">
-                  <p className="text-xs text-zinc-500">Plak VvE-namen, één per regel. Datum en tijd worden automatisch herkend als je ze tab-gescheiden aanlevert (naam ⇥ d-m-jjjj ⇥ tijd).</p>
+                <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3 shadow-sm">
+                  <p className="text-xs text-gray-500">Plak VvE-namen, één per regel. Datum en tijd worden automatisch herkend als je ze tab-gescheiden aanlevert (naam ⇥ d-m-jjjj ⇥ tijd).</p>
                   <textarea rows={6} value={importText} onChange={e=>setImportText(e.target.value)}
                     placeholder={"Zwolsestraat 253\t16-4-2026\t15.00\nTak van Poortvlietstraat 9 AB\t1-6-2026\t15:00 uur\n..."}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-300 placeholder-zinc-600 focus:outline-none resize-none font-mono"/>
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none resize-none font-mono focus:border-[#991A21] transition-colors"/>
                   <div className="flex gap-2">
-                    <button onClick={handleImport} className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm rounded-lg transition-colors">Importeer</button>
-                    <button onClick={()=>setShowImport(false)} className="text-sm text-zinc-500 hover:text-zinc-400">Annuleer</button>
+                    <button onClick={handleImport} className="px-4 py-2 bg-[#991A21] hover:bg-[#7a1419] text-white text-sm rounded-lg transition-colors font-medium">Importeer</button>
+                    <button onClick={()=>setShowImport(false)} className="text-sm text-gray-400 hover:text-gray-600">Annuleer</button>
                   </div>
                 </div>
               )}
@@ -1883,13 +1937,13 @@ export default function App() {
               <div className="flex gap-3 items-center flex-wrap">
                 {data.vves.length>5 && (
                   <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Zoek VvE…"
-                    className="flex-1 min-w-40 bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2 text-sm text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-zinc-700"/>
+                    className="flex-1 min-w-40 bg-white border-2 border-gray-200 rounded-xl px-4 py-2 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none focus:border-[#991A21] transition-colors"/>
                 )}
                 <label className="flex items-center gap-2 cursor-pointer shrink-0 group" onClick={()=>setHideAfgerond(h=>!h)}>
-                  <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${hideAfgerond?"bg-emerald-600 border-emerald-600":"border-zinc-600 hover:border-zinc-400"}`}>
+                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${hideAfgerond?"bg-[#991A21] border-[#991A21]":"border-gray-300 hover:border-[#991A21]"}`}>
                     {hideAfgerond && <span className="text-white text-xs font-bold">✓</span>}
                   </div>
-                  <span className="text-xs text-zinc-400 group-hover:text-zinc-300 transition-colors whitespace-nowrap">
+                  <span className="text-xs text-gray-600 group-hover:text-[#2D2D2D] transition-colors whitespace-nowrap">
                     Verberg afgerond {afgerond > 0 && <span className="text-zinc-600">({afgerond})</span>}
                   </span>
                 </label>
@@ -1897,18 +1951,18 @@ export default function App() {
 
               {/* Selectie toolbar */}
               {filtered.length > 0 && (
-                <div className="flex items-center gap-3 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg">
+                <div className="flex items-center gap-3 px-3 py-2 bg-white border border-gray-200 rounded-xl shadow-sm">
                   <label className="flex items-center gap-2 cursor-pointer group" onClick={()=> selectie.size === filtered.length ? deselecteerAlles() : selecteerAlles()}>
-                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${selectie.size === filtered.length && filtered.length > 0 ? "bg-zinc-400 border-zinc-400" : selectie.size > 0 ? "bg-zinc-600 border-zinc-600" : "border-zinc-600 hover:border-zinc-400"}`}>
+                    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${selectie.size === filtered.length && filtered.length > 0 ? "bg-[#991A21] border-[#991A21]" : selectie.size > 0 ? "bg-[#991A21]/60 border-[#991A21]/60" : "border-gray-300 hover:border-[#991A21]"}`}>
                       {selectie.size === filtered.length && filtered.length > 0 && <span className="text-zinc-900 text-xs font-bold">✓</span>}
                       {selectie.size > 0 && selectie.size < filtered.length && <span className="text-zinc-300 text-xs font-bold">−</span>}
                     </div>
-                    <span className="text-xs text-zinc-400 group-hover:text-zinc-300 transition-colors">
+                    <span className="text-xs text-gray-600 group-hover:text-[#2D2D2D] transition-colors">
                       {selectie.size === 0 ? "Selecteer alles" : selectie.size === filtered.length ? "Alles geselecteerd" : `${selectie.size} geselecteerd`}
                     </span>
                   </label>
                   {selectie.size > 0 && (
-                    <button onClick={verwijderSelectie} className="ml-auto px-3 py-1 bg-red-900/50 hover:bg-red-800/60 border border-red-800/50 text-red-300 text-xs rounded-lg transition-colors">
+                    <button onClick={verwijderSelectie} className="ml-auto px-3 py-1 bg-red-50 hover:bg-red-100 border border-red-200 text-[#991A21] text-xs rounded-lg transition-colors font-medium">
                       Verwijder {selectie.size} VvE{selectie.size > 1 ? "'s" : ""}
                     </button>
                   )}
@@ -1917,7 +1971,7 @@ export default function App() {
 
               {loading && <p className="text-sm text-zinc-500">Laden…</p>}
               {!loading && filtered.length===0 && (
-                <p className="text-sm text-zinc-600 text-center py-8">
+                <p className="text-sm text-gray-400 text-center py-12">
                   {data.vves.length===0 ? "Nog geen VvE's. Voeg er een toe."
                     : hideAfgerond && afgerond===data.vves.length ? "Alle VvE's zijn afgerond. 🎉"
                     : geselecteerdeFilterMaanden.size > 0 ? "Geen VvE's gevonden voor de geselecteerde maanden."
@@ -1930,7 +1984,7 @@ export default function App() {
                   <div key={vve.id} className="flex items-center gap-2">
                     <div
                       onClick={()=>toggleSelectie(vve.id)}
-                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all cursor-pointer shrink-0 ${selectie.has(vve.id)?"bg-zinc-400 border-zinc-400":"border-zinc-700 hover:border-zinc-500"}`}
+                      className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all cursor-pointer shrink-0 ${selectie.has(vve.id)?"bg-[#991A21] border-[#991A21]":"border-gray-300 hover:border-[#991A21]"}`}
                     >
                       {selectie.has(vve.id) && <span className="text-zinc-900 text-xs font-bold">✓</span>}
                     </div>
@@ -1965,8 +2019,8 @@ export default function App() {
               const dasUitgenodigd = (pctUitgenodigd / 100) * C;
               const label = pctAfgerond === 100 ? "Alles afgerond! 🎉" : pctAfgerond >= 75 ? "Bijna klaar" : pctAfgerond >= 50 ? "Op de helft" : pctAfgerond >= 25 ? "Goed op weg" : "Net begonnen";
               return (
-                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-                  <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-6">Voortgang {year}</h2>
+                <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+                  <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-6">Voortgang {year}</h2>
                   <div className="flex items-center gap-8">
                     <div className="relative shrink-0">
                       <svg width="140" height="140" viewBox="0 0 140 140">
@@ -1980,7 +2034,7 @@ export default function App() {
                     </div>
                     <div className="flex-1 space-y-4">
                       <div>
-                        <p className="text-base font-semibold text-zinc-200">{label}</p>
+                        <p className="text-base font-semibold text-[#2D2D2D]">{label}</p>
                         <p className="text-xs text-zinc-500 mt-0.5">{afgerond} van {total} vergaderingen volledig afgerond</p>
                       </div>
                       <div className="space-y-2.5">
@@ -1997,15 +2051,15 @@ export default function App() {
               );
             })()}
             <div>
-              <h2 className="text-sm font-semibold text-zinc-300 mb-1">Vergaderingen per maand — {year}</h2>
-              <p className="text-xs text-zinc-600 mb-4">Geel = vakantieperiode &nbsp;·&nbsp; Groen ≤4 &nbsp;·&nbsp; Oranje 5–7 &nbsp;·&nbsp; Rood ≥8</p>
+              <h2 className="text-sm font-semibold text-[#2D2D2D] mb-1">Vergaderingen per maand — {year}</h2>
+              <p className="text-xs text-gray-500 mb-4">Geel = vakantieperiode &nbsp;·&nbsp; Groen ≤4 &nbsp;·&nbsp; Oranje 5–7 &nbsp;·&nbsp; Rood ≥8</p>
               <MonthBar counts={counts} vakanties={data.vakanties}/>
             </div>
             {ongepland>0 && (
               <div>
-                <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">Nog te plannen ({ongepland})</h3>
+                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Nog te plannen ({ongepland})</h3>
                 <div className="grid grid-cols-2 gap-2">
-                  {data.vves.filter(v=>!v.datum1).map(v=><div key={v.id} className="text-xs px-3 py-2 bg-zinc-900 border border-zinc-800 rounded text-zinc-400">{v.naam}</div>)}
+                  {data.vves.filter(v=>!v.datum1).map(v=><div key={v.id} className="text-xs px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 shadow-sm">{v.naam}</div>)}
                 </div>
               </div>
             )}
@@ -2016,12 +2070,12 @@ export default function App() {
                 if(vves.length===0) return null;
                 return (
                   <div key={m}>
-                    <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">{m} ({vves.length})</h3>
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">{m} ({vves.length})</h3>
                     <div className="grid grid-cols-2 gap-1.5">
                       {vves.map(v=>(
-                        <div key={v.id} className="text-xs px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded flex justify-between">
-                          <span className="text-zinc-400 truncate">{v.naam}</span>
-                          <span className="text-zinc-600 ml-2 shrink-0">{monthKey(v.datum1)===key?fmtDate(v.datum1):fmtDate(v.datum2)}</span>
+                        <div key={v.id} className="text-xs px-3 py-1.5 bg-white border border-gray-200 rounded-lg flex justify-between shadow-sm">
+                          <span className="text-gray-700 truncate font-medium">{v.naam}</span>
+                          <span className="text-gray-400 ml-2 shrink-0">{monthKey(v.datum1)===key?fmtDate(v.datum1):fmtDate(v.datum2)}</span>
                         </div>
                       ))}
                     </div>
@@ -2037,19 +2091,19 @@ export default function App() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-sm font-semibold text-zinc-300">Mijn vakantieperiodes</h2>
-                <p className="text-xs text-zinc-600 mt-0.5">Vergaderingen in deze periodes worden gemarkeerd en overgeslagen bij auto-planning.</p>
+                <h2 className="text-sm font-semibold text-[#2D2D2D]">Mijn vakantieperiodes</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Vergaderingen in deze periodes worden gemarkeerd en overgeslagen bij auto-planning.</p>
               </div>
-              <button onClick={addVakantie} className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm rounded-lg transition-colors">+ Toevoegen</button>
+              <button onClick={addVakantie} className="px-4 py-2 bg-[#991A21] hover:bg-[#7a1419] text-white text-sm font-semibold rounded-xl transition-colors shadow-sm">+ Toevoegen</button>
             </div>
-            {data.vakanties.length===0 && <p className="text-sm text-zinc-600 text-center py-8">Nog geen vakantieperiodes ingesteld.</p>}
+            {data.vakanties.length===0 && <p className="text-sm text-gray-400 text-center py-12">Nog geen vakantieperiodes ingesteld.</p>}
             <div className="space-y-3">
               {data.vakanties.map(v=>(
-                <div key={v.id} className="border border-zinc-800 rounded-lg p-4 space-y-3">
+                <div key={v.id} className="border border-gray-200 bg-white rounded-xl p-4 space-y-3 shadow-sm">
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="text-xs text-zinc-500 block mb-1">Omschrijving</label>
-                      <input value={v.naam} onChange={e=>updateVakantie({...v,naam:e.target.value})} placeholder="Bijv. Zomervakantie" className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"/>
+                      <input value={v.naam} onChange={e=>updateVakantie({...v,naam:e.target.value})} placeholder="Bijv. Zomervakantie" className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none focus:border-[#991A21] transition-colors"/>
                     </div>
                     <div>
                       <label className="text-xs text-zinc-500 block mb-1">Van</label>
@@ -2061,7 +2115,7 @@ export default function App() {
                     </div>
                   </div>
                   <div className="flex justify-between items-center">
-                    {v.van&&v.tot&&<span className="text-xs text-zinc-500">{fmtDate(v.van)} → {fmtDate(v.tot)}</span>}
+                    {v.van&&v.tot&&<span className="text-xs text-gray-500">{fmtDate(v.van)} → {fmtDate(v.tot)}</span>}
                     <button onClick={()=>deleteVakantie(v.id)} className="text-xs text-red-500 hover:text-red-400 transition-colors ml-auto">Verwijder</button>
                   </div>
                 </div>
@@ -2074,24 +2128,24 @@ export default function App() {
         {tab==="instellingen" && (
           <div className="space-y-6 max-w-md">
             <div>
-              <h2 className="text-sm font-semibold text-zinc-300 mb-1">Mijn werkdagen</h2>
-              <p className="text-xs text-zinc-500 mb-4">De auto-planner plant geen vergaderingen op dagen dat je niet werkt.</p>
+              <h2 className="text-sm font-semibold text-[#2D2D2D] mb-1">Mijn werkdagen</h2>
+              <p className="text-xs text-gray-500 mb-4">De auto-planner plant geen vergaderingen op dagen dat je niet werkt.</p>
               <WerkdagenSelector werkdagen={werkdagen} onChange={updateWerkdagen}/>
-              <div className="mt-3 flex flex-wrap gap-1">
+              <div className="mt-3 flex flex-wrap gap-1.5">
                 {[1,2,3,4,5,6,0].map((dow,i) => {
                   const labels=["Ma","Di","Wo","Do","Vr","Za","Zo"];
-                  return werkdagen[dow] ? <span key={dow} className="text-[10px] bg-zinc-700 text-zinc-300 px-2 py-0.5 rounded font-mono">{labels[i]}</span> : null;
+                  return werkdagen[dow] ? <span key={dow} className="text-[10px] bg-[#991A21]/10 text-[#991A21] px-2 py-0.5 rounded-full font-mono font-medium border border-[#991A21]/20">{labels[i]}</span> : null;
                 })}
-                {[1,2,3,4,5,6,0].filter(dow=>werkdagen[dow]).length===0 && <span className="text-xs text-red-400">⚠ Geen werkdagen geselecteerd — auto-planning werkt niet.</span>}
+                {[1,2,3,4,5,6,0].filter(dow=>werkdagen[dow]).length===0 && <span className="text-xs text-[#991A21] font-medium">⚠ Geen werkdagen geselecteerd — auto-planning werkt niet.</span>}
               </div>
             </div>
-            <div className="border-t border-zinc-800 pt-6">
-              <h2 className="text-sm font-semibold text-zinc-300 mb-1">Auto-planning</h2>
-              <p className="text-xs text-zinc-500 mb-4">Verdeelt alle ongeplande VvE's gelijkmatig over het jaar. Slaat vakantieperiodes en niet-werkdagen over. Je kunt het voorstel bekijken en aanpassen vóór je bevestigt.</p>
+            <div className="border-t border-gray-200 pt-6">
+              <h2 className="text-sm font-semibold text-[#2D2D2D] mb-1">Auto-planning</h2>
+              <p className="text-xs text-gray-500 mb-4">Verdeelt alle ongeplande VvE's gelijkmatig over het jaar. Slaat vakantieperiodes en niet-werkdagen over. Je kunt het voorstel bekijken en aanpassen vóór je bevestigt.</p>
               <button
                 onClick={() => { setTab("vergaderingen"); handleGeneratePlanning(); }}
                 disabled={ongepland===0}
-                className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${ongepland===0?"bg-zinc-800 text-zinc-600 cursor-not-allowed":"bg-sky-900/60 hover:bg-sky-800/60 border border-sky-800/60 text-sky-300"}`}
+                className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${ongepland===0?"bg-gray-100 text-gray-400 cursor-not-allowed":"bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700"}`}
               >
                 {ongepland===0 ? "Alle VvE's zijn al gepland" : `✦ Genereer planning voor ${ongepland} VvE's`}
               </button>
