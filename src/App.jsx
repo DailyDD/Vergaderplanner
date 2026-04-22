@@ -1719,9 +1719,15 @@ export default function App() {
               </div>
             </div>
           </div>
-          <div className="text-center">
-            <p className="text-white text-xl font-bold mb-2">Vergaderplanner</p>
-            <p className="text-gray-400 text-sm leading-relaxed max-w-xs">Plan, beheer en monitor alle VvE-vergaderingen</p>
+          <div className="flex flex-col gap-4 w-full max-w-xs">
+            <div className="bg-white/10 border border-white/15 rounded-xl px-4 py-3">
+              <p className="text-white text-sm font-bold mb-1">📅 Vergaderplanner</p>
+              <p className="text-gray-400 text-xs leading-relaxed">Plan en beheer alle VvE-vergaderingen, uitnodigingen en voortgang.</p>
+            </div>
+            <div className="bg-white/10 border border-white/15 rounded-xl px-4 py-3">
+              <p className="text-white text-sm font-bold mb-1">🧮 VvE Calculator</p>
+              <p className="text-gray-400 text-xs leading-relaxed">Bereken maandelijkse bijdragen en reservefondsen conform art. 5:126 BW.</p>
+            </div>
           </div>
         </div>
       </div>
@@ -1795,7 +1801,7 @@ export default function App() {
           {/* Welkom */}
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-[#2D2D2D] mb-1">
-              {(() => { const h = new Date().getHours(); return h < 12 ? "Goedemorgen" : h < 18 ? "Goedemiddag" : "Goedenavond"; })()}, {beheerder}
+              {(() => { const h = new Date().getHours(); return h < 12 ? "Goedemorgen" : h < 18 ? "Goedemiddag" : "Goedenavond"; })()} {beheerder}
             </h1>
             <p className="text-sm text-gray-500">Kies een tool om mee te beginnen</p>
           </div>
