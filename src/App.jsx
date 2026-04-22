@@ -1719,15 +1719,12 @@ export default function App() {
               </div>
             </div>
           </div>
-          <div className="flex flex-col gap-4 w-full max-w-xs">
-            <div className="bg-white/10 border border-white/15 rounded-xl px-4 py-3">
-              <p className="text-white text-sm font-bold mb-1">📅 Vergaderplanner</p>
-              <p className="text-gray-400 text-xs leading-relaxed">Plan en beheer alle VvE-vergaderingen, uitnodigingen en voortgang.</p>
-            </div>
-            <div className="bg-white/10 border border-white/15 rounded-xl px-4 py-3">
-              <p className="text-white text-sm font-bold mb-1">🧮 VvE Calculator</p>
-              <p className="text-gray-400 text-xs leading-relaxed">Bereken maandelijkse bijdragen en reservefondsen conform art. 5:126 BW.</p>
-            </div>
+          <div className="text-center">
+            <p className="text-white text-xl font-bold mb-2">Vergaderplanner</p>
+            <p className="text-gray-400 text-sm leading-relaxed max-w-xs">Plan, beheer en monitor alle VvE-vergaderingen</p>
+            <div className="w-8 h-px bg-white/20 mx-auto my-4"></div>
+            <p className="text-white text-xl font-bold mb-2">VvE Calculator</p>
+            <p className="text-gray-400 text-sm leading-relaxed max-w-xs">Bereken maandelijkse bijdragen en reservefondsen conform art. 5:126 BW</p>
           </div>
         </div>
       </div>
