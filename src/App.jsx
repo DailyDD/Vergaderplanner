@@ -391,7 +391,7 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
   const updateDatum2 = (val) => onUpdate({ ...vve, datum2: val, uitgenodigd2: false });
 
   return (
-    <div ref={rowRef} className={`border rounded-xl overflow-hidden transition-all shadow-sm ${afgerond ? "border-emerald-200 bg-emerald-50/30" : "border-gray-200 bg-white"}`}>
+    <div ref={rowRef} className={`rounded-xl overflow-hidden transition-all shadow-sm ${afgerond ? "border-2 border-emerald-300 bg-emerald-50/30" : "border-2 border-gray-300 bg-white"}`}>
       <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors" onClick={()=>setExpanded(e=>!e)}>
         <div className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`}/>
         <div className="flex-1 min-w-0">
@@ -429,7 +429,7 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
       </div>
 
       {expanded && (
-        <div className="border-t border-gray-200 px-4 py-4 bg-[#E4DED8] space-y-5">
+        <div className="border-t-2 border-x-2 border-b-2 border-gray-300 px-4 py-4 bg-[#F2EFEC] space-y-5">
 
           {/* 1e vergadering */}
           <div className="space-y-2">
