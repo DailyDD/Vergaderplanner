@@ -1626,9 +1626,9 @@ export default function App() {
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Voortgang {year}</p>
                   <div className="flex flex-col items-center gap-1">
                     <svg width="96" height="96" viewBox="0 0 96 96">
-                      <circle cx="48" cy="48" r={R} fill="none" stroke="#27272a" strokeWidth="10"/>
+                      <circle cx="48" cy="48" r={R} fill="none" stroke="#F0EDE9" strokeWidth="10"/>
                       {pctNiet > 0 && (
-                        <circle cx="48" cy="48" r={R} fill="none" stroke="#3f3f46" strokeWidth="10"
+                        <circle cx="48" cy="48" r={R} fill="none" stroke="#E8E4E0" strokeWidth="10"
                           strokeDasharray={`${(pctNiet/100)*C} ${C}`} strokeDashoffset={-(dasAfgerond+dasUitgenodigd)}
                           transform="rotate(-90 48 48)" strokeLinecap="butt"/>
                       )}
@@ -2024,8 +2024,8 @@ export default function App() {
                   <div className="flex items-center gap-8">
                     <div className="relative shrink-0">
                       <svg width="140" height="140" viewBox="0 0 140 140">
-                        <circle cx="70" cy="70" r={R} fill="none" stroke="#27272a" strokeWidth="14"/>
-                        {pctNiet > 0 && <circle cx="70" cy="70" r={R} fill="none" stroke="#3f3f46" strokeWidth="14" strokeDasharray={`${(pctNiet/100)*C} ${C}`} strokeDashoffset={-(dasAfgerond+dasUitgenodigd)} transform="rotate(-90 70 70)" strokeLinecap="butt"/>}
+                        <circle cx="70" cy="70" r={R} fill="none" stroke="#F0EDE9" strokeWidth="14"/>
+                        {pctNiet > 0 && <circle cx="70" cy="70" r={R} fill="none" stroke="#E8E4E0" strokeWidth="14" strokeDasharray={`${(pctNiet/100)*C} ${C}`} strokeDashoffset={-(dasAfgerond+dasUitgenodigd)} transform="rotate(-90 70 70)" strokeLinecap="butt"/>}
                         {pctUitgenodigd > 0 && <circle cx="70" cy="70" r={R} fill="none" stroke="#0ea5e9" strokeWidth="14" strokeDasharray={`${dasUitgenodigd} ${C}`} strokeDashoffset={-dasAfgerond} transform="rotate(-90 70 70)" strokeLinecap="butt"/>}
                         {pctAfgerond > 0 && <circle cx="70" cy="70" r={R} fill="none" stroke="#10b981" strokeWidth="14" strokeDasharray={`${dasAfgerond} ${C}`} strokeDashoffset={0} transform="rotate(-90 70 70)" strokeLinecap="butt"/>}
                         <text x="70" y="65" textAnchor="middle" fill="#2D2D2D" fontSize="22" fontWeight="700" fontFamily="DM Sans, sans-serif">{pctAfgerond}%</text>
