@@ -2267,7 +2267,7 @@ export default function App() {
             <h1 className="text-2xl font-bold text-[#2D2D2D] mb-1">
               {(() => { const h = new Date().getHours(); return h < 12 ? "Goedemorgen" : h < 18 ? "Goedemiddag" : "Goedenavond"; })()} {beheerder}
             </h1>
-            <p className="text-sm text-gray-500">Kies een tool om mee te beginnen</p>
+            <p className="text-sm text-gray-500">{new Date().toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} — kies een tool om te beginnen</p>
           </div>
 
           {/* Tool tegels */}
