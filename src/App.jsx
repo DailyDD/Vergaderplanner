@@ -1832,6 +1832,7 @@ export default function App() {
   const [forceOpenId, setForceOpenId] = useState(null);
   // FIX 2: maandfilter
   const [filterJaar2027, setFilterJaar2027] = useState(false);
+  const [statFilter, setStatFilter] = useState(null); // afgerond | uitgenodigd | niet-uitgenodigd | uitnodiging | vakantie
   const [geselecteerdeFilterMaanden, setGeselecteerdeFilterMaanden] = useState(new Set());
 
   const t = {
@@ -2120,6 +2121,27 @@ export default function App() {
     filtered = filtered.filter(v => !isAfgerond(v));
   }
 
+  // Stap 4b: statFilter (klik op stats balk)
+  if (statFilter) {
+    filtered = filtered.filter(v => {
+      const afgr = isAfgerond(v);
+      const uitgen = (v.uitgenodigd1 || v.uitgenodigd2) && !afgr;
+      const vakantieVves = vakantieperiodes.some(vp => {
+        const d = v.datum1 || v.datum2 || v.datumExtra;
+        return d && d >= vp.van && d <= vp.tot;
+      });
+      if (statFilter === 'afgerond') return afgr;
+      if (statFilter === 'uitgenodigd') return uitgen;
+      if (statFilter === 'niet-uitgenodigd') return !afgr && !uitgen;
+      if (statFilter === 'uitnodiging') {
+        const s1 = getStatus(v, 1); const s2 = getStatus(v, 2);
+        return (s1 === 'warning' || s1 === 'overdue') || (s2 === 'warning' || s2 === 'overdue');
+      }
+      if (statFilter === 'vakantie') return vakantieVves;
+      return true;
+    });
+  }
+
   // Stap 4: maandfilter (FIX 2)
   if (geselecteerdeFilterMaanden.size > 0) {
     filtered = filtered.filter(v => {
@@ -2388,12 +2410,14 @@ export default function App() {
 
       <div className={`border-b ${t.border} px-6 flex bg-white`}>
         {[
-          [data.vves.length, "VvE's", "text-[#2D2D2D]", "bg-[#2D2D2D]"],
-          [afgerond, "Afgerond", "text-emerald-700", "bg-emerald-500"],
-          [uitgenodigd, "Uitgenodigd", "text-blue-700", "bg-blue-500"],
-          [nietUitgenodigd, "Niet uitgenodigd", "text-gray-500", "bg-gray-400"],
-        ].map(([val, label, textClr, dotClr]) => (
-          <div key={label} className="flex items-center gap-2.5 px-5 py-3.5 border-r border-gray-100">
+          [data.vves.length, "VvE's", "text-[#2D2D2D]", "bg-[#2D2D2D]", null],
+          [afgerond, "Afgerond", "text-emerald-700", "bg-emerald-500", "afgerond"],
+          [uitgenodigd, "Uitgenodigd", "text-blue-700", "bg-blue-500", "uitgenodigd"],
+          [nietUitgenodigd, "Niet uitgenodigd", "text-gray-500", "bg-gray-400", "niet-uitgenodigd"],
+        ].map(([val, label, textClr, dotClr, filterKey]) => (
+          <div key={label}
+            onClick={() => { if (filterKey) { setStatFilter(f => f === filterKey ? null : filterKey); setTab("vergaderingen"); } }}
+            className={`flex items-center gap-2.5 px-5 py-3.5 border-r border-gray-100 ${filterKey ? "cursor-pointer hover:bg-gray-50 transition-colors" : ""}`}>
             <div className={`w-2 h-2 rounded-full ${dotClr}`} />
             <div>
               <div className={`text-lg font-bold ${textClr}`}>{val}</div>
@@ -2402,7 +2426,9 @@ export default function App() {
           </div>
         ))}
         {metWaarschuwing>0 && (
-          <div className="flex items-center gap-2.5 px-5 py-3.5 border-r border-gray-100">
+          <div
+            onClick={() => { setStatFilter(f => f === "uitnodiging" ? null : "uitnodiging"); setTab("vergaderingen"); }}
+            className="flex items-center gap-2.5 px-5 py-3.5 border-r border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors">
             <div className="w-2 h-2 rounded-full bg-[#991A21]" />
             <div>
               <div className="text-lg font-bold text-[#991A21]">{metWaarschuwing}</div>
@@ -2411,7 +2437,9 @@ export default function App() {
           </div>
         )}
         {inVakantie>0 && (
-          <div className="flex items-center gap-2.5 px-5 py-3.5">
+          <div
+            onClick={() => { setStatFilter(f => f === "vakantie" ? null : "vakantie"); setTab("vergaderingen"); }}
+            className="flex items-center gap-2.5 px-5 py-3.5 cursor-pointer hover:bg-gray-50 transition-colors">
             <div className="w-2 h-2 rounded-full bg-orange-500" />
             <div>
               <div className="text-lg font-bold text-orange-600">{inVakantie}</div>
@@ -2563,7 +2591,7 @@ export default function App() {
                           <span className="text-[#2D2D2D] font-semibold">Nog {dagenOver} dagen</span> tot eind {nu.getFullYear()}
                         </p>
                         <p className={`text-[10px] font-medium ${opSchema ? "text-emerald-600" : "text-amber-400"}`}>
-                          {opSchema ? "✓ Je bent op schema" : "⚠ Je loopt achter op schema"}
+                          {opSchema ? "✓ Je bent op schema" : <span className="text-red-600">⚠ Je loopt achter op schema</span>}
                         </p>
                       </div>
                     );
@@ -2587,7 +2615,7 @@ export default function App() {
                     return (
                       <div className="border-t border-gray-100 pt-3">
                         <p className="text-[10px] text-gray-500">
-                          <span className="text-amber-400 font-medium">📅 {NL_MONTHS_FULL[parseInt(maandIdx)]}</span> wordt je drukste maand
+                          📅 <span className="text-red-600 font-medium">{NL_MONTHS_FULL[parseInt(maandIdx)]}</span> wordt je drukste maand
                         </p>
                         <p className="text-[10px] text-gray-400">{aantal} vergadering{aantal !== 1 ? "en" : ""} gepland</p>
                       </div>
@@ -2796,6 +2824,14 @@ export default function App() {
                   </button>
                 )}
                 {/* FIX 1: Sorteerknop */}
+                {statFilter && (
+                  <button
+                    onClick={() => setStatFilter(null)}
+                    className="px-3 py-2 bg-[#fef2f2] hover:bg-red-100 border border-red-200 text-[#991A21] text-xs rounded-xl transition-colors whitespace-nowrap font-medium"
+                  >
+                    ✕ Filter: {statFilter === 'afgerond' ? 'Afgerond' : statFilter === 'uitgenodigd' ? 'Uitgenodigd' : statFilter === 'niet-uitgenodigd' ? 'Niet uitgenodigd' : statFilter === 'uitnodiging' ? 'Uitnodiging urgent' : 'In vakantie'}
+                  </button>
+                )}
                 <button
                   onClick={handleSorteer}
                   className="px-4 py-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-600 text-sm rounded-xl transition-colors whitespace-nowrap"
