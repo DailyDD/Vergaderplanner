@@ -2126,18 +2126,18 @@ export default function App() {
     filtered = filtered.filter(v => {
       const afgr = isAfgerond(v);
       const uitgen = (v.uitgenodigd1 || v.uitgenodigd2) && !afgr;
-      const vakantieVves = vakantieperiodes.some(vp => {
-        const d = v.datum1 || v.datum2 || v.datumExtra;
-        return d && d >= vp.van && d <= vp.tot;
-      });
       if (statFilter === 'afgerond') return afgr;
       if (statFilter === 'uitgenodigd') return uitgen;
       if (statFilter === 'niet-uitgenodigd') return !afgr && !uitgen;
       if (statFilter === 'uitnodiging') {
-        const s1 = getStatus(v, 1); const s2 = getStatus(v, 2);
+        const s1 = inviteStatus(v.datum1, v.uitgenodigd1);
+        const s2 = inviteStatus(v.datum2, v.uitgenodigd2);
         return (s1 === 'warning' || s1 === 'overdue') || (s2 === 'warning' || s2 === 'overdue');
       }
-      if (statFilter === 'vakantie') return vakantieVves;
+      if (statFilter === 'vakantie') {
+        const d = v.datum1 || v.datum2 || v.datumExtra;
+        return d && isInVakantie(d, data.vakanties);
+      }
       return true;
     });
   }
