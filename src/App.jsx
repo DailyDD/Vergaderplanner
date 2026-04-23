@@ -709,140 +709,333 @@ function exportTotaalExcel(allData, beheerderList) {
 
 
 // ── VvE Calculator ───────────────────────────────────────────────
-const LOGO_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAb8AAAG/CAMAAAD/zSlAAAAA81BMVEX///+bHSEjHSEAAAD8//8nISH//f/n5+f9//2ZHiGIAACRAAC5t7iUAAAfGBiNAAAkIyEKAAA6Ojp7enqrqaofHhza2dpJSEf5+fmenZ7Rz9APAAUYERS/vb5DQkLz8vIxKinq0tKcGRvmx8jXsrHPqqufJiyBAADbv7/fvL/s4eEdFhvBkJOycXHIxsf78fKze3rcyMfJnp9oZ2eiQ0ORkJFWVFTBi4eXMzfAgYHLm5W0ZGWWAA4UExDBeXarV1e0VFuoPj6PJCShR02lVV6vcnqkABCaKTKfXmGwaHGdT0eDFhepZmKLDh7fyLugAACKNDUK/lRAAAAgAElEQVR4nO1dCXuiyNYmgiAq4i4qESWaGNe4RlvtTDozk567+878///XfKeq2FRKTTrpztjnfe6dNgoF1MvZaxEEBAKBQCAQCAQCgUAgEAgEAoFAIBAIBAKBQCAQCAQCgUAgEAgEAoFAIBAIBAKBQCAQCAQCgUAgEAgEAoFAIBAIBAKBQCAQCAQCgUAgEAgEAoFAIBAIBAKBQCAQCAQCgUAgEAgEAoFAIBAIBAKBQCAQCAQCgUAgEAgEAoFAIBAIBAKBQCAQCAQCgUAgEAgEAoFAIBAIBAKBQCAQCASC/w8A';
-
 const CALC_S = {
   bordeaux: '#991A21', bordeauxDark: '#6B1217', bordeauxLight: '#F5E6E7',
   cream: '#FAF7F2', ink: '#1A1614', muted: '#8A7E7B', border: '#E5DEDA',
   green: '#2D6A4F', greenBg: '#EAF4EE', amber: '#92550A', amberBg: '#FEF3E2',
   redBg: '#FDEAEB', blue: '#1A4D7A', blueBg: '#EAF1F8',
-};
-
+}
 const calcFmt = (n) => {
-  if (n === null || n === undefined || isNaN(n)) return '—';
-  return '€ ' + Number(n).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
+  if (n === null || n === undefined || isNaN(n)) return '—'
+  return '€ ' + Number(n).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+const calcToday = () => new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })
+let _calcId = 0
+const calcUid = () => ++_calcId
 
-const calcToday = () => new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' });
+function calcBuildExploitatieRows(r) {
+  const rows = []
+  if (r.verzekering)   rows.push(['Opstalverzekering', calcFmt(r.verzekering)])
+  if (r.administratie) rows.push(['Administratie/beheer', calcFmt(r.administratie)])
+  if (r.bankkosten)    rows.push(['Bankkosten', calcFmt(r.bankkosten)])
+  if (r.overig)        rows.push(['Overig', calcFmt(r.overig)])
+  r.extraKosten.forEach(e => { if (e.bedrag) rows.push([e.naam || 'Extra post', calcFmt(e.bedrag)]) })
+  return rows
+}
 
-let _calcId = 0;
-const calcUid = () => ++_calcId;
-
-function CalcSecTitle({ children }) {
-  return (
-    <div style={{ fontSize:11, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.08em', color:'#8A7E7B', marginBottom:10, marginTop:26, display:'flex', alignItems:'center', gap:8 }}>
-      {children}<div style={{ flex:1, height:1, background:'#E5DEDA' }} />
-    </div>
-  );
-}
-function CalcCard({ header, children }) {
-  return <div style={{ background:'#fff', border:'1px solid #E5DEDA', borderRadius:12, overflow:'hidden', marginBottom:14 }}>{header}{children}</div>;
-}
-function CalcCardHdr({ icon, bg, title, sub }) {
-  return (
-    <div style={{ padding:'14px 20px', borderBottom:'1px solid #E5DEDA', display:'flex', alignItems:'center', gap:10 }}>
-      <div style={{ width:30, height:30, borderRadius:7, background:bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14 }}>{icon}</div>
-      <div><div style={{ fontSize:13, fontWeight:600 }}>{title}</div><div style={{ fontSize:11, color:'#8A7E7B', marginTop:1 }}>{sub}</div></div>
-    </div>
-  );
-}
-function CalcField({ label, children }) {
-  return <div style={{ marginBottom:4 }}><label style={{ display:'block', fontSize:11, fontWeight:600, color:'#8A7E7B', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>{label}</label>{children}</div>;
-}
-function CalcInp(props) {
-  return <input {...props} style={{ width:'100%', padding:'8px 11px', border:'1.5px solid #E5DEDA', borderRadius:8, fontFamily:'monospace', fontSize:14, color:'#1A1614', background:'#FAF7F2', outline:'none' }}
-    onFocus={e=>{e.target.style.borderColor='#991A21';e.target.style.background='#fff'}}
-    onBlur={e=>{e.target.style.borderColor='#E5DEDA';e.target.style.background='#FAF7F2'}} />;
-}
-function CalcTag({ c, t, children }) {
-  return <span style={{ display:'inline-block', padding:'2px 7px', borderRadius:4, fontSize:11, fontWeight:500, background:c, color:t }}>{children}</span>;
-}
-function CalcMethodBlock({ tag, name, rows, total }) {
-  return (
-    <div style={{ background:'#fff', border:'1px solid #E5DEDA', borderRadius:12, overflow:'hidden' }}>
-      <div style={{ padding:'12px 18px 10px', borderBottom:'1px solid #E5DEDA' }}>
-        <div style={{ fontSize:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.07em', color:'#8A7E7B' }}>{tag}</div>
-        <div style={{ fontFamily:'Georgia,serif', fontSize:15, color:'#1A1614', marginTop:2 }}>{name}</div>
-      </div>
-      {rows.map(([l,v],i) => (
-        <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', padding:'7px 18px', borderBottom:'1px solid #E5DEDA', fontSize:13 }}>
-          <span style={{ color:'#8A7E7B' }}>{l}</span><span style={{ fontFamily:'monospace', fontWeight:500 }}>{v}</span>
-        </div>
-      ))}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', padding:'10px 18px', fontSize:13 }}>
-        <span style={{ color:'#8A7E7B' }}>Maandlasten VvE totaal</span>
-        <span style={{ fontFamily:'Georgia,serif', fontSize:22, color:'#991A21' }}>{total}</span>
-      </div>
-    </div>
-  );
+function calcExportPDF(r) {
+  const eigenRows = r.eigenaren.map((e, i) => {
+    const bg = i % 2 === 0 ? '#ffffff' : '#FAF7F2'
+    const deltaStr = (nieuw, huidig) => {
+      if (nieuw === null || huidig === null) return '—'
+      const diff = nieuw - huidig
+      const pct = (diff / huidig * 100)
+      const sign = diff > 0.005 ? '+' : ''
+      const color = diff < -0.005 ? '#2D6A4F' : diff > 0.005 ? '#C0392B' : '#1A4D7A'
+      return '<span style="color:' + color + ';font-weight:600">' + sign + calcFmt(diff) + ' (' + sign + pct.toFixed(1) + '%)</span>'
+    }
+    return '<tr style="background:' + bg + '"><td>' + e.naam + '</td><td style="text-align:right">' + e.teller + '/' + e.noemer + '</td><td style="text-align:right">' + (e.aandeel * 100).toFixed(2) + '%</td><td style="text-align:right">' + (e.huidig !== null ? calcFmt(e.huidig) : '—') + '</td><td style="text-align:right">' + (e.bijdrMjop !== null ? calcFmt(e.bijdrMjop) : '—') + '</td><td>' + deltaStr(e.bijdrMjop, e.huidig) + '</td><td style="text-align:right">' + (e.bijdr05 !== null ? calcFmt(e.bijdr05) : '—') + '</td><td>' + deltaStr(e.bijdr05, e.huidig) + '</td></tr>'
+  }).join('')
+  const totMjop = r.hasMjop ? calcFmt(r.eigenaren.reduce((s, e) => s + (e.bijdrMjop || 0), 0)) : '—'
+  const tot05 = r.has05 ? calcFmt(r.eigenaren.reduce((s, e) => s + (e.bijdr05 || 0), 0)) : '—'
+  const rr = (l, v) => '<div class="rr"><span class="rl">' + l + '</span><span class="rv">' + v + '</span></div>'
+  const rrB = (l, v) => '<div class="rr"><span class="rl">' + l + '</span><span class="rv big">' + v + '</span></div>'
+  const exploRows = calcBuildExploitatieRows(r)
+  const exploHTML = exploRows.map(([l, v]) => rr(l, v)).join('')
+  const html = '<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8"><title>VvE Bijdrage – ' + r.complexNaam + '</title>'
+    + '<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">'
+    + '<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:"DM Sans",Arial,sans-serif;color:#1A1614;font-size:10pt;background:#fff;padding:32px 40px}.hdr{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:12px;border-bottom:3px solid #991A21;margin-bottom:22px}.hdr h1{font-family:"DM Serif Display",serif;font-size:18pt;color:#991A21;font-weight:400}.hdr .meta{font-size:9pt;color:#8A7E7B;margin-top:3px}.intro{background:#FAF7F2;border-left:4px solid #991A21;padding:12px 16px;border-radius:4px;margin-bottom:20px;font-size:9pt;color:#8A7E7B}.intro strong{color:#1A1614;font-size:10pt}.sec{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8A7E7B;margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid #E5DEDA}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}.block{border:1px solid #E5DEDA;border-radius:6px;overflow:hidden}.bh{background:#991A21;padding:8px 12px}.bh .tag{font-size:7.5pt;color:rgba(255,255,255,.65);text-transform:uppercase;letter-spacing:.05em}.bh .name{font-family:"DM Serif Display",serif;font-size:13pt;color:#fff;font-weight:400}.rr{display:flex;justify-content:space-between;padding:5px 12px;border-bottom:1px solid #E5DEDA;font-size:9pt}.rr:last-child{border:none}.rl{color:#8A7E7B}.rv{font-weight:500}.rv.big{font-family:"DM Serif Display",serif;font-size:15pt;color:#991A21;font-weight:400}.subtotaal{background:#FAF7F2;font-weight:600}table{width:100%;border-collapse:collapse;font-size:9pt}thead tr{background:#991A21;color:#fff}thead th{padding:7px 10px;text-align:left;font-size:8pt;font-weight:600;text-transform:uppercase;letter-spacing:.04em}thead th:not(:first-child){text-align:right}tbody td{padding:6px 10px;border-bottom:1px solid #E5DEDA}tfoot td{padding:7px 10px;font-weight:600;color:#991A21;border-top:2px solid #991A21;background:#F5E6E7}.note{margin-top:24px;padding:12px 16px;background:#FAF7F2;border-left:4px solid #991A21;font-size:8.5pt;color:#8A7E7B;border-radius:4px}.footer{margin-top:20px;padding-top:8px;border-top:1px solid #E5DEDA;display:flex;justify-content:space-between;font-size:7.5pt;color:#8A7E7B}.print-btn{position:fixed;top:18px;right:18px;padding:9px 18px;background:#991A21;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-family:sans-serif}@media print{.print-btn{display:none}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>'
+    + '<button class="print-btn" onclick="window.print()">Afdrukken / PDF</button>'
+    + '<div class="hdr"><div><h1>' + (r.alleenEenmalig ? 'Eenmalige Bijdrage Rapport' : 'Reservefonds Bijdrage Rapport') + '</h1><div class="meta">' + r.complexNaam + ' · Opgesteld op ' + calcToday() + '</div></div></div>'
+    + '<div class="intro"><strong>' + r.complexNaam + '</strong><br>' + (r.alleenEenmalig ? 'Berekening eenmalige bijdragen per eigenaar — opgesteld ' + calcToday() + '.' : 'Berekening minimale maandelijkse bijdrage reservefonds conform art. 5:126 BW — opgesteld ' + calcToday() + '.') + '</div>'
+    + (r.alleenEenmalig ? '' :
+        '<div class="sec">Methode 1 — Op basis van MJOP (wettelijke voorkeur)</div>'
+      + '<div class="grid2"><div class="block"><div class="bh"><div class="tag">MJOP berekening</div><div class="name">Jaarlijkse dotatie</div></div>'
+      + rr('Totale MJOP-kosten', calcFmt(r.mjopTotaal)) + rr('Planperiode', r.planPeriode + ' jaar') + rr('Jaarlijkse MJOP-dotatie', calcFmt(r.dotatie))
+      + '</div><div class="block"><div class="bh"><div class="tag">Totale jaarlasten VvE</div><div class="name">Uitgesplitst</div></div>'
+      + rr('MJOP-dotatie', calcFmt(r.dotatie)) + exploHTML
+      + '<div class="rr subtotaal"><span class="rl">Totale jaarlasten VvE</span><span class="rv">' + calcFmt(r.jaarMjop) + '</span></div>'
+      + rrB('Maandlasten VvE totaal', r.hasMjop ? calcFmt(r.mndMjop) : '—') + '</div></div>'
+      + '<div class="sec">Methode 2 — 0,5% van herbouwwaarde (wettelijk minimum)</div>'
+      + '<div class="grid2"><div class="block"><div class="bh"><div class="tag">Herbouwwaarde</div><div class="name">0,5% reservering</div></div>'
+      + rr('Herbouwwaarde', calcFmt(r.herbouwwaarde)) + rr('0,5% jaarlijkse reservering', calcFmt(r.jaar05)) + rr('Van toepassing bij', '<span style="font-style:italic">geen/oud MJOP</span>')
+      + '</div><div class="block"><div class="bh"><div class="tag">Totale jaarlasten VvE</div><div class="name">Uitgesplitst</div></div>'
+      + rr('0,5% reservering', calcFmt(r.jaar05)) + exploHTML
+      + '<div class="rr subtotaal"><span class="rl">Totale jaarlasten VvE</span><span class="rv">' + calcFmt(r.jaar05Totaal) + '</span></div>'
+      + rrB('Maandlasten VvE totaal', r.has05 ? calcFmt(r.mnd05) : '—') + '</div></div>'
+      + '<div class="sec">Maandelijkse bijdrage per eigenaar</div>'
+      + '<table><thead><tr><th>Eigenaar</th><th style="text-align:right">Breukdeel</th><th style="text-align:right">Aandeel</th><th style="text-align:right">Huidig/mnd</th><th style="text-align:right">MJOP/mnd</th><th>Δ MJOP</th><th style="text-align:right">0,5%/mnd</th><th>Δ 0,5%</th></tr></thead>'
+      + '<tbody>' + eigenRows + '</tbody>'
+      + '<tfoot><tr><td><strong>Totaal VvE</strong></td><td></td><td style="text-align:right">100%</td><td style="text-align:right">' + calcFmt(r.eigenaren.reduce((s,e)=>s+(e.huidig||0),0)) + '</td><td style="text-align:right">' + totMjop + '</td><td></td><td style="text-align:right">' + tot05 + '</td><td></td></tr></tfoot></table>'
+    )
+    + (r.eenmaligAan && r.eenmaligBerekend && r.eenmaligBerekend.length > 0 ? (
+        '<div class="sec">Eenmalige bijdragen per eigenaar</div>'
+        + r.eenmaligBerekend.map(item =>
+            '<p style="font-size:9pt;font-weight:600;margin:10px 0 2px">' + item.omschrijving + ' — Offerte: ' + new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(item.offerte) + (item.totaleKorting > 0 ? ' — Netto: ' + new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(item.nettoOfferte) : '') + ' — Tekort: ' + (item.tekort > 0 ? new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(item.tekort) : '€ 0,00 (volledig gedekt)') + '</p>'
+            + (item.tekort > 0 ? '<table><thead><tr><th>Eigenaar</th><th style="text-align:right">Aandeel</th><th style="text-align:right">Korting</th><th style="text-align:right">Eenmalige bijdrage</th></tr></thead><tbody>' + item.perEigenaar.map((e,i) => '<tr style="background:' + (i%2===0?'#fff':'#FAF7F2') + '"><td>' + e.naam + '</td><td style="text-align:right">' + (e.aandeel*100).toFixed(2) + '%</td><td style="text-align:right;color:#2D6A4F">' + (e.korting > 0 ? new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(e.korting) : '—') + '</td><td style="text-align:right;font-weight:600;color:#991A21">' + new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(e.bijdrage) + '</td></tr>').join('') + '</tbody><tfoot><tr><td colspan="3"><strong>Totaal tekort</strong></td><td style="text-align:right">' + new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(item.tekort) + '</td></tr></tfoot></table>' : '')
+          ).join('')
+      ) : '')
+    + (r.alleenEenmalig ? '' : '<div class="note"><strong>Toelichting:</strong> Methode 1 (MJOP) verdient de voorkeur bij een actueel MJOP. Methode 2 (0,5%) is het wettelijk minimum conform art. 5:126 lid 3 BW (v.a. 1 jan 2021).</div>')
+    + '<div class="footer"><span>Totaal VvE Beheer Den Haag en omstreken B.V. · Rijswijk</span><span>' + calcToday() + '</span></div>'
+    + '</body></html>'
+  const w = window.open('', '_blank', 'width=1050,height=850')
+  if (w) { w.document.write(html); w.document.close() }
+  else alert('Pop-up geblokkeerd. Sta pop-ups toe voor deze pagina.')
 }
 
 function VveCalculator({ onTerug }) {
-  const [complexNaam, setComplexNaam] = useState('');
-  const [herbouwwaarde, setHerbouwwaarde] = useState('');
-  const [mjopTotaal, setMjopTotaal] = useState('');
-  const [planPeriode, setPlanPeriode] = useState('10');
-  const [verzekering, setVerzekering] = useState('');
-  const [administratie, setAdministratie] = useState('');
-  const [overig, setOverig] = useState('');
+  const S = CALC_S
+  const fmt = calcFmt
+  const uid = calcUid
+  const [complexNaam,   setComplexNaam]   = useState('')
+  const [herbouwwaarde, setHerbouwwaarde] = useState('')
+  const [mjopTotaal,    setMjopTotaal]    = useState('')
+  const [planPeriode,   setPlanPeriode]   = useState('10')
+  const [verzekering,   setVerzekering]   = useState('')
+  const [administratie, setAdministratie] = useState('')
+  const [bankkosten,    setBankkosten]    = useState('')
+  const [overig,        setOverig]        = useState('')
+  const [extraKosten,   setExtraKosten]   = useState([])
+  const [bulkTekst,         setBulkTekst]         = useState('')
+  const [bulkOpen,          setBulkOpen]          = useState(false)
+  const [bulkFout,          setBulkFout]          = useState('')
+  const [bulkBijdrageTekst, setBulkBijdrageTekst] = useState('')
+  const [bulkBijdrageOpen,  setBulkBijdrageOpen]  = useState(false)
+  const [bulkBijdrageFout,  setBulkBijdrageFout]  = useState('')
+  const [vasteNoemer,   setVasteNoemer]   = useState('')
+  const [eenmaligAan,   setEenmaligAan]   = useState(false)
+  const [eenmaligItems, setEenmaligItems] = useState([{ id: uid(), omschrijving: '', bedrag: '', reserveStand: '', buffer: '2500', kortingAan: false, kortingBedrag: '' }])
   const [rows, setRows] = useState([
-    { id: calcUid(), naam: '', teller: '', noemer: '' },
-    { id: calcUid(), naam: '', teller: '', noemer: '' },
-    { id: calcUid(), naam: '', teller: '', noemer: '' },
-  ]);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState('');
+    { id: uid(), naam: '', teller: '', huidig: '' },
+    { id: uid(), naam: '', teller: '', huidig: '' },
+    { id: uid(), naam: '', teller: '', huidig: '' },
+  ])
+  const [result, setResult] = useState(null)
+  const [error,  setError]  = useState('')
+
+  const addExtraKost = () => setExtraKosten(p => [...p, { id: uid(), naam: '', bedrag: '' }])
+  const delExtraKost = (id) => setExtraKosten(p => p.filter(e => e.id !== id))
+  const updExtraKost = (id, f, v) => setExtraKosten(p => p.map(e => e.id === id ? { ...e, [f]: v } : e))
 
   const formula = (() => {
-    const t = parseFloat(mjopTotaal) || 0;
-    const p = parseFloat(planPeriode) || 10;
-    if (!t) return 'Jaarlijkse dotatie = Totale MJOP-kosten ÷ Planperiode';
-    return calcFmt(t) + ' ÷ ' + p + ' jaar = ' + calcFmt(t / p) + ' jaarlijkse dotatie';
-  })();
+    const t = parseFloat(mjopTotaal) || 0
+    const p = parseFloat(planPeriode) || 10
+    if (!t) return 'Jaarlijkse dotatie = Totale MJOP-kosten ÷ Planperiode'
+    return fmt(t) + ' ÷ ' + p + ' jaar = ' + fmt(t / p) + ' jaarlijkse dotatie'
+  })()
 
+  const totalTeller = rows.reduce((s, r) => s + (parseFloat(r.teller) || 0), 0)
   const breukCheck = (() => {
-    const filled = rows.filter(r => r.teller !== '' && r.noemer !== '' && parseFloat(r.noemer) > 0);
-    if (!filled.length) return null;
-    const total = filled.reduce((s, r) => s + parseFloat(r.teller) / parseFloat(r.noemer), 0);
-    return { ok: Math.abs(total - 1) < 0.0011, pct: (total * 100).toFixed(3) };
-  })();
+    const filled = rows.filter(r => r.teller !== '' && parseFloat(r.teller) > 0)
+    if (!filled.length || totalTeller === 0) return null
+    return { ok: true, totaal: totalTeller }
+  })()
 
-  const addRow = () => setRows(p => [...p, { id: calcUid(), naam: '', teller: '', noemer: '' }]);
-  const delRow = (id) => setRows(p => p.filter(r => r.id !== id));
-  const updRow = (id, f, v) => setRows(p => p.map(r => r.id === id ? { ...r, [f]: v } : r));
+  const addRow = () => setRows(p => [...p, { id: uid(), naam: '', teller: '', huidig: '' }])
+  const delRow = (id) => setRows(p => p.filter(r => r.id !== id))
+  const updRow = (id, f, v) => setRows(p => p.map(r => r.id === id ? { ...r, [f]: v } : r))
+
+  const parseBulk = () => {
+    setBulkFout('')
+    const skipPatterns = [/^Presentielijst/i, /^Locatie\s*:/i, /^Datum en tijd/i, /^Eigenaar\s+Adres/i, /^Powered by/i]
+    const regels = bulkTekst.trim().split('\n').map(r => r.trim()).filter(r => r && !skipPatterns.some(p => p.test(r)))
+    const gevonden = []
+    const seen = new Set()
+    for (let i = 0; i < regels.length; i++) {
+      const regel = regels[i]
+      const volgende = i + 1 < regels.length ? regels[i + 1] : ''
+      const combined = regel + ' ' + volgende
+      const pcMatch = combined.match(/,?\s*(\d{4})\s*[A-Z]{2}/)
+      if (!pcMatch) continue
+      const voorPc = combined.slice(0, combined.indexOf(pcMatch[0])).trim().replace(/,$/, '')
+      const hnrMatch = voorPc.match(/\s+(A-\d+|\d+[A-Za-z]*)\s*$/)
+      if (!hnrMatch) continue
+      const hnrStr = hnrMatch[1].trim()
+      const voorHnr = voorPc.slice(0, voorPc.lastIndexOf(hnrMatch[0])).trim()
+      const straatMatch = voorHnr.match(/([A-Z][a-zA-Z\u00C0-\u024F]+(?:weg|straat|laan|plein|kade|dijk|gracht|singel|dreef|pad|steeg|hoek|markt)?(?:\s+[a-z][a-zA-Z\u00C0-\u024F]+)*)\s*$/)
+      if (!straatMatch) continue
+      const straat = straatMatch[1].trim()
+      const straatPos = voorHnr.lastIndexOf(straat)
+      let naam = voorHnr.slice(0, straatPos).trim()
+      if (!naam) {
+        const prev = []
+        let j = i - 1
+        while (j >= 0 && !/\d{4}\s*[A-Z]{2}/.test(regels[j]) && !/^0\d/.test(regels[j])) {
+          const pr = regels[j].trim()
+          if (pr && !/^D[A-Z]{1,2}$/.test(pr)) prev.unshift(pr)
+          j--
+        }
+        naam = prev.join(' ') || straat
+      }
+      let breukdeel = null
+      for (let k = i; k < Math.min(i + 5, regels.length); k++) {
+        if (/@/.test(regels[k]) || /^0\d[\-\d]/.test(regels[k])) {
+          const nums = [...regels[k].matchAll(/\b(\d+)\b/g)].map(m => parseInt(m[1]))
+          if (nums.length) breukdeel = nums[nums.length - 1]
+          break
+        }
+      }
+      if (!breukdeel) continue
+      const adresKort = straat + ' ' + hnrStr
+      const naamDisplay = naam + ' - ' + adresKort
+      if (seen.has(naamDisplay)) continue
+      seen.add(naamDisplay)
+      const hnrNum = parseInt((hnrStr.match(/\d+/) || ['0'])[0])
+      const hnrLetter = hnrStr.replace(/[\d\-]/g, '').toUpperCase()
+      gevonden.push({ naam: naamDisplay, breukdeel, hnrNum, hnrLetter })
+    }
+    if (!gevonden.length) { setBulkFout('Geen eigenaren herkend. Controleer het formaat.'); return }
+    gevonden.sort((a, b) => a.hnrNum - b.hnrNum || a.hnrLetter.localeCompare(b.hnrLetter))
+    setRows(gevonden.map(e => ({ id: uid(), naam: e.naam, teller: String(e.breukdeel), huidig: '' })))
+    setBulkOpen(false)
+    setBulkTekst('')
+  }
+
+  const parseBulkBijdrage = () => {
+    setBulkBijdrageFout('')
+    const maanden = ['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december']
+    const regels = bulkBijdrageTekst.trim().split('\n')
+    const bijdragenMap = {}
+    let huidigAdres = null
+    let huidigBedragen = []
+    const slaOp = () => {
+      if (huidigAdres && huidigBedragen.length) {
+        const nietNul = huidigBedragen.filter(b => b > 0)
+        if (nietNul.length) {
+          const teller = {}
+          nietNul.forEach(b => { teller[b] = (teller[b] || 0) + 1 })
+          const modus = Object.entries(teller).sort((a,b) => b[1]-a[1])[0][0]
+          bijdragenMap[huidigAdres.toLowerCase()] = parseFloat(modus)
+        }
+      }
+    }
+    for (const regel of regels) {
+      const eigenaarMatch = regel.match(/^(.+?)\s*\(([^)]+)\)\s*$/)
+      if (eigenaarMatch && !maanden.some(m => regel.toLowerCase().startsWith(m)) && !regel.startsWith('Maand') && !regel.startsWith('Te goed') && !regel.startsWith('Achterstand') && !regel.startsWith('Totalen') && !regel.startsWith('Extra')) {
+        slaOp()
+        huidigAdres = eigenaarMatch[2].trim()
+        huidigBedragen = []
+        continue
+      }
+      const maandMatch = regel.match(/^(januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december)\s+€\s+([\d\.]+,[\d]{2})/i)
+      if (maandMatch) {
+        const bedrag = parseFloat(maandMatch[2].replace(/\./g,'').replace(',','.'))
+        if (bedrag > 0) huidigBedragen.push(bedrag)
+      }
+    }
+    slaOp()
+    if (!Object.keys(bijdragenMap).length) { setBulkBijdrageFout('Geen bijdragen herkend. Controleer het formaat.'); return }
+    let gekoppeld = 0
+    setRows(prev => prev.map(r => {
+      const naamLower = r.naam.toLowerCase()
+      for (const [adres, bedrag] of Object.entries(bijdragenMap)) {
+        if (naamLower.includes(adres.toLowerCase())) { gekoppeld++; return { ...r, huidig: String(bedrag.toFixed(2)) } }
+      }
+      return r
+    }))
+    setRows(prev => prev.filter(r => { const h = parseFloat(r.huidig); return !isNaN(h) && h > 0 }))
+    setBulkBijdrageOpen(false)
+    setBulkBijdrageTekst('')
+    if (gekoppeld === 0) setBulkBijdrageFout('Geen eigenaren gekoppeld. Importeer eerst eigenaren via bulk import.')
+  }
 
   const bereken = () => {
-    setError('');
-    const hv = parseFloat(herbouwwaarde) || 0;
-    const mt = parseFloat(mjopTotaal) || 0;
-    const pp = parseFloat(planPeriode) || 10;
-    const vz = parseFloat(verzekering) || 0;
-    const ad = parseFloat(administratie) || 0;
-    const ov = parseFloat(overig) || 0;
-    const validRows = rows.filter(r => r.teller !== '' && r.noemer !== '' && parseFloat(r.noemer) > 0);
-    if (!validRows.length) { setError('Voeg eerst eigenaren toe met breukdelen.'); return; }
-    if (!hv && !mt) { setError('Vul minimaal de herbouwwaarde of MJOP-kosten in.'); return; }
-    const dotatie = mt > 0 ? mt / pp : 0;
-    const exploit = vz + ad + ov;
-    const jaarMjop = dotatie + exploit;
-    const mndMjop = jaarMjop / 12;
-    const jaar05 = hv * 0.005;
-    const jaarTot05 = jaar05 + exploit;
-    const mnd05 = jaarTot05 / 12;
-    const totalFrac = validRows.reduce((s, r) => s + parseFloat(r.teller) / parseFloat(r.noemer), 0);
+    setError('')
+    const hv = parseFloat(herbouwwaarde) || 0
+    const mt = parseFloat(mjopTotaal) || 0
+    const pp = parseFloat(planPeriode) || 10
+    const vz = parseFloat(verzekering) || 0
+    const ad = parseFloat(administratie) || 0
+    const bk = parseFloat(bankkosten) || 0
+    const ov = parseFloat(overig) || 0
+    const extraTotaal = extraKosten.reduce((s, e) => s + (parseFloat(e.bedrag) || 0), 0)
+    const validRows = rows.filter(r => r.teller !== '' && parseFloat(r.teller) > 0)
+    if (!validRows.length) { setError('Voeg eerst eigenaren toe met breukdelen.'); return }
+    const alleenEenmalig = eenmaligAan && !hv && !mt
+    if (!alleenEenmalig && !hv && !mt) { setError('Vul minimaal de herbouwwaarde of MJOP-kosten in.'); return }
+    const dotatie   = mt > 0 ? mt / pp : 0
+    const exploit   = vz + ad + bk + ov + extraTotaal
+    const jaarMjop  = dotatie + exploit
+    const mndMjop   = jaarMjop / 12
+    const jaar05    = hv * 0.005
+    const jaarTot05 = jaar05 + exploit
+    const mnd05     = jaarTot05 / 12
+    const noemer    = parseFloat(vasteNoemer) > 0 ? parseFloat(vasteNoemer) : validRows.reduce((s, r) => s + (parseFloat(r.teller) || 0), 0)
     const eigenaren = validRows.map(r => {
-      const frac = parseFloat(r.teller) / parseFloat(r.noemer);
-      const aandeel = totalFrac > 0 ? frac / totalFrac : 0;
-      return { naam: r.naam || ('App. ' + r.id), teller: r.teller, noemer: r.noemer, aandeel, bijdrMjop: mt > 0 ? aandeel * mndMjop : null, bijdr05: hv > 0 ? aandeel * mnd05 : null };
-    });
-    setResult({ complexNaam: complexNaam || 'Complex', mjopTotaal: mt, planPeriode: pp, dotatie, exploitatie: exploit, jaarMjop, mndMjop, hasMjop: mt > 0, herbouwwaarde: hv, jaar05, jaar05Totaal: jaarTot05, mnd05, has05: hv > 0, eigenaren });
-    setTimeout(() => document.getElementById('calc-res-anker')?.scrollIntoView({ behavior: 'smooth' }), 50);
-  };
+      const teller = parseFloat(r.teller) || 0
+      const aandeel = noemer > 0 ? teller / noemer : 0
+      const huidig = parseFloat(r.huidig) || null
+      return { naam: r.naam || ('App. ' + r.id), teller: r.teller, noemer, aandeel, huidig, bijdrMjop: mt > 0 ? aandeel * mndMjop : null, bijdr05: hv > 0 ? aandeel * mnd05 : null }
+    })
+    const somHuidig = validRows.reduce((s, r) => s + (parseFloat(r.huidig) || 0), 0)
+    const jaarResHuidig = somHuidig > 0 ? (somHuidig * 12) - exploit : null
+    const jaarResMjop   = mt > 0 ? (mndMjop * 12) - exploit : null
+    const jaarRes05     = hv > 0 ? (mnd05   * 12) - exploit : null
+    const aantalEigenaren = eigenaren.length
+    const eenmaligBerekend = eenmaligAan ? eenmaligItems.map(item => {
+      const offerte = parseFloat(item.bedrag) || 0
+      const reserve = parseFloat(item.reserveStand) || 0
+      const buffer = parseFloat(item.buffer) >= 0 ? parseFloat(item.buffer) : 2500
+      const kortingPerEigenaar = item.kortingAan ? (parseFloat(item.kortingBedrag) || 0) : 0
+      const totaleKorting = kortingPerEigenaar * aantalEigenaren
+      const nettoOfferte = Math.max(0, offerte - totaleKorting)
+      const beschikbaar = Math.max(0, reserve - buffer)
+      const tekort = Math.max(0, nettoOfferte - beschikbaar)
+      const perEigenaar = noemer > 0 ? eigenaren.map(e => ({ naam: e.naam, aandeel: e.aandeel, korting: kortingPerEigenaar, bijdrage: tekort > 0 ? e.aandeel * tekort : 0 })) : []
+      return { omschrijving: item.omschrijving || 'Eenmalige bijdrage', offerte, nettoOfferte, totaleKorting, kortingPerEigenaar, reserve, buffer, beschikbaar, tekort, perEigenaar }
+    }) : []
+    setResult({
+      complexNaam: complexNaam || 'Complex', mjopTotaal: mt, planPeriode: pp, dotatie,
+      verzekering: vz, administratie: ad, bankkosten: bk, overig: ov,
+      extraKosten: extraKosten.map(e => ({ naam: e.naam, bedrag: parseFloat(e.bedrag) || 0 })),
+      exploitatie: exploit, jaarMjop, mndMjop, hasMjop: mt > 0,
+      herbouwwaarde: hv, jaar05, jaar05Totaal: jaarTot05, mnd05, has05: hv > 0, eigenaren,
+      jaarResHuidig, jaarResMjop, jaarRes05, eenmaligAan, alleenEenmalig, eenmaligBerekend
+    })
+    setTimeout(() => document.getElementById('calc-res-anker')?.scrollIntoView({ behavior: 'smooth' }), 50)
+  }
+
+  const CInp = (props) => <input {...props} style={{ width:'100%', padding:'8px 11px', border:'1.5px solid #E5DEDA', borderRadius:8, fontFamily:'monospace', fontSize:14, color:'#1A1614', background:'#FAF7F2', outline:'none' }} onFocus={e=>{e.target.style.borderColor='#991A21';e.target.style.background='#fff'}} onBlur={e=>{e.target.style.borderColor='#E5DEDA';e.target.style.background='#FAF7F2'}} />
+  const CField = ({label, children}) => <div style={{marginBottom:4}}><label style={{display:'block',fontSize:11,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:5}}>{label}</label>{children}</div>
+  const CCard = ({header, children}) => <div style={{background:'#fff',border:'1px solid #E5DEDA',borderRadius:12,overflow:'hidden',marginBottom:14}}>{header}{children}</div>
+  const CCardHdr = ({icon, bg, title, sub}) => <div style={{padding:'14px 20px',borderBottom:'1px solid #E5DEDA',display:'flex',alignItems:'center',gap:10}}><div style={{width:30,height:30,borderRadius:7,background:bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>{icon}</div><div><div style={{fontSize:13,fontWeight:600}}>{title}</div><div style={{fontSize:11,color:'#8A7E7B',marginTop:1}}>{sub}</div></div></div>
+  const CTag = ({c,t,children}) => <span style={{display:'inline-block',padding:'2px 7px',borderRadius:4,fontSize:11,fontWeight:500,background:c,color:t}}>{children}</span>
+  const CMethodBlock = ({tag,name,rows:mrows,total}) => (
+    <div style={{background:'#fff',border:'1px solid #E5DEDA',borderRadius:12,overflow:'hidden'}}>
+      <div style={{padding:'12px 18px 10px',borderBottom:'1px solid #E5DEDA'}}>
+        <div style={{fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.07em',color:'#8A7E7B'}}>{tag}</div>
+        <div style={{fontFamily:'Georgia,serif',fontSize:15,color:'#1A1614',marginTop:2}}>{name}</div>
+      </div>
+      {mrows.map(([l,v],i) => (
+        <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',padding:'7px 18px',borderBottom:'1px solid #E5DEDA',fontSize:13}}>
+          <span style={{color:'#8A7E7B'}}>{l}</span><span style={{fontFamily:'monospace',fontWeight:500}}>{v}</span>
+        </div>
+      ))}
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',padding:'10px 18px',fontSize:13}}>
+        <span style={{color:'#8A7E7B'}}>Maandlasten VvE totaal</span>
+        <span style={{fontFamily:'Georgia,serif',fontSize:22,color:'#991A21'}}>{total}</span>
+      </div>
+    </div>
+  )
+  const CSecTitle = ({children, style:st}) => (
+    <div style={{fontSize:11,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'#8A7E7B',marginBottom:10,marginTop:26,display:'flex',alignItems:'center',gap:8,...st}}>
+      {children}<div style={{flex:1,height:1,background:'#E5DEDA'}} />
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-[#F2EFEC]">
       <style>{CSS_FONT}</style>
-      {/* Topbar */}
       <div className="border-b border-gray-200 px-6 h-14 flex items-center justify-between bg-white shadow-sm sticky top-0 z-50">
         <div className="flex items-center gap-3">
           <div className="flex gap-1">
@@ -858,52 +1051,118 @@ function VveCalculator({ onTerug }) {
       </div>
 
       <div style={{ maxWidth: 960, margin: '0 auto', padding: '28px 20px 80px' }}>
-        <CalcSecTitle>Stap 1 — Algemene gegevens</CalcSecTitle>
-        <CalcCard header={<CalcCardHdr icon="🏢" bg={CALC_S.redBg} title="Complexgegevens" sub="Naam en herbouwwaarde" />}>
+        <CSecTitle>Stap 1 — Algemene gegevens</CSecTitle>
+        <CCard header={<CCardHdr icon="🏢" bg={S.redBg} title="Complexgegevens" sub="Naam en herbouwwaarde" />}>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, padding:'18px 20px' }}>
-            <CalcField label="Naam complex"><CalcInp placeholder="bijv. VvE Reinkenstraat 1–24" value={complexNaam} onChange={e=>setComplexNaam(e.target.value)} /></CalcField>
-            <CalcField label="Herbouwwaarde (€)"><CalcInp type="number" placeholder="bijv. 2500000" value={herbouwwaarde} onChange={e=>setHerbouwwaarde(e.target.value)} /></CalcField>
+            <CField label="Naam complex"><CInp placeholder="bijv. VvE Reinkenstraat 1–24" value={complexNaam} onChange={e => setComplexNaam(e.target.value)} /></CField>
+            <CField label="Herbouwwaarde (€)"><CInp type="number" placeholder="bijv. 2500000" value={herbouwwaarde} onChange={e => setHerbouwwaarde(e.target.value)} /></CField>
           </div>
-        </CalcCard>
+        </CCard>
 
-        <CalcSecTitle>Stap 2 — MJOP gegevens</CalcSecTitle>
-        <CalcCard header={<CalcCardHdr icon="📋" bg={CALC_S.amberBg} title="Meerjarenonderhoudsplan (MJOP)" sub="Totale kosten over de planperiode" />}>
+        <CSecTitle>Stap 2 — MJOP gegevens</CSecTitle>
+        <CCard header={<CCardHdr icon="📋" bg={S.amberBg} title="Meerjarenonderhoudsplan (MJOP)" sub="Totale kosten over de planperiode" />}>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, padding:'18px 20px 0' }}>
-            <CalcField label="Totale MJOP-kosten (€)"><CalcInp type="number" placeholder="bijv. 150000" value={mjopTotaal} onChange={e=>setMjopTotaal(e.target.value)} /></CalcField>
-            <CalcField label="Planperiode (jaren)"><CalcInp type="number" placeholder="10" value={planPeriode} onChange={e=>setPlanPeriode(e.target.value)} /></CalcField>
+            <CField label="Totale MJOP-kosten (€)"><CInp type="number" placeholder="bijv. 150000" value={mjopTotaal} onChange={e => setMjopTotaal(e.target.value)} /></CField>
+            <CField label="Planperiode (jaren)"><CInp type="number" placeholder="10" value={planPeriode} onChange={e => setPlanPeriode(e.target.value)} /></CField>
           </div>
-          <div style={{ margin:'10px 20px 18px', padding:'9px 13px', background:CALC_S.cream, border:'1px solid '+CALC_S.border, borderRadius:7, fontFamily:'monospace', fontSize:12, color:CALC_S.muted }}>{formula}</div>
-        </CalcCard>
+          <div style={{ margin:'10px 20px 18px', padding:'9px 13px', background:S.cream, border:'1px solid '+S.border, borderRadius:7, fontFamily:'monospace', fontSize:12, color:S.muted }}>{formula}</div>
+        </CCard>
 
-        <CalcSecTitle>Stap 3 — Overige exploitatiekosten (jaarlijks)</CalcSecTitle>
-        <CalcCard header={<CalcCardHdr icon="💼" bg={CALC_S.blueBg} title="Exploitatiekosten" sub="Buiten het MJOP — optioneel maar van invloed op totale bijdrage" />}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:14, padding:'18px 20px' }}>
-            <CalcField label="Opstalverzekering (€/jaar)"><CalcInp type="number" placeholder="bijv. 3200" value={verzekering} onChange={e=>setVerzekering(e.target.value)} /></CalcField>
-            <CalcField label="Administratie/beheer (€/jaar)"><CalcInp type="number" placeholder="bijv. 2400" value={administratie} onChange={e=>setAdministratie(e.target.value)} /></CalcField>
-            <CalcField label="Overig (€/jaar)"><CalcInp type="number" placeholder="bijv. 1800" value={overig} onChange={e=>setOverig(e.target.value)} /></CalcField>
+        <CSecTitle>Stap 3 — Overige exploitatiekosten (jaarlijks)</CSecTitle>
+        <CCard header={<CCardHdr icon="💼" bg={S.blueBg} title="Exploitatiekosten" sub="Buiten het MJOP — worden per post getoond in het rapport" />}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, padding:'18px 20px 14px' }}>
+            <CField label="Opstalverzekering (€/jaar)"><CInp type="number" placeholder="bijv. 3200" value={verzekering} onChange={e => setVerzekering(e.target.value)} /></CField>
+            <CField label="Administratie/beheer (€/jaar)"><CInp type="number" placeholder="bijv. 2400" value={administratie} onChange={e => setAdministratie(e.target.value)} /></CField>
+            <CField label="Bankkosten (€/jaar)"><CInp type="number" placeholder="bijv. 250" value={bankkosten} onChange={e => setBankkosten(e.target.value)} /></CField>
+            <CField label="Overig (€/jaar)"><CInp type="number" placeholder="bijv. 800" value={overig} onChange={e => setOverig(e.target.value)} /></CField>
           </div>
-        </CalcCard>
+          {extraKosten.length > 0 && (
+            <div style={{ padding:'0 20px 8px' }}>
+              <div style={{ fontSize:11, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 }}>Extra kostenposten</div>
+              {extraKosten.map(e => (
+                <div key={e.id} style={{ display:'grid', gridTemplateColumns:'1fr 180px 36px', gap:8, marginBottom:8, alignItems:'center' }}>
+                  <CInp placeholder="Naam kostenpost (bijv. Liftonderhoud)" value={e.naam} onChange={v => updExtraKost(e.id, 'naam', v.target.value)} />
+                  <CInp type="number" placeholder="€/jaar" value={e.bedrag} onChange={v => updExtraKost(e.id, 'bedrag', v.target.value)} />
+                  <button onClick={() => delExtraKost(e.id)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:16, color:S.muted, padding:'6px', borderRadius:4, textAlign:'center' }}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <button onClick={addExtraKost} style={{ margin:'4px 20px 14px', padding:'8px 14px', background:'#fff', border:'1.5px dashed '+S.border, borderRadius:8, fontFamily:'inherit', fontSize:13, color:S.muted, cursor:'pointer', width:'calc(100% - 40px)' }}>
+            + Extra kostenpost toevoegen
+          </button>
+        </CCard>
 
-        <CalcSecTitle>Stap 4 — Eigenaren &amp; breukdelen</CalcSecTitle>
-        <CalcCard header={<CalcCardHdr icon="👥" bg={CALC_S.greenBg} title="Eigenaren" sub="Naam en breukdeel conform splitsingsakte" />}>
+        <CSecTitle>Stap 4 — Eigenaren &amp; breukdelen</CSecTitle>
+        <CCard header={<CCardHdr icon="👥" bg={S.greenBg} title="Eigenaren" sub="Naam en breukdeel conform splitsingsakte" />}>
+          <div style={{ padding:'12px 20px 0' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+              <button onClick={() => setBulkOpen(p => !p)} style={{ padding:'8px 16px', background:bulkOpen?S.bordeaux:'#fff', border:'1.5px solid '+S.bordeaux, borderRadius:8, fontFamily:'inherit', fontSize:13, color:bulkOpen?'#fff':S.bordeaux, cursor:'pointer', fontWeight:500 }}>
+                {bulkOpen ? '× Sluiten' : '↑ Bulk importeren via tekst'}
+              </button>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <label style={{ fontSize:11, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', whiteSpace:'nowrap' }}>Totaal breukdelen (noemer)</label>
+                <input type="number" placeholder="bijv. 5250" value={vasteNoemer} onChange={e => setVasteNoemer(e.target.value)}
+                  style={{ width:120, padding:'7px 10px', border:'1.5px solid '+S.border, borderRadius:8, fontFamily:'monospace', fontSize:13, color:S.ink, background:S.cream, outline:'none' }}
+                  onFocus={e => { e.target.style.borderColor = S.bordeaux; e.target.style.background = '#fff' }}
+                  onBlur={e => { e.target.style.borderColor = S.border; e.target.style.background = S.cream }}
+                />
+              </div>
+            </div>
+            {bulkOpen && (
+              <div style={{ background:S.cream, border:'1px solid '+S.border, borderRadius:10, padding:16, marginTop:10, marginBottom:12 }}>
+                <div style={{ fontSize:12, color:S.muted, marginBottom:8 }}>Plak hieronder de presentielijst of eigenaarstekst. De tool haalt naam, adres en breukdeel er automatisch uit.</div>
+                <textarea value={bulkTekst} onChange={e => setBulkTekst(e.target.value)} placeholder="Plak hier de presentielijst of eigenaarstekst..."
+                  style={{ width:'100%', minHeight:140, padding:'10px 12px', border:'1.5px solid '+S.border, borderRadius:8, fontFamily:'monospace', fontSize:12, color:S.ink, background:'#fff', outline:'none', resize:'vertical' }} />
+                {bulkFout && <div style={{ color:S.bordeaux, fontSize:12, marginTop:6 }}>⚠ {bulkFout}</div>}
+                <div style={{ display:'flex', alignItems:'center', gap:12, marginTop:10 }}>
+                  <button onClick={parseBulk} style={{ padding:'9px 20px', background:S.bordeaux, border:'none', borderRadius:8, fontFamily:'inherit', fontSize:13, color:'#fff', cursor:'pointer', fontWeight:500 }}>Verwerken →</button>
+                  <span style={{ fontSize:11, color:S.muted }}>Bestaande eigenaren worden vervangen</span>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div style={{ overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse' }}>
               <thead>
-                <tr style={{ background:CALC_S.cream, borderBottom:'1px solid '+CALC_S.border }}>
-                  {['#','Naam / appartement','Breukdeel teller','Breukdeel noemer',''].map((h,i)=>(
-                    <th key={i} style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:CALC_S.muted, textTransform:'uppercase', letterSpacing:'0.06em', width:[36,null,150,150,44][i] }}>{h}</th>
-                  ))}
+                <tr style={{ background:S.cream, borderBottom:'1px solid '+S.border }}>
+                  <th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', width:36 }}>#</th>
+                  <th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em' }}>Naam / appartement</th>
+                  <th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', width:150 }}>Breukdeel teller</th>
+                  <th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', width:220 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      Huidige bijdrage (€/mnd)
+                      <button onClick={() => setBulkBijdrageOpen(p => !p)} style={{ padding:'2px 8px', background:bulkBijdrageOpen?S.bordeaux:'#fff', border:'1px solid '+S.bordeaux, borderRadius:5, fontSize:10, color:bulkBijdrageOpen?'#fff':S.bordeaux, cursor:'pointer', fontWeight:600 }}>
+                        {bulkBijdrageOpen ? '× sluiten' : '↑ bulk'}
+                      </button>
+                    </div>
+                  </th>
+                  <th style={{ padding:'8px 10px', width:44 }}></th>
                 </tr>
               </thead>
+              {bulkBijdrageOpen && (
+                <tbody>
+                  <tr>
+                    <td colSpan={5} style={{ padding:'12px 16px', background:S.cream }}>
+                      <div style={{ fontSize:12, color:S.muted, marginBottom:8 }}>Plak het overzicht ledenbijdragen. De tool pakt het vaakst voorkomende bedrag per eigenaar.</div>
+                      <textarea value={bulkBijdrageTekst} onChange={e => setBulkBijdrageTekst(e.target.value)} placeholder="Plak hier het overzicht ledenbijdragen..."
+                        style={{ width:'100%', minHeight:120, padding:'8px 10px', border:'1.5px solid '+S.border, borderRadius:7, fontFamily:'monospace', fontSize:12, color:S.ink, background:'#fff', outline:'none', resize:'vertical' }} />
+                      {bulkBijdrageFout && <div style={{ color:S.bordeaux, fontSize:12, marginTop:4 }}>⚠ {bulkBijdrageFout}</div>}
+                      <button onClick={parseBulkBijdrage} style={{ marginTop:8, padding:'8px 18px', background:S.bordeaux, border:'none', borderRadius:7, fontFamily:'inherit', fontSize:13, color:'#fff', cursor:'pointer', fontWeight:500 }}>Verwerken →</button>
+                    </td>
+                  </tr>
+                </tbody>
+              )}
               <tbody>
-                {rows.map((r,i)=>(
-                  <tr key={r.id} style={{ borderBottom: i < rows.length-1 ? '1px solid '+CALC_S.border : 'none' }}>
-                    <td style={{ textAlign:'center', fontFamily:'monospace', fontSize:11, color:CALC_S.muted, padding:'7px 8px' }}>{i+1}</td>
-                    <td style={{ padding:'5px 6px' }}><CalcInp placeholder="bijv. App. 1 · De Vries" value={r.naam} onChange={e=>updRow(r.id,'naam',e.target.value)} /></td>
-                    <td style={{ padding:'5px 6px' }}><CalcInp type="number" placeholder="1" value={r.teller} onChange={e=>updRow(r.id,'teller',e.target.value)} /></td>
-                    <td style={{ padding:'5px 6px' }}><CalcInp type="number" placeholder="bijv. 100" value={r.noemer} onChange={e=>updRow(r.id,'noemer',e.target.value)} /></td>
+                {rows.map((r, i) => (
+                  <tr key={r.id} style={{ borderBottom: i < rows.length - 1 ? '1px solid '+S.border : 'none' }}>
+                    <td style={{ textAlign:'center', fontFamily:'monospace', fontSize:11, color:S.muted, padding:'7px 8px' }}>{i + 1}</td>
+                    <td style={{ padding:'5px 6px' }}><CInp placeholder="bijv. App. 1 · De Vries" value={r.naam} onChange={e => updRow(r.id, 'naam', e.target.value)} /></td>
+                    <td style={{ padding:'5px 6px' }}><CInp type="number" placeholder="bijv. 45" value={r.teller} onChange={e => updRow(r.id, 'teller', e.target.value)} /></td>
+                    <td style={{ padding:'5px 6px' }}><CInp type="number" placeholder="bijv. 125" value={r.huidig} onChange={e => updRow(r.id, 'huidig', e.target.value)} /></td>
                     <td style={{ padding:'5px 6px', textAlign:'center' }}>
-                      <button onClick={()=>delRow(r.id)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:16, color:CALC_S.muted, padding:'2px 6px', borderRadius:4 }}>×</button>
+                      <button onClick={() => delRow(r.id)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:16, color:S.muted, padding:'2px 6px', borderRadius:4 }}>×</button>
                     </td>
                   </tr>
                 ))}
@@ -911,78 +1170,286 @@ function VveCalculator({ onTerug }) {
             </table>
           </div>
           {breukCheck && (
-            <div style={{ margin:'8px 20px 4px', padding:'6px 10px', borderRadius:6, fontSize:12, fontFamily:'monospace', background:breukCheck.ok?CALC_S.greenBg:CALC_S.amberBg, color:breukCheck.ok?CALC_S.green:CALC_S.amber }}>
-              {breukCheck.ok ? '✓ Breukdelen correct — totaal 100%' : '⚠ Breukdelen tellen op tot '+breukCheck.pct+'% — controleer splitsingsakte'}
+            <div style={{ margin:'8px 20px 4px', padding:'6px 10px', borderRadius:6, fontSize:12, fontFamily:'monospace', background:parseFloat(vasteNoemer)>0?S.greenBg:S.amberBg, color:parseFloat(vasteNoemer)>0?S.green:S.amber }}>
+              {parseFloat(vasteNoemer) > 0 ? '✓ Som tellers: ' + totalTeller + ' — noemer vastgesteld op ' + vasteNoemer : '⚠ Som tellers: ' + totalTeller + ' — vul het totaal breukdelen in voor de juiste noemer'}
             </div>
           )}
-          <button onClick={addRow} style={{ margin:'10px 20px', padding:'8px 14px', background:'#fff', border:'1.5px dashed '+CALC_S.border, borderRadius:8, fontFamily:'inherit', fontSize:13, color:CALC_S.muted, cursor:'pointer', width:'calc(100% - 40px)' }}>
+          <button onClick={addRow} style={{ margin:'10px 20px', padding:'8px 14px', background:'#fff', border:'1.5px dashed '+S.border, borderRadius:8, fontFamily:'inherit', fontSize:13, color:S.muted, cursor:'pointer', width:'calc(100% - 40px)' }}>
             + Eigenaar toevoegen
           </button>
-        </CalcCard>
+        </CCard>
 
-        {error && <div style={{ background:CALC_S.redBg, color:CALC_S.bordeaux, padding:'10px 14px', borderRadius:8, fontSize:13, marginBottom:10 }}>{error}</div>}
+        <div style={{ marginTop:4, marginBottom:4 }}>
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', padding:'12px 16px', background:'#fff', border:'1px solid '+S.border, borderRadius:12, userSelect:'none' }}>
+            <input type="checkbox" checked={eenmaligAan} onChange={e => setEenmaligAan(e.target.checked)} style={{ width:16, height:16, accentColor:S.bordeaux, cursor:'pointer' }} />
+            <div>
+              <div style={{ fontSize:13, fontWeight:600, color:S.ink }}>Eenmalige bijdrage berekenen</div>
+              <div style={{ fontSize:11, color:S.muted, marginTop:1 }}>Verdeel offertebedragen over eigenaren op basis van breukdeel</div>
+            </div>
+          </label>
+          {eenmaligAan && (
+            <div style={{ background:'#fff', border:'1px solid '+S.border, borderRadius:12, overflow:'hidden', marginTop:8 }}>
+              <div style={{ padding:'14px 20px', borderBottom:'1px solid '+S.border, display:'flex', alignItems:'center', gap:10 }}>
+                <div style={{ width:30, height:30, borderRadius:7, background:S.amberBg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14 }}>💶</div>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:600 }}>Eenmalige bijdragen</div>
+                  <div style={{ fontSize:11, color:S.muted, marginTop:1 }}>Elke offerte heeft een eigen reservestand, buffer en eventuele gemeentelijke korting</div>
+                </div>
+              </div>
+              <div style={{ padding:'16px 20px' }}>
+                {eenmaligItems.map((item, i) => {
+                  const reserveVal = parseFloat(item.reserveStand) || 0
+                  const bufferVal = parseFloat(item.buffer) >= 0 ? parseFloat(item.buffer) : 2500
+                  const beschikbaar = Math.max(0, reserveVal - bufferVal)
+                  const kortingPE = item.kortingAan ? (parseFloat(item.kortingBedrag) || 0) : 0
+                  const aantalEig = rows.filter(r => r.teller !== '' && parseFloat(r.teller) > 0).length
+                  const totKorting = kortingPE * aantalEig
+                  const nettoOfferte = Math.max(0, (parseFloat(item.bedrag) || 0) - totKorting)
+                  const tekort = Math.max(0, nettoOfferte - beschikbaar)
+                  return (
+                    <div key={item.id} style={{ border:'1px solid '+S.border, borderRadius:10, padding:'14px 16px', marginBottom:12, background:S.cream, position:'relative' }}>
+                      {eenmaligItems.length > 1 && (
+                        <button onClick={() => setEenmaligItems(p => p.filter(x => x.id !== item.id))} style={{ position:'absolute', top:10, right:10, background:'none', border:'none', cursor:'pointer', fontSize:16, color:S.muted, padding:'2px 6px', borderRadius:4 }}>×</button>
+                      )}
+                      <div style={{ fontSize:11, fontWeight:700, color:S.bordeaux, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:10 }}>Offerte {i + 1}</div>
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 180px', gap:10, marginBottom:10 }}>
+                        <div>
+                          <label style={{ display:'block', fontSize:11, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Omschrijving</label>
+                          <input type="text" placeholder="bijv. Dakvervanging offerte Kees BV" value={item.omschrijving}
+                            onChange={e => setEenmaligItems(p => p.map(x => x.id === item.id ? {...x, omschrijving: e.target.value} : x))}
+                            style={{ width:'100%', padding:'8px 11px', border:'1.5px solid '+S.border, borderRadius:8, fontFamily:'inherit', fontSize:13, color:S.ink, background:'#fff', outline:'none' }}
+                            onFocus={e => { e.target.style.borderColor = S.bordeaux }} onBlur={e => { e.target.style.borderColor = S.border }} />
+                        </div>
+                        <div>
+                          <label style={{ display:'block', fontSize:11, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Offertebedrag (€)</label>
+                          <input type="number" placeholder="bijv. 24000" value={item.bedrag}
+                            onChange={e => setEenmaligItems(p => p.map(x => x.id === item.id ? {...x, bedrag: e.target.value} : x))}
+                            style={{ width:'100%', padding:'8px 11px', border:'1.5px solid '+S.border, borderRadius:8, fontFamily:'monospace', fontSize:13, color:S.ink, background:'#fff', outline:'none' }}
+                            onFocus={e => { e.target.style.borderColor = S.bordeaux }} onBlur={e => { e.target.style.borderColor = S.border }} />
+                        </div>
+                      </div>
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
+                        <div>
+                          <label style={{ display:'block', fontSize:11, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Huidige stand reservefonds (€)</label>
+                          <input type="number" placeholder="bijv. 18500" value={item.reserveStand}
+                            onChange={e => setEenmaligItems(p => p.map(x => x.id === item.id ? {...x, reserveStand: e.target.value} : x))}
+                            style={{ width:'100%', padding:'8px 11px', border:'1.5px solid '+S.border, borderRadius:8, fontFamily:'monospace', fontSize:13, color:S.ink, background:'#fff', outline:'none' }}
+                            onFocus={e => { e.target.style.borderColor = S.bordeaux }} onBlur={e => { e.target.style.borderColor = S.border }} />
+                        </div>
+                        <div>
+                          <label style={{ display:'block', fontSize:11, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Buffer in reserve (€)</label>
+                          <input type="number" placeholder="bijv. 2500" value={item.buffer}
+                            onChange={e => setEenmaligItems(p => p.map(x => x.id === item.id ? {...x, buffer: e.target.value} : x))}
+                            style={{ width:'100%', padding:'8px 11px', border:'1.5px solid '+S.border, borderRadius:8, fontFamily:'monospace', fontSize:13, color:S.ink, background:'#fff', outline:'none' }}
+                            onFocus={e => { e.target.style.borderColor = S.bordeaux }} onBlur={e => { e.target.style.borderColor = S.border }} />
+                        </div>
+                      </div>
+                      <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginBottom:item.kortingAan?8:0 }}>
+                        <input type="checkbox" checked={item.kortingAan}
+                          onChange={e => setEenmaligItems(p => p.map(x => x.id === item.id ? {...x, kortingAan: e.target.checked} : x))}
+                          style={{ width:14, height:14, accentColor:S.bordeaux, cursor:'pointer' }} />
+                        <span style={{ fontSize:12, fontWeight:600, color:S.ink }}>Gemeentelijke korting</span>
+                      </label>
+                      {item.kortingAan && (
+                        <div style={{ marginBottom:8 }}>
+                          <label style={{ display:'block', fontSize:11, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Korting per eigenaar (€)</label>
+                          <input type="number" placeholder="bijv. 1000" value={item.kortingBedrag}
+                            onChange={e => setEenmaligItems(p => p.map(x => x.id === item.id ? {...x, kortingBedrag: e.target.value} : x))}
+                            style={{ width:200, padding:'8px 11px', border:'1.5px solid '+S.border, borderRadius:8, fontFamily:'monospace', fontSize:13, color:S.ink, background:'#fff', outline:'none' }}
+                            onFocus={e => { e.target.style.borderColor = S.bordeaux }} onBlur={e => { e.target.style.borderColor = S.border }} />
+                          {kortingPE > 0 && aantalEig > 0 && (
+                            <div style={{ fontSize:12, color:S.muted, marginTop:4, fontFamily:'monospace' }}>Totale korting: {kortingPE} × {aantalEig} eigenaren = {new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(totKorting)}</div>
+                          )}
+                        </div>
+                      )}
+                      {(reserveVal > 0 || parseFloat(item.bedrag) > 0) && (
+                        <div style={{ marginTop:8, padding:'8px 12px', background:tekort>0?S.redBg:S.greenBg, borderRadius:7, fontSize:12, fontFamily:'monospace', color:tekort>0?S.bordeaux:S.green }}>
+                          {item.kortingAan && totKorting > 0 && <div>Offerte na korting: {new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(nettoOfferte)}</div>}
+                          <div>Beschikbaar uit reserve: {new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(beschikbaar)} (na buffer {new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(bufferVal)})</div>
+                          <div style={{ fontWeight:700, marginTop:2 }}>{tekort > 0 ? '⚠ Tekort: ' + new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(tekort) : '✓ Volledig gedekt door reserve'}</div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+                <button onClick={() => setEenmaligItems(p => [...p, { id: uid(), omschrijving:'', bedrag:'', reserveStand:'', buffer:'2500', kortingAan:false, kortingBedrag:'' }])}
+                  style={{ padding:'8px 14px', background:'#fff', border:'1.5px dashed '+S.border, borderRadius:8, fontFamily:'inherit', fontSize:13, color:S.muted, cursor:'pointer', width:'100%' }}>
+                  + Offerte toevoegen
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
-        <button onClick={bereken} style={{ width:'100%', padding:14, background:CALC_S.bordeaux, border:'none', borderRadius:12, fontFamily:'Georgia,serif', fontSize:17, color:'#fff', cursor:'pointer', marginTop:4 }}>
+        {error && <div style={{ background:S.redBg, color:S.bordeaux, padding:'10px 14px', borderRadius:8, fontSize:13, marginBottom:10 }}>{error}</div>}
+
+        <button onClick={bereken} style={{ width:'100%', padding:14, background:S.bordeaux, border:'none', borderRadius:12, fontFamily:'Georgia,serif', fontSize:17, color:'#fff', cursor:'pointer', marginTop:4 }}>
           Bereken maandelijkse bijdragen →
         </button>
 
         {result && (
           <div id="calc-res-anker">
-            <CalcSecTitle style={{ marginTop:36 }}>Resultaat</CalcSecTitle>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:14 }}>
-              <CalcMethodBlock tag="Methode 1 — Wettelijke voorkeur" name="Op basis van MJOP" rows={[['Totale MJOP-kosten',calcFmt(result.mjopTotaal)],['Planperiode',result.planPeriode+' jaar'],['Jaarlijkse MJOP-dotatie',calcFmt(result.dotatie)],['Overige exploitatiekosten',calcFmt(result.exploitatie)],['Totale jaarlasten VvE',calcFmt(result.jaarMjop)]]} total={result.hasMjop?calcFmt(result.mndMjop):'—'} />
-              <CalcMethodBlock tag="Methode 2 — Wettelijk minimum" name="0,5% van herbouwwaarde" rows={[['Herbouwwaarde',calcFmt(result.herbouwwaarde)],['0,5% jaarlijkse reservering',calcFmt(result.jaar05)],['Overige exploitatiekosten',calcFmt(result.exploitatie)],['Totale jaarlasten VvE',calcFmt(result.jaar05Totaal)],['Toelichting','Minimumeis bij geen/oud MJOP']]} total={result.has05?calcFmt(result.mnd05):'—'} />
-            </div>
-            <CalcCard header={<CalcCardHdr icon="🔢" bg={CALC_S.redBg} title="Maandelijkse bijdrage per eigenaar" sub="Verdeling naar rato breukdeel" />}>
-              <div style={{ overflowX:'auto' }}>
-                <table style={{ width:'100%', borderCollapse:'collapse' }}>
-                  <thead>
-                    <tr style={{ background:CALC_S.cream, borderBottom:'1px solid '+CALC_S.border }}>
-                      {['Eigenaar','Breukdeel','Aandeel %','Bijdrage MJOP/mnd','Bijdrage 0,5%/mnd','Verschil'].map((h,i)=>(
-                        <th key={i} style={{ padding:'8px 12px', textAlign:i>1?'right':'left', fontSize:10, fontWeight:600, color:CALC_S.muted, textTransform:'uppercase', letterSpacing:'0.06em' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.eigenaren.map((e,i)=>{
-                      const diff = e.bijdrMjop!==null&&e.bijdr05!==null?e.bijdrMjop-e.bijdr05:null;
-                      let tag = null;
-                      if (diff!==null) {
-                        if (Math.abs(diff)<0.01) tag=<CalcTag c={CALC_S.blueBg} t={CALC_S.blue}>Gelijk</CalcTag>;
-                        else if (diff>0) tag=<CalcTag c={CALC_S.amberBg} t={CALC_S.amber}>MJOP +{calcFmt(Math.abs(diff))}</CalcTag>;
-                        else tag=<CalcTag c={CALC_S.greenBg} t={CALC_S.green}>MJOP −{calcFmt(Math.abs(diff))}</CalcTag>;
-                      }
-                      return (
-                        <tr key={i} style={{ borderBottom:i<result.eigenaren.length-1?'1px solid '+CALC_S.border:'none' }}>
-                          <td style={{ padding:'8px 12px',fontWeight:500,fontSize:13 }}>{e.naam}</td>
-                          <td style={{ padding:'8px 12px',fontFamily:'monospace',fontSize:13,textAlign:'right' }}>{e.teller}/{e.noemer}</td>
-                          <td style={{ padding:'8px 12px',fontFamily:'monospace',fontSize:13,textAlign:'right' }}>{(e.aandeel*100).toFixed(2)}%</td>
-                          <td style={{ padding:'8px 12px',fontFamily:'monospace',fontSize:13,textAlign:'right' }}>{e.bijdrMjop!==null?calcFmt(e.bijdrMjop):'—'}</td>
-                          <td style={{ padding:'8px 12px',fontFamily:'monospace',fontSize:13,textAlign:'right' }}>{e.bijdr05!==null?calcFmt(e.bijdr05):'—'}</td>
-                          <td style={{ padding:'8px 12px' }}>{tag||'—'}</td>
+            <CSecTitle style={{ marginTop:36 }}>Resultaat</CSecTitle>
+            <button onClick={() => calcExportPDF(result)} style={{ width:'100%', padding:'11px 16px', background:'#fff', border:'1.5px solid '+S.bordeaux, borderRadius:10, fontFamily:'inherit', fontSize:14, color:S.bordeaux, cursor:'pointer', fontWeight:500, marginBottom:14 }}>
+              🖨 Exporteer als PDF / Afdrukken
+            </button>
+            {!result.alleenEenmalig && (
+              <>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:14 }}>
+                  <CMethodBlock tag="Methode 1 — Wettelijke voorkeur" name="Op basis van MJOP"
+                    rows={[['Totale MJOP-kosten',fmt(result.mjopTotaal)],['Planperiode',result.planPeriode+' jaar'],['Jaarlijkse MJOP-dotatie',fmt(result.dotatie)],...calcBuildExploitatieRows(result),['Totale jaarlasten VvE',fmt(result.jaarMjop)]]}
+                    total={result.hasMjop ? fmt(result.mndMjop) : '—'} />
+                  <CMethodBlock tag="Methode 2 — Wettelijk minimum" name="0,5% van herbouwwaarde"
+                    rows={[['Herbouwwaarde',fmt(result.herbouwwaarde)],['0,5% jaarlijkse reservering',fmt(result.jaar05)],...calcBuildExploitatieRows(result),['Totale jaarlasten VvE',fmt(result.jaar05Totaal)],['Toelichting','Minimumeis bij geen/oud MJOP']]}
+                    total={result.has05 ? fmt(result.mnd05) : '—'} />
+                </div>
+                <CCard header={<CCardHdr icon="🔢" bg={S.redBg} title="Maandelijkse bijdrage per eigenaar" sub="Verdeling naar rato breukdeel" />}>
+                  <div style={{ overflowX:'auto' }}>
+                    <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                      <thead>
+                        <tr style={{ background:S.cream, borderBottom:'1px solid '+S.border }}>
+                          {['Eigenaar','Breukdeel','Aandeel %','Huidig/mnd','MJOP/mnd','Δ MJOP','0,5%/mnd','Δ 0,5%'].map((h,i) => (
+                            <th key={i} style={{ padding:'8px 10px', textAlign:i>1?'right':'left', fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em' }}>{h}</th>
+                          ))}
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                  <tfoot style={{ borderTop:'2px solid '+CALC_S.bordeaux }}>
-                    <tr style={{ background:CALC_S.cream }}>
-                      <td colSpan={2} style={{ padding:'9px 12px',fontSize:13,fontWeight:600,color:CALC_S.muted }}>Totaal VvE</td>
-                      <td style={{ padding:'9px 12px',fontFamily:'monospace',fontSize:13,fontWeight:600,textAlign:'right' }}>100%</td>
-                      <td style={{ padding:'9px 12px',fontFamily:'monospace',fontSize:13,fontWeight:600,color:CALC_S.bordeaux,textAlign:'right' }}>{result.hasMjop?calcFmt(result.eigenaren.reduce((s,e)=>s+(e.bijdrMjop||0),0)):'—'}</td>
-                      <td style={{ padding:'9px 12px',fontFamily:'monospace',fontSize:13,fontWeight:600,color:CALC_S.bordeaux,textAlign:'right' }}>{result.has05?calcFmt(result.eigenaren.reduce((s,e)=>s+(e.bijdr05||0),0)):'—'}</td>
-                      <td></td>
-                    </tr>
-                  </tfoot>
-                </table>
+                      </thead>
+                      <tbody>
+                        {result.eigenaren.map((e, i) => {
+                          const diffMjop = e.huidig!==null&&e.bijdrMjop!==null?e.bijdrMjop-e.huidig:null
+                          const diff05   = e.huidig!==null&&e.bijdr05!==null?e.bijdr05-e.huidig:null
+                          const pctMjop  = e.huidig&&diffMjop!==null?(diffMjop/e.huidig*100):null
+                          const pct05    = e.huidig&&diff05!==null?(diff05/e.huidig*100):null
+                          const deltaTag = (diff, pct) => {
+                            if (diff===null) return <span style={{color:S.muted}}>—</span>
+                            const pos = diff > 0.005; const neg = diff < -0.005
+                            const color = neg?S.green:pos?'#C0392B':S.blue
+                            const bg    = neg?S.greenBg:pos?'#FDEAEB':S.blueBg
+                            const sign  = pos?'+':''
+                            return <CTag c={bg} t={color}>{sign}{fmt(diff)} ({sign}{pct.toFixed(1)}%)</CTag>
+                          }
+                          return (
+                            <tr key={i} style={{ borderBottom:i<result.eigenaren.length-1?'1px solid '+S.border:'none' }}>
+                              <td style={{ padding:'8px 10px',fontWeight:500,fontSize:12 }}>{e.naam}</td>
+                              <td style={{ padding:'8px 10px',fontFamily:'monospace',fontSize:12,textAlign:'right' }}>{e.teller}/{e.noemer}</td>
+                              <td style={{ padding:'8px 10px',fontFamily:'monospace',fontSize:12,textAlign:'right' }}>{(e.aandeel*100).toFixed(2)}%</td>
+                              <td style={{ padding:'8px 10px',fontFamily:'monospace',fontSize:12,textAlign:'right' }}>{e.huidig!==null?fmt(e.huidig):<span style={{color:S.muted}}>—</span>}</td>
+                              <td style={{ padding:'8px 10px',fontFamily:'monospace',fontSize:12,textAlign:'right' }}>{e.bijdrMjop!==null?fmt(e.bijdrMjop):'—'}</td>
+                              <td style={{ padding:'8px 10px' }}>{deltaTag(diffMjop,pctMjop)}</td>
+                              <td style={{ padding:'8px 10px',fontFamily:'monospace',fontSize:12,textAlign:'right' }}>{e.bijdr05!==null?fmt(e.bijdr05):'—'}</td>
+                              <td style={{ padding:'8px 10px' }}>{deltaTag(diff05,pct05)}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                      <tfoot style={{ borderTop:'2px solid '+S.bordeaux }}>
+                        <tr style={{ background:S.cream }}>
+                          <td colSpan={2} style={{ padding:'9px 10px',fontSize:13,fontWeight:600,color:S.muted }}>Totaal VvE</td>
+                          <td style={{ padding:'9px 10px',fontFamily:'monospace',fontSize:13,fontWeight:600,textAlign:'right' }}>100%</td>
+                          <td style={{ padding:'9px 10px',fontFamily:'monospace',fontSize:13,fontWeight:600,color:S.bordeaux,textAlign:'right' }}>{fmt(result.eigenaren.reduce((s,e)=>s+(e.huidig||0),0))}</td>
+                          <td style={{ padding:'9px 10px',fontFamily:'monospace',fontSize:13,fontWeight:600,color:S.bordeaux,textAlign:'right' }}>{result.hasMjop?fmt(result.eigenaren.reduce((s,e)=>s+(e.bijdrMjop||0),0)):'—'}</td>
+                          <td></td>
+                          <td style={{ padding:'9px 10px',fontFamily:'monospace',fontSize:13,fontWeight:600,color:S.bordeaux,textAlign:'right' }}>{result.has05?fmt(result.eigenaren.reduce((s,e)=>s+(e.bijdr05||0),0)):'—'}</td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </CCard>
+                <div style={{ marginTop:16 }}>
+                  <CSecTitle>Jaarlijkse reservering voor onderhoud — VvE totaal</CSecTitle>
+                  <div style={{ background:'#fff', border:'1px solid #E5DEDA', borderRadius:12, overflow:'hidden', marginBottom:14 }}>
+                    <div style={{ padding:'14px 20px', borderBottom:'1px solid #E5DEDA', display:'flex', alignItems:'center', gap:10 }}>
+                      <div style={{ width:30, height:30, borderRadius:7, background:'#EAF4EE', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14 }}>💰</div>
+                      <div>
+                        <div style={{ fontSize:13, fontWeight:600 }}>Reservering = (totale maandelijkse bijdragen × 12) − exploitatiekosten</div>
+                        <div style={{ fontSize:11, color:'#8A7E7B', marginTop:1 }}>Wat de VvE per jaar spaart voor onderhoud na aftrek van vaste lasten</div>
+                      </div>
+                    </div>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:0 }}>
+                      {[
+                        { label:'Huidig', sub:'Op basis van huidige bijdragen', value:result.jaarResHuidig, active:result.jaarResHuidig!==null },
+                        { label:'Op basis van MJOP', sub:'Nieuwe bijdrage methode 1', value:result.jaarResMjop, active:result.hasMjop },
+                        { label:'Op basis van 0,5%', sub:'Nieuwe bijdrage methode 2', value:result.jaarRes05, active:result.has05 },
+                      ].map((item, i) => (
+                        <div key={i} style={{ padding:'20px 24px', borderRight:i<2?'1px solid #E5DEDA':'none' }}>
+                          <div style={{ fontSize:10, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.07em', color:'#8A7E7B', marginBottom:4 }}>{item.label}</div>
+                          <div style={{ fontSize:11, color:'#8A7E7B', marginBottom:12 }}>{item.sub}</div>
+                          {item.active ? (
+                            <div style={{ fontFamily:'Georgia,serif', fontSize:26, color:item.value>=0?'#2D6A4F':'#C0392B', fontWeight:400 }}>
+                              {fmt(item.value)}<div style={{ fontSize:11, fontFamily:'DM Sans,sans-serif', color:'#8A7E7B', marginTop:4 }}>per jaar</div>
+                            </div>
+                          ) : <div style={{ fontSize:14, color:'#8A7E7B' }}>—</div>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+            {result.eenmaligAan && result.eenmaligBerekend && result.eenmaligBerekend.length > 0 && (
+              <div style={{ marginTop:16 }}>
+                <CSecTitle>Eenmalige bijdragen per eigenaar</CSecTitle>
+                <div style={{ background:'#fff', border:'1px solid '+S.border, borderRadius:12, overflow:'hidden', marginBottom:14 }}>
+                  <div style={{ padding:'14px 20px', borderBottom:'1px solid '+S.border, display:'flex', alignItems:'center', gap:10 }}>
+                    <div style={{ width:30, height:30, borderRadius:7, background:S.amberBg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14 }}>💶</div>
+                    <div><div style={{ fontSize:13, fontWeight:600 }}>Verdeling eenmalige bijdragen</div><div style={{ fontSize:11, color:S.muted, marginTop:1 }}>Elke offerte is onafhankelijk berekend</div></div>
+                  </div>
+                  {result.eenmaligBerekend.map((item, idx) => (
+                    <div key={idx} style={{ borderBottom:idx<result.eenmaligBerekend.length-1?'1px solid '+S.border:'none' }}>
+                      <div style={{ padding:'12px 20px', background:S.cream, display:'flex', justifyContent:'space-between', alignItems:'baseline' }}>
+                        <div>
+                          <span style={{ fontWeight:600, fontSize:13 }}>{item.omschrijving}</span>
+                          <span style={{ fontSize:12, color:S.muted, marginLeft:12 }}>Offerte: {new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(item.offerte)}</span>
+                          {item.totaleKorting > 0 && <span style={{ fontSize:12, color:S.green, marginLeft:8 }}>− {new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(item.totaleKorting)} korting</span>}
+                        </div>
+                        <span style={{ fontFamily:'Georgia,serif', fontSize:18, color:item.tekort>0?S.bordeaux:S.green }}>
+                          {item.tekort > 0 ? 'Tekort: '+new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(item.tekort) : '✓ Volledig gedekt'}
+                        </span>
+                      </div>
+                      <div style={{ padding:'6px 20px', background:'#fff', borderBottom:'1px solid '+S.border, fontSize:11, color:S.muted, fontFamily:'monospace' }}>
+                        Reserve: {new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(item.reserve)} — buffer: {new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(item.buffer)} — beschikbaar: {new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(item.beschikbaar)}
+                      </div>
+                      {item.tekort > 0 && (
+                        <div style={{ overflowX:'auto' }}>
+                          <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                            <thead><tr style={{ background:'#FAF7F2', borderBottom:'1px solid '+S.border }}>
+                              {['Eigenaar','Aandeel %','Korting','Eenmalige bijdrage'].map((h,i) => (
+                                <th key={i} style={{ padding:'7px 12px', textAlign:i>0?'right':'left', fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em' }}>{h}</th>
+                              ))}
+                            </tr></thead>
+                            <tbody>
+                              {item.perEigenaar.map((e, i) => (
+                                <tr key={i} style={{ borderBottom:i<item.perEigenaar.length-1?'1px solid '+S.border:'none', background:i%2===0?'#fff':'#FAF7F2' }}>
+                                  <td style={{ padding:'7px 12px',fontSize:13,fontWeight:500 }}>{e.naam}</td>
+                                  <td style={{ padding:'7px 12px',fontFamily:'monospace',fontSize:13,textAlign:'right' }}>{(e.aandeel*100).toFixed(2)}%</td>
+                                  <td style={{ padding:'7px 12px',fontFamily:'monospace',fontSize:13,textAlign:'right',color:e.korting>0?S.green:S.muted }}>{e.korting>0?new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(e.korting):'—'}</td>
+                                  <td style={{ padding:'7px 12px',fontFamily:'monospace',fontSize:13,textAlign:'right',color:S.bordeaux,fontWeight:600 }}>{new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(e.bijdrage)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot style={{ borderTop:'2px solid '+S.bordeaux }}>
+                              <tr style={{ background:'#F5E6E7' }}>
+                                <td colSpan={3} style={{ padding:'8px 12px',fontSize:13,fontWeight:600,color:S.muted }}>Totaal tekort</td>
+                                <td style={{ padding:'8px 12px',fontFamily:'monospace',fontSize:13,fontWeight:600,color:S.bordeaux,textAlign:'right' }}>{new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(item.tekort)}</td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  <div style={{ padding:'10px 20px', background:'#FEF3E2', borderTop:'1px solid '+S.border, fontSize:11, color:S.amber }}>
+                    ⚠ De buffer blijft altijd in het reservefonds als veiligheidsmarge voor onvoorziene kosten.
+                  </div>
+                </div>
               </div>
-            </CalcCard>
+            )}
           </div>
         )}
       </div>
     </div>
-  );
+  )
 }
-
 
 function exportAdminPDF(allData, beheerderList) {
   const year = new Date().getFullYear();
