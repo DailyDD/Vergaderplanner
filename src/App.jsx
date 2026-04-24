@@ -795,6 +795,47 @@ function calcExportPDF(r) {
   else alert('Pop-up geblokkeerd. Sta pop-ups toe voor deze pagina.')
 }
 
+// ── Calculator sub-componenten (buiten VveCalculator om re-mount te voorkomen) ──
+function CInp(props) { return <input {...props} className="calc-inp" />; }
+function CField({label, children}) {
+  return <div style={{marginBottom:4}}><label style={{display:'block',fontSize:11,fontWeight:600,color:'#8A7E7B',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:5}}>{label}</label>{children}</div>;
+}
+function CCard({header, children}) {
+  return <div style={{background:'#fff',border:'1px solid #E5DEDA',borderRadius:12,overflow:'hidden',marginBottom:14}}>{header}{children}</div>;
+}
+function CCardHdr({icon, bg, title, sub}) {
+  return <div style={{padding:'14px 20px',borderBottom:'1px solid #E5DEDA',display:'flex',alignItems:'center',gap:10}}><div style={{width:30,height:30,borderRadius:7,background:bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>{icon}</div><div><div style={{fontSize:13,fontWeight:600}}>{title}</div><div style={{fontSize:11,color:'#8A7E7B',marginTop:1}}>{sub}</div></div></div>;
+}
+function CTag({c,t,children}) {
+  return <span style={{display:'inline-block',padding:'2px 7px',borderRadius:4,fontSize:11,fontWeight:500,background:c,color:t}}>{children}</span>;
+}
+function CMethodBlock({tag,name,rows:mrows,total}) {
+  return (
+    <div style={{background:'#fff',border:'1px solid #E5DEDA',borderRadius:12,overflow:'hidden'}}>
+      <div style={{padding:'12px 18px 10px',borderBottom:'1px solid #E5DEDA'}}>
+        <div style={{fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.07em',color:'#8A7E7B'}}>{tag}</div>
+        <div style={{fontFamily:'Georgia,serif',fontSize:15,color:'#1A1614',marginTop:2}}>{name}</div>
+      </div>
+      {mrows.map(([l,v],i) => (
+        <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',padding:'7px 18px',borderBottom:'1px solid #E5DEDA',fontSize:13}}>
+          <span style={{color:'#8A7E7B'}}>{l}</span><span style={{fontFamily:'monospace',fontWeight:500}}>{v}</span>
+        </div>
+      ))}
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',padding:'10px 18px',fontSize:13}}>
+        <span style={{color:'#8A7E7B'}}>Maandlasten VvE totaal</span>
+        <span style={{fontFamily:'Georgia,serif',fontSize:22,color:'#991A21'}}>{total}</span>
+      </div>
+    </div>
+  );
+}
+function CSecTitle({children, style:st}) {
+  return (
+    <div style={{fontSize:11,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'#8A7E7B',marginBottom:10,marginTop:26,display:'flex',alignItems:'center',gap:8,...st}}>
+      {children}<div style={{flex:1,height:1,background:'#E5DEDA'}} />
+    </div>
+  );
+}
+
 function VveCalculator({ onTerug }) {
   const S = CALC_S
   const fmt = calcFmt
@@ -1007,33 +1048,7 @@ function VveCalculator({ onTerug }) {
     setTimeout(() => document.getElementById('calc-res-anker')?.scrollIntoView({ behavior: 'smooth' }), 50)
   }
 
-  const CInp = (props) => <input {...props} className="calc-inp" />
-  const CField = ({label, children}) => <div style={{marginBottom:4}}><label style={{display:'block',fontSize:11,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:5}}>{label}</label>{children}</div>
-  const CCard = ({header, children}) => <div style={{background:'#fff',border:'1px solid #E5DEDA',borderRadius:12,overflow:'hidden',marginBottom:14}}>{header}{children}</div>
-  const CCardHdr = ({icon, bg, title, sub}) => <div style={{padding:'14px 20px',borderBottom:'1px solid #E5DEDA',display:'flex',alignItems:'center',gap:10}}><div style={{width:30,height:30,borderRadius:7,background:bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>{icon}</div><div><div style={{fontSize:13,fontWeight:600}}>{title}</div><div style={{fontSize:11,color:'#8A7E7B',marginTop:1}}>{sub}</div></div></div>
-  const CTag = ({c,t,children}) => <span style={{display:'inline-block',padding:'2px 7px',borderRadius:4,fontSize:11,fontWeight:500,background:c,color:t}}>{children}</span>
-  const CMethodBlock = ({tag,name,rows:mrows,total}) => (
-    <div style={{background:'#fff',border:'1px solid #E5DEDA',borderRadius:12,overflow:'hidden'}}>
-      <div style={{padding:'12px 18px 10px',borderBottom:'1px solid #E5DEDA'}}>
-        <div style={{fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.07em',color:'#8A7E7B'}}>{tag}</div>
-        <div style={{fontFamily:'Georgia,serif',fontSize:15,color:'#1A1614',marginTop:2}}>{name}</div>
-      </div>
-      {mrows.map(([l,v],i) => (
-        <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',padding:'7px 18px',borderBottom:'1px solid #E5DEDA',fontSize:13}}>
-          <span style={{color:'#8A7E7B'}}>{l}</span><span style={{fontFamily:'monospace',fontWeight:500}}>{v}</span>
-        </div>
-      ))}
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',padding:'10px 18px',fontSize:13}}>
-        <span style={{color:'#8A7E7B'}}>Maandlasten VvE totaal</span>
-        <span style={{fontFamily:'Georgia,serif',fontSize:22,color:'#991A21'}}>{total}</span>
-      </div>
-    </div>
-  )
-  const CSecTitle = ({children, style:st}) => (
-    <div style={{fontSize:11,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em',color:'#8A7E7B',marginBottom:10,marginTop:26,display:'flex',alignItems:'center',gap:8,...st}}>
-      {children}<div style={{flex:1,height:1,background:'#E5DEDA'}} />
-    </div>
-  )
+
 
   return (
     <div className="min-h-screen bg-[#F2EFEC]">
