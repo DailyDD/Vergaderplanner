@@ -1467,6 +1467,446 @@ function VveCalculator({ onTerug }) {
   )
 }
 
+
+// ── LOD Beheer ───────────────────────────────────────────────────
+
+let _lodId = 0;
+const lodUid = () => 'lod_' + (++_lodId) + '_' + Date.now();
+
+const LOD_STATUS = {
+  nieuw:       { label: 'Nieuw ontvangen',   color: '#1A4D7A', bg: '#EAF1F8',  dot: '#1A4D7A' },
+  in_behandeling: { label: 'In behandeling', color: '#92550A', bg: '#FEF3E2',  dot: '#D97706' },
+  offertes_lopen: { label: 'Offertes lopen', color: '#5B3FA6', bg: '#F3EFFD',  dot: '#7C3AED' },
+  vve_akkoord: { label: 'VvE akkoord',       color: '#2D6A4F', bg: '#EAF4EE',  dot: '#2D6A4F' },
+  opdracht_uit:{ label: 'Opdracht uit',      color: '#065F46', bg: '#D1FAE5',  dot: '#059669' },
+  afgerond:    { label: 'Afgerond',          color: '#374151', bg: '#F3F4F6',  dot: '#6B7280' },
+  overschreden:{ label: 'Deadline overschreden', color: '#991A21', bg: '#FDEAEB', dot: '#991A21' },
+};
+
+const LOD_STORAGE_KEY = 'lod_data_v1';
+
+function lodLoad() {
+  try {
+    const raw = localStorage.getItem(LOD_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function lodSave(lods) {
+  try { localStorage.setItem(LOD_STORAGE_KEY, JSON.stringify(lods)); } catch {}
+}
+
+function lodDagenTot(deadline) {
+  if (!deadline) return null;
+  const now = new Date(); now.setHours(0,0,0,0);
+  const d = new Date(deadline);
+  return Math.ceil((d - now) / 86400000);
+}
+
+function lodDeadlineKleur(dagen) {
+  if (dagen === null) return '';
+  if (dagen < 0) return 'text-red-600 font-bold';
+  if (dagen <= 14) return 'text-red-500 font-semibold';
+  if (dagen <= 30) return 'text-amber-600 font-semibold';
+  return 'text-gray-600';
+}
+
+function LodStatusBadge({ status }) {
+  const s = LOD_STATUS[status] || LOD_STATUS.nieuw;
+  return (
+    <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'3px 9px', borderRadius:20, background:s.bg, color:s.color, fontSize:11, fontWeight:600 }}>
+      <span style={{ width:6, height:6, borderRadius:'50%', background:s.dot, display:'inline-block' }} />
+      {s.label}
+    </span>
+  );
+}
+
+function LodOnderdeel({ item, onUpdate, onDelete }) {
+  const S = CALC_S;
+  return (
+    <div style={{ background:'#FAF7F2', border:'1px solid #E5DEDA', borderRadius:10, padding:'12px 14px', marginBottom:8 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:8, marginBottom:8, alignItems:'start' }}>
+        <div>
+          <label style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>Onderhoudspunt</label>
+          <input value={item.omschrijving} onChange={e=>onUpdate({...item, omschrijving:e.target.value})}
+            placeholder="bijv. Herstel gevelmetselwerk"
+            className="calc-inp" style={{ fontSize:13 }} />
+        </div>
+        <button onClick={onDelete} style={{ marginTop:20, background:'none', border:'none', cursor:'pointer', fontSize:16, color:S.muted, padding:'4px 8px' }}>×</button>
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:8 }}>
+        <div>
+          <label style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>Deadline onderdeel</label>
+          <input type="date" value={item.deadline||''} onChange={e=>onUpdate({...item, deadline:e.target.value})}
+            className="calc-inp" style={{ fontSize:12 }} />
+        </div>
+        <div>
+          <label style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>Boete per week</label>
+          <input type="number" value={item.boete||''} onChange={e=>onUpdate({...item, boete:e.target.value})}
+            placeholder="€/week" className="calc-inp" style={{ fontSize:12 }} />
+        </div>
+        <div>
+          <label style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>Geaccepteerde offerte (€)</label>
+          <input type="number" value={item.offerteBedrag||''} onChange={e=>onUpdate({...item, offerteBedrag:e.target.value})}
+            placeholder="bijv. 24000" className="calc-inp" style={{ fontSize:12 }} />
+        </div>
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:6 }}>
+        {[
+          ['offerteAangevraagd', '📋 Offerte aangevraagd'],
+          ['offerteOntvangen',   '📨 Offerte ontvangen'],
+          ['vveIngesteld',       '🏠 VvE ingesteld'],
+          ['vveAkkoord',         '✓ VvE akkoord'],
+          ['opdrachtVerstrekt',  '🔧 Opdracht verstrekt'],
+        ].map(([key, lbl]) => (
+          <label key={key} style={{ display:'flex', alignItems:'center', gap:5, cursor:'pointer', padding:'6px 8px', background:item[key]?'#EAF4EE':'#fff', border:`1.5px solid ${item[key]?'#2D6A4F':'#E5DEDA'}`, borderRadius:7, fontSize:10, fontWeight:600, color:item[key]?'#2D6A4F':'#8A7E7B', userSelect:'none', transition:'all .15s' }}>
+            <input type="checkbox" checked={!!item[key]} onChange={e=>onUpdate({...item,[key]:e.target.checked})} style={{ width:13, height:13, accentColor:'#2D6A4F', cursor:'pointer' }} />
+            {lbl}
+          </label>
+        ))}
+      </div>
+
+      {item.offerteOntvangen && (
+        <div style={{ marginTop:8 }}>
+          <label style={{ fontSize:10, fontWeight:600, color:CALC_S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>Notitie offerte / aannemer</label>
+          <input value={item.offerteNotitie||''} onChange={e=>onUpdate({...item, offerteNotitie:e.target.value})}
+            placeholder="bijv. Offerte Bouwbedrijf Jansen — ontvangen 12 apr"
+            className="calc-inp" style={{ fontSize:12 }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId }) {
+  const S = CALC_S;
+  const open = openId === lod.id;
+  const dagen = lodDagenTot(lod.deadlineAlgemeen);
+  const openOnderdelen = (lod.onderdelen||[]).filter(o => !o.opdrachtVerstrekt).length;
+  const totaalBoete = (lod.onderdelen||[]).reduce((s,o) => s + (parseFloat(o.boete)||0), 0);
+
+  const updateOnderdeel = (idx, updated) => {
+    const nieuw = [...(lod.onderdelen||[])];
+    nieuw[idx] = updated;
+    onUpdate({...lod, onderdelen: nieuw});
+  };
+  const deleteOnderdeel = (idx) => {
+    const nieuw = [...(lod.onderdelen||[])];
+    nieuw.splice(idx, 1);
+    onUpdate({...lod, onderdelen: nieuw});
+  };
+  const addOnderdeel = () => {
+    onUpdate({...lod, onderdelen: [...(lod.onderdelen||[]), {
+      id: lodUid(), omschrijving:'', deadline:'', boete:'', offerteBedrag:'',
+      offerteAangevraagd:false, offerteOntvangen:false, vveIngesteld:false, vveAkkoord:false, opdrachtVerstrekt:false
+    }]});
+  };
+
+  return (
+    <div style={{ background:'#fff', border:`1.5px solid ${open?'#92550A':'#E5E0DB'}`, borderRadius:12, overflow:'hidden', marginBottom:10, boxShadow: open?'0 2px 12px rgba(146,85,10,.08)':'none', transition:'all .2s' }}>
+      {/* Header */}
+      <div onClick={()=>setOpenId(open?null:lod.id)} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', cursor:'pointer', userSelect:'none' }}>
+        <div style={{ flex:1 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+            <span style={{ fontWeight:700, fontSize:14, color:'#2D2D2D' }}>{lod.vveNaam||<span style={{color:'#aaa',fontStyle:'italic'}}>VvE naam</span>}</span>
+            <LodStatusBadge status={lod.status||'nieuw'} />
+            {openOnderdelen > 0 && !['afgerond'].includes(lod.status) && (
+              <span style={{ fontSize:10, fontWeight:600, background:'#FDEAEB', color:'#991A21', padding:'2px 7px', borderRadius:10 }}>
+                {openOnderdelen} open punt{openOnderdelen>1?'en':''}
+              </span>
+            )}
+          </div>
+          <div style={{ display:'flex', gap:12, marginTop:4, flexWrap:'wrap' }}>
+            {lod.gemeenteReferentie && <span style={{ fontSize:11, color:'#8A7E7B' }}>Ref: {lod.gemeenteReferentie}</span>}
+            {lod.ontvangstdatum && <span style={{ fontSize:11, color:'#8A7E7B' }}>Ontvangen: {new Date(lod.ontvangstdatum).toLocaleDateString('nl-NL')}</span>}
+            {lod.deadlineAlgemeen && (
+              <span style={{ fontSize:11 }} className={lodDeadlineKleur(dagen)}>
+                Deadline: {new Date(lod.deadlineAlgemeen).toLocaleDateString('nl-NL')}
+                {dagen !== null && ` (${dagen < 0 ? Math.abs(dagen)+' dagen over' : dagen+' dagen'})`}
+              </span>
+            )}
+            {totaalBoete > 0 && <span style={{ fontSize:11, color:'#991A21', fontWeight:600 }}>Boete: €{totaalBoete.toLocaleString('nl-NL')}/week</span>}
+          </div>
+        </div>
+        <span style={{ fontSize:14, color:'#8A7E7B', transform: open?'rotate(180deg)':'none', transition:'transform .2s' }}>▾</span>
+      </div>
+
+      {/* Body */}
+      {open && (
+        <div style={{ borderTop:'1.5px solid #E5E0DB', padding:'16px 16px', background:'#FDFCFB' }}>
+          {/* Basisgegevens */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:14 }}>
+            <div>
+              <label style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>VvE naam</label>
+              <input value={lod.vveNaam||''} onChange={e=>onUpdate({...lod,vveNaam:e.target.value})}
+                placeholder="bijv. VvE Reinkenstraat 1-24" className="calc-inp" style={{fontSize:13}} />
+            </div>
+            <div>
+              <label style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>Gemeente referentie</label>
+              <input value={lod.gemeenteReferentie||''} onChange={e=>onUpdate({...lod,gemeenteReferentie:e.target.value})}
+                placeholder="bijv. LOD-2026-04821" className="calc-inp" style={{fontSize:13}} />
+            </div>
+            <div>
+              <label style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>Status</label>
+              <select value={lod.status||'nieuw'} onChange={e=>onUpdate({...lod,status:e.target.value})}
+                className="calc-inp" style={{fontSize:13, cursor:'pointer'}}>
+                {Object.entries(LOD_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>Ontvangstdatum LOD</label>
+              <input type="date" value={lod.ontvangstdatum||''} onChange={e=>onUpdate({...lod,ontvangstdatum:e.target.value})}
+                className="calc-inp" style={{fontSize:13}} />
+            </div>
+            <div>
+              <label style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>Algehele deadline gemeente</label>
+              <input type="date" value={lod.deadlineAlgemeen||''} onChange={e=>onUpdate({...lod,deadlineAlgemeen:e.target.value})}
+                className="calc-inp" style={{fontSize:13}} />
+            </div>
+            <div>
+              <label style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>Max. boete totaal (€)</label>
+              <input type="number" value={lod.boeteMax||''} onChange={e=>onUpdate({...lod,boeteMax:e.target.value})}
+                placeholder="bijv. 25000" className="calc-inp" style={{fontSize:13}} />
+            </div>
+          </div>
+
+          {/* Checkboxes LOD niveau */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:6, marginBottom:14 }}>
+            {[
+              ['lodOntvangen',      '📬 LOD ontvangen'],
+              ['vveGenotificeerd',  '📧 VvE genotificeerd'],
+              ['vergaderingBelegd', '📅 Vergadering belegd'],
+              ['gemeenteBevestigd', '✓ Gemeente bevestigd'],
+            ].map(([key,lbl])=>(
+              <label key={key} style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', padding:'8px 10px', background:lod[key]?'#EAF1F8':'#fff', border:`1.5px solid ${lod[key]?'#1A4D7A':'#E5DEDA'}`, borderRadius:8, fontSize:11, fontWeight:600, color:lod[key]?'#1A4D7A':'#8A7E7B', userSelect:'none', transition:'all .15s' }}>
+                <input type="checkbox" checked={!!lod[key]} onChange={e=>onUpdate({...lod,[key]:e.target.checked})} style={{width:13,height:13,accentColor:'#1A4D7A',cursor:'pointer'}} />
+                {lbl}
+              </label>
+            ))}
+          </div>
+
+          {/* Notitie */}
+          <div style={{ marginBottom:14 }}>
+            <label style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>Interne notitie / opmerkingen</label>
+            <textarea value={lod.notitie||''} onChange={e=>onUpdate({...lod,notitie:e.target.value})}
+              placeholder="Bijv. contact persoon gemeente, bijzonderheden, afspraken..."
+              style={{ width:'100%', minHeight:60, padding:'8px 11px', border:'1.5px solid #E5DEDA', borderRadius:8, fontFamily:'inherit', fontSize:12, color:'#1A1614', background:'#FAF7F2', outline:'none', resize:'vertical' }} />
+          </div>
+
+          {/* Onderhoudspunten */}
+          <div style={{ marginBottom:8 }}>
+            <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'#2D2D2D', marginBottom:10, display:'flex', alignItems:'center', gap:8 }}>
+              Onderhoudspunten
+              <div style={{ flex:1, height:1, background:'#E5DEDA' }} />
+              <span style={{ fontSize:10, fontWeight:500, color:'#8A7E7B', textTransform:'none', letterSpacing:0 }}>{(lod.onderdelen||[]).length} punt{(lod.onderdelen||[]).length!==1?'en':''}</span>
+            </div>
+            {(lod.onderdelen||[]).map((o,i)=>(
+              <LodOnderdeel key={o.id||i} item={o} onUpdate={u=>updateOnderdeel(i,u)} onDelete={()=>deleteOnderdeel(i)} />
+            ))}
+            <button onClick={addOnderdeel} style={{ width:'100%', padding:'9px', background:'#fff', border:'1.5px dashed #E5DEDA', borderRadius:8, fontFamily:'inherit', fontSize:13, color:'#8A7E7B', cursor:'pointer' }}>
+              + Onderhoudspunt toevoegen
+            </button>
+          </div>
+
+          {/* Verwijderen */}
+          <div style={{ marginTop:14, paddingTop:12, borderTop:'1px solid #E5DEDA', display:'flex', justifyContent:'flex-end' }}>
+            <button onClick={onDelete} style={{ padding:'6px 14px', background:'#fff', border:'1.5px solid #fca5a5', borderRadius:8, fontSize:12, color:'#991A21', cursor:'pointer', fontFamily:'inherit' }}>
+              LOD verwijderen
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LodBeheer({ onTerug }) {
+  const [lods, setLods] = useState(() => lodLoad());
+  const [openId, setOpenId] = useState(null);
+  const [zoek, setZoek] = useState('');
+  const [filterStatus, setFilterStatus] = useState('alle');
+
+  const saveAndSet = (newLods) => { setLods(newLods); lodSave(newLods); };
+
+  const addLod = () => {
+    const nieuw = {
+      id: lodUid(), vveNaam:'', gemeenteReferentie:'', status:'nieuw',
+      ontvangstdatum: new Date().toISOString().slice(0,10),
+      deadlineAlgemeen:'', boeteMax:'', notitie:'',
+      lodOntvangen:true, vveGenotificeerd:false, vergaderingBelegd:false, gemeenteBevestigd:false,
+      onderdelen:[]
+    };
+    const updated = [nieuw, ...lods];
+    saveAndSet(updated);
+    setOpenId(nieuw.id);
+  };
+
+  const updateLod = (updated) => saveAndSet(lods.map(l => l.id===updated.id ? updated : l));
+  const deleteLod = (id) => { if (window.confirm('LOD verwijderen?')) saveAndSet(lods.filter(l=>l.id!==id)); };
+
+  // Stats
+  const actief = lods.filter(l=>l.status!=='afgerond');
+  const urgent = lods.filter(l => {
+    const d = lodDagenTot(l.deadlineAlgemeen);
+    return d !== null && d <= 14 && l.status !== 'afgerond';
+  });
+  const overschreden = lods.filter(l => {
+    const d = lodDagenTot(l.deadlineAlgemeen);
+    return d !== null && d < 0 && l.status !== 'afgerond';
+  });
+  const openOffertes = lods.filter(l =>
+    l.status !== 'afgerond' &&
+    (l.onderdelen||[]).some(o => o.offerteAangevraagd && !o.offerteOntvangen)
+  );
+  const wachtOpVve = lods.filter(l =>
+    l.status !== 'afgerond' &&
+    (l.onderdelen||[]).some(o => o.offerteOntvangen && !o.vveAkkoord)
+  );
+
+  // Filter
+  let zichtbaar = lods.filter(l => {
+    const matchZoek = !zoek || (l.vveNaam||'').toLowerCase().includes(zoek.toLowerCase()) || (l.gemeenteReferentie||'').toLowerCase().includes(zoek.toLowerCase());
+    const matchStatus = filterStatus==='alle' || l.status===filterStatus;
+    return matchZoek && matchStatus;
+  });
+
+  return (
+    <div className="min-h-screen bg-[#F2EFEC]">
+      <style>{CSS_FONT}</style>
+      {/* Topbar */}
+      <div className="border-b border-gray-200 px-6 h-14 flex items-center justify-between bg-white shadow-sm sticky top-0 z-50">
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1">
+            <div className="w-7 h-7 bg-[#92550A] rounded-md flex items-center justify-center"><span className="text-white text-xs">⚠️</span></div>
+            <div className="w-7 h-7 bg-[#2D2D2D] rounded-md flex items-center justify-center"><span className="text-white text-xs">📋</span></div>
+          </div>
+          <div className="w-px h-5 bg-gray-200" />
+          <span className="text-sm font-bold text-[#2D2D2D]">LOD Beheer</span>
+          <span className="text-xs text-gray-400">Last-Order-to-Demolish monitoring</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={addLod} className="text-xs px-3 py-1.5 bg-[#92550A] hover:bg-[#7a4508] text-white rounded-lg transition-colors font-semibold">
+            + Nieuwe LOD
+          </button>
+          <button onClick={onTerug} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-gray-600 hover:text-[#92550A] transition-colors">
+            ← Terug naar portaal
+          </button>
+        </div>
+      </div>
+
+      {/* Stats balk */}
+      <div className="bg-white border-b border-gray-200 px-6 flex gap-0">
+        {[
+          [lods.length, "Totaal LOD's", "#2D2D2D", "#2D2D2D"],
+          [actief.length, "Actief", "#1A4D7A", "#1A4D7A"],
+          [openOffertes.length, "Offerte loopt", "#5B3FA6", "#7C3AED"],
+          [wachtOpVve.length, "Wacht op VvE", "#92550A", "#D97706"],
+          [urgent.length, "Urgent (≤14d)", "#991A21", "#991A21"],
+          [overschreden.length, "Overschreden", "#7f1d1d", "#991A21"],
+        ].map(([val, lbl, textClr, dotClr]) => (
+          <div key={lbl} className="flex items-center gap-2.5 px-5 py-3.5 border-r border-gray-100">
+            <div style={{ width:8, height:8, borderRadius:'50%', background:dotClr }} />
+            <div>
+              <div style={{ fontSize:18, fontWeight:700, color:textClr, fontFamily:'DM Sans,sans-serif' }}>{val}</div>
+              <div style={{ fontSize:10, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:'0.05em', fontWeight:600 }}>{lbl}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ maxWidth:1100, margin:'0 auto', padding:'24px 20px 80px', display:'grid', gridTemplateColumns:'280px 1fr', gap:20 }}>
+
+        {/* Zijbalk */}
+        <div>
+          {/* Actie vereist */}
+          {(urgent.length > 0 || overschreden.length > 0 || openOffertes.length > 0 || wachtOpVve.length > 0) && (
+            <div style={{ background:'#fff', border:'1.5px solid #E5DEDA', borderRadius:12, padding:'14px 16px', marginBottom:14 }}>
+              <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'#991A21', marginBottom:10 }}>⚡ Actie vereist</div>
+              {overschreden.map(l=>(
+                <div key={l.id} onClick={()=>{setOpenId(l.id);setFilterStatus('alle');setZoek('');}} style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 8px', background:'#FDEAEB', border:'1px solid #fca5a5', borderRadius:7, marginBottom:5, cursor:'pointer', fontSize:11 }}>
+                  <span style={{color:'#991A21'}}>🚨</span>
+                  <span style={{fontWeight:600,color:'#991A21'}}>{l.vveNaam||'Naamloos'}</span>
+                  <span style={{color:'#991A21',marginLeft:'auto'}}>deadline voorbij</span>
+                </div>
+              ))}
+              {urgent.filter(l=>lodDagenTot(l.deadlineAlgemeen)>=0).map(l=>(
+                <div key={l.id} onClick={()=>{setOpenId(l.id);setFilterStatus('alle');setZoek('');}} style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 8px', background:'#FEF3E2', border:'1px solid #FDE68A', borderRadius:7, marginBottom:5, cursor:'pointer', fontSize:11 }}>
+                  <span>⏰</span>
+                  <span style={{fontWeight:600,color:'#92550A'}}>{l.vveNaam||'Naamloos'}</span>
+                  <span style={{color:'#92550A',marginLeft:'auto'}}>{lodDagenTot(l.deadlineAlgemeen)}d</span>
+                </div>
+              ))}
+              {openOffertes.map(l=>(
+                <div key={l.id} onClick={()=>{setOpenId(l.id);setFilterStatus('alle');setZoek('');}} style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 8px', background:'#F3EFFD', border:'1px solid #C4B5FD', borderRadius:7, marginBottom:5, cursor:'pointer', fontSize:11 }}>
+                  <span>📋</span>
+                  <span style={{fontWeight:600,color:'#5B3FA6'}}>{l.vveNaam||'Naamloos'}</span>
+                  <span style={{color:'#5B3FA6',marginLeft:'auto'}}>offerte open</span>
+                </div>
+              ))}
+              {wachtOpVve.filter(l=>!openOffertes.includes(l)).map(l=>(
+                <div key={l.id} onClick={()=>{setOpenId(l.id);setFilterStatus('alle');setZoek('');}} style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 8px', background:'#FEF3E2', border:'1px solid #FDE68A', borderRadius:7, marginBottom:5, cursor:'pointer', fontSize:11 }}>
+                  <span>🏠</span>
+                  <span style={{fontWeight:600,color:'#92550A'}}>{l.vveNaam||'Naamloos'}</span>
+                  <span style={{color:'#92550A',marginLeft:'auto'}}>wacht VvE</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Filter status */}
+          <div style={{ background:'#fff', border:'1px solid #E5DEDA', borderRadius:12, padding:'14px 16px' }}>
+            <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'#8A7E7B', marginBottom:10 }}>Filter op status</div>
+            {[["alle","Alle LOD's"], ...Object.entries(LOD_STATUS).map(([k,v])=>[k,v.label])].map(([key,lbl])=>(
+              <button key={key} onClick={()=>setFilterStatus(key)}
+                style={{ display:'block', width:'100%', textAlign:'left', padding:'7px 10px', borderRadius:7, border:'none', background:filterStatus===key?'#FEF3E2':'transparent', color:filterStatus===key?'#92550A':'#374151', fontSize:12, fontWeight:filterStatus===key?600:400, cursor:'pointer', marginBottom:2 }}>
+                {lbl}
+                <span style={{ float:'right', fontSize:11, color:'#9CA3AF' }}>
+                  {key==='alle' ? lods.length : lods.filter(l=>l.status===key).length}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Hoofdpanel */}
+        <div>
+          {/* Zoek + toevoegen */}
+          <div style={{ display:'flex', gap:10, marginBottom:16, alignItems:'center' }}>
+            <input value={zoek} onChange={e=>setZoek(e.target.value)}
+              placeholder="Zoek op VvE naam of referentie..."
+              className="calc-inp" style={{ flex:1, fontSize:13 }} />
+            {zoek && <button onClick={()=>setZoek('')} style={{ padding:'8px 12px', background:'#fff', border:'1px solid #E5DEDA', borderRadius:8, cursor:'pointer', fontSize:12, color:'#8A7E7B' }}>✕</button>}
+          </div>
+
+          {zichtbaar.length === 0 ? (
+            <div style={{ textAlign:'center', padding:'60px 20px', color:'#9CA3AF' }}>
+              <div style={{ fontSize:32, marginBottom:12 }}>📋</div>
+              <div style={{ fontSize:14, fontWeight:600, marginBottom:4 }}>
+                {lods.length === 0 ? "Nog geen LOD's geregistreerd" : "Geen resultaten"}
+              </div>
+              <div style={{ fontSize:12 }}>
+                {lods.length === 0 ? "Klik op "+" Nieuwe LOD" om te beginnen.' : 'Probeer een andere zoekterm of filter.'}
+              </div>
+            </div>
+          ) : (
+            zichtbaar.map(lod => (
+              <LodKaart key={lod.id} lod={lod}
+                onUpdate={updateLod}
+                onDelete={()=>deleteLod(lod.id)}
+                openId={openId}
+                setOpenId={setOpenId}
+              />
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 function exportAdminPDF(allData, beheerderList) {
   const year = new Date().getFullYear();
   let html = `<html><head><meta charset="utf-8"><style>
@@ -2198,6 +2638,7 @@ export default function App() {
 
   // ── Screens ──────────────────────────────────────────────────
   if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBack={()=>setScreen("portaal")}/>;
+  if (screen==="lod") return <LodBeheer onTerug={()=>setScreen("portaal")}/>;
   if (screen==="calculator") return <VveCalculator onTerug={()=>setScreen("portaal")}/>;
 
   if (screen==="login") return (
@@ -2356,6 +2797,23 @@ export default function App() {
                 <div className="flex items-center justify-between">
                   <span className="text-xs bg-red-50 text-[#991A21] px-2 py-1 rounded-full font-semibold border border-red-100">Beheerder</span>
                   <span className="text-[#991A21] font-bold group-hover:translate-x-1 transition-transform">→</span>
+                </div>
+              </div>
+            )}
+
+            {/* LOD Beheer — alleen voor admin */}
+            {isAdmin && (
+              <div
+                onClick={()=>setScreen("lod")}
+                className="bg-white border-2 border-gray-200 hover:border-[#92550A] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
+              >
+                <div className="absolute top-0 left-0 right-0 h-1 bg-[#92550A] rounded-t-2xl" />
+                <div className="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center text-2xl mb-4">⚠️</div>
+                <h3 className="text-base font-bold text-[#2D2D2D] mb-2">LOD Beheer</h3>
+                <p className="text-xs text-gray-500 mb-4 leading-relaxed">Registreer en monitor LOD's van de gemeente — onderhoudspunten, offertes en deadlines.</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs bg-amber-50 text-[#92550A] px-2 py-1 rounded-full font-semibold border border-amber-200">Admin only</span>
+                  <span className="text-[#92550A] font-bold group-hover:translate-x-1 transition-transform">→</span>
                 </div>
               </div>
             )}
