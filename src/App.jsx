@@ -3,7 +3,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 // ── Huisstijl Totaal VvE Beheer ──────────────────────────────────
 // Primair: #991A21 (donkerrood), Antraciet: #2D2D2D, Achtergrond: #F2EFEC
 const CSS_FONT = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
-* { font-family: 'DM Sans', sans-serif !important; }`;
+* { font-family: 'DM Sans', sans-serif !important; }
+.calc-inp { width:100%; padding:8px 11px; border:1.5px solid #E5DEDA; border-radius:8px; font-family:monospace !important; font-size:14px; color:#1A1614; background:#FAF7F2; outline:none; box-sizing:border-box; }
+.calc-inp:focus { border-color:#991A21 !important; background:#fff !important; }`;
 
 // ── Config ───────────────────────────────────────────────────────
 const INVITE_DAYS = 21;
@@ -1005,7 +1007,7 @@ function VveCalculator({ onTerug }) {
     setTimeout(() => document.getElementById('calc-res-anker')?.scrollIntoView({ behavior: 'smooth' }), 50)
   }
 
-  const CInp = (props) => <input {...props} style={{ width:'100%', padding:'8px 11px', border:'1.5px solid #E5DEDA', borderRadius:8, fontFamily:'monospace', fontSize:14, color:'#1A1614', background:'#FAF7F2', outline:'none' }} onFocus={e=>{e.target.style.borderColor='#991A21';e.target.style.background='#fff'}} onBlur={e=>{e.target.style.borderColor='#E5DEDA';e.target.style.background='#FAF7F2'}} />
+  const CInp = (props) => <input {...props} className="calc-inp" />
   const CField = ({label, children}) => <div style={{marginBottom:4}}><label style={{display:'block',fontSize:11,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:5}}>{label}</label>{children}</div>
   const CCard = ({header, children}) => <div style={{background:'#fff',border:'1px solid #E5DEDA',borderRadius:12,overflow:'hidden',marginBottom:14}}>{header}{children}</div>
   const CCardHdr = ({icon, bg, title, sub}) => <div style={{padding:'14px 20px',borderBottom:'1px solid #E5DEDA',display:'flex',alignItems:'center',gap:10}}><div style={{width:30,height:30,borderRadius:7,background:bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>{icon}</div><div><div style={{fontSize:13,fontWeight:600}}>{title}</div><div style={{fontSize:11,color:'#8A7E7B',marginTop:1}}>{sub}</div></div></div>
@@ -1104,8 +1106,7 @@ function VveCalculator({ onTerug }) {
                 <label style={{ fontSize:11, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', whiteSpace:'nowrap' }}>Totaal breukdelen (noemer)</label>
                 <input type="number" placeholder="bijv. 5250" value={vasteNoemer} onChange={e => setVasteNoemer(e.target.value)}
                   style={{ width:120, padding:'7px 10px', border:'1.5px solid '+S.border, borderRadius:8, fontFamily:'monospace', fontSize:13, color:S.ink, background:S.cream, outline:'none' }}
-                  onFocus={e => { e.target.style.borderColor = S.bordeaux; e.target.style.background = '#fff' }}
-                  onBlur={e => { e.target.style.borderColor = S.border; e.target.style.background = S.cream }}
+                  
                 />
               </div>
             </div>
@@ -1218,14 +1219,14 @@ function VveCalculator({ onTerug }) {
                           <input type="text" placeholder="bijv. Dakvervanging offerte Kees BV" value={item.omschrijving}
                             onChange={e => setEenmaligItems(p => p.map(x => x.id === item.id ? {...x, omschrijving: e.target.value} : x))}
                             style={{ width:'100%', padding:'8px 11px', border:'1.5px solid '+S.border, borderRadius:8, fontFamily:'inherit', fontSize:13, color:S.ink, background:'#fff', outline:'none' }}
-                            onFocus={e => { e.target.style.borderColor = S.bordeaux }} onBlur={e => { e.target.style.borderColor = S.border }} />
+                             />
                         </div>
                         <div>
                           <label style={{ display:'block', fontSize:11, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Offertebedrag (€)</label>
                           <input type="number" placeholder="bijv. 24000" value={item.bedrag}
                             onChange={e => setEenmaligItems(p => p.map(x => x.id === item.id ? {...x, bedrag: e.target.value} : x))}
                             style={{ width:'100%', padding:'8px 11px', border:'1.5px solid '+S.border, borderRadius:8, fontFamily:'monospace', fontSize:13, color:S.ink, background:'#fff', outline:'none' }}
-                            onFocus={e => { e.target.style.borderColor = S.bordeaux }} onBlur={e => { e.target.style.borderColor = S.border }} />
+                             />
                         </div>
                       </div>
                       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
@@ -1234,14 +1235,14 @@ function VveCalculator({ onTerug }) {
                           <input type="number" placeholder="bijv. 18500" value={item.reserveStand}
                             onChange={e => setEenmaligItems(p => p.map(x => x.id === item.id ? {...x, reserveStand: e.target.value} : x))}
                             style={{ width:'100%', padding:'8px 11px', border:'1.5px solid '+S.border, borderRadius:8, fontFamily:'monospace', fontSize:13, color:S.ink, background:'#fff', outline:'none' }}
-                            onFocus={e => { e.target.style.borderColor = S.bordeaux }} onBlur={e => { e.target.style.borderColor = S.border }} />
+                             />
                         </div>
                         <div>
                           <label style={{ display:'block', fontSize:11, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5 }}>Buffer in reserve (€)</label>
                           <input type="number" placeholder="bijv. 2500" value={item.buffer}
                             onChange={e => setEenmaligItems(p => p.map(x => x.id === item.id ? {...x, buffer: e.target.value} : x))}
                             style={{ width:'100%', padding:'8px 11px', border:'1.5px solid '+S.border, borderRadius:8, fontFamily:'monospace', fontSize:13, color:S.ink, background:'#fff', outline:'none' }}
-                            onFocus={e => { e.target.style.borderColor = S.bordeaux }} onBlur={e => { e.target.style.borderColor = S.border }} />
+                             />
                         </div>
                       </div>
                       <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginBottom:item.kortingAan?8:0 }}>
@@ -1256,7 +1257,7 @@ function VveCalculator({ onTerug }) {
                           <input type="number" placeholder="bijv. 1000" value={item.kortingBedrag}
                             onChange={e => setEenmaligItems(p => p.map(x => x.id === item.id ? {...x, kortingBedrag: e.target.value} : x))}
                             style={{ width:200, padding:'8px 11px', border:'1.5px solid '+S.border, borderRadius:8, fontFamily:'monospace', fontSize:13, color:S.ink, background:'#fff', outline:'none' }}
-                            onFocus={e => { e.target.style.borderColor = S.bordeaux }} onBlur={e => { e.target.style.borderColor = S.border }} />
+                             />
                           {kortingPE > 0 && aantalEig > 0 && (
                             <div style={{ fontSize:12, color:S.muted, marginTop:4, fontFamily:'monospace' }}>Totale korting: {kortingPE} × {aantalEig} eigenaren = {new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(totKorting)}</div>
                           )}
