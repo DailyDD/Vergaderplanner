@@ -1887,7 +1887,7 @@ function LodBeheer({ onTerug }) {
                 {lods.length === 0 ? "Nog geen LOD's geregistreerd" : "Geen resultaten"}
               </div>
               <div style={{ fontSize:12 }}>
-                {lods.length === 0 ? "Klik op "+" Nieuwe LOD" om te beginnen.' : 'Probeer een andere zoekterm of filter.'}
+                {lods.length === 0 ? "Klik op + Nieuwe LOD om te beginnen." : "Probeer een andere zoekterm of filter."}
               </div>
             </div>
           ) : (
