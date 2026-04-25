@@ -1473,74 +1473,130 @@ function VveCalculator({ onTerug }) {
 let _lodId = 0;
 const lodUid = () => 'lod_' + (++_lodId) + '_' + Date.now();
 
-const LOD_ROOD = '#991A21';
-const LOD_ROOD_BG = '#FDEAEB';
-const LOD_ROOD_DARK = '#7a1419';
+const LOD_ROOD     = '#991A21';
+const LOD_ROOD_BG  = '#FDEAEB';
+const LOD_ROOD_DRK = '#7a1419';
 
 const LOD_STATUS = {
-  nieuw:             { label: 'Nieuw ontvangen',       color: '#1A4D7A', bg: '#EAF1F8', dot: '#1A4D7A' },
-  in_behandeling:    { label: 'In behandeling',         color: LOD_ROOD,  bg: LOD_ROOD_BG, dot: LOD_ROOD },
-  offertes_lopen:    { label: 'Offertes lopen',         color: '#5B3FA6', bg: '#F3EFFD', dot: '#7C3AED' },
-  offertes_afwacht:  { label: 'Offertes in afwachting', color: '#92400E', bg: '#FEF3E2', dot: '#B45309' },
-  vve_akkoord:       { label: 'VvE akkoord',            color: '#2D6A4F', bg: '#EAF4EE', dot: '#2D6A4F' },
-  opdracht_uit:      { label: 'Opdracht verstrekt',     color: '#065F46', bg: '#D1FAE5', dot: '#059669' },
-  afgerond:          { label: 'Afgerond',               color: '#374151', bg: '#F3F4F6', dot: '#6B7280' },
-  overschreden:      { label: 'Deadline overschreden',  color: LOD_ROOD,  bg: LOD_ROOD_BG, dot: LOD_ROOD },
+  nieuw:            { label: 'Nieuw ontvangen',         color: '#1A4D7A', bg: '#EAF1F8', dot: '#1A4D7A' },
+  in_behandeling:   { label: 'In behandeling',           color: LOD_ROOD,  bg: LOD_ROOD_BG, dot: LOD_ROOD },
+  offertes_afwacht: { label: 'Offerte in afwachting',    color: '#92400E', bg: '#FEF3E2', dot: '#B45309' },
+  offertes_lopen:   { label: 'Offertes lopen',           color: '#5B3FA6', bg: '#F3EFFD', dot: '#7C3AED' },
+  vve_afwachting:   { label: 'In afwachting van VvE',    color: '#065F46', bg: '#D1FAE5', dot: '#059669' },
+  vve_akkoord:      { label: 'VvE akkoord',              color: '#2D6A4F', bg: '#EAF4EE', dot: '#2D6A4F' },
+  opdracht_uit:     { label: 'Opdracht verstrekt',       color: '#1E3A5F', bg: '#DBEAFE', dot: '#1E40AF' },
+  afgerond:         { label: 'Afgerond',                 color: '#374151', bg: '#F3F4F6', dot: '#6B7280' },
+  overschreden:     { label: 'Deadline overschreden',    color: LOD_ROOD,  bg: LOD_ROOD_BG, dot: LOD_ROOD },
 };
 
-const LOD_STORAGE_KEY = 'lod_data_v3';
+// Supabase opslag voor LOD data
+const LOD_TABLE = 'lod_data';
 
-function lodLoad() {
-  try { const r = localStorage.getItem(LOD_STORAGE_KEY); return r ? JSON.parse(r) : []; }
-  catch { return []; }
+async function lodSupaLoad() {
+  try {
+    const rows = await sbFetch(`${LOD_TABLE}?select=id,data&order=created_at.desc`);
+    if (!rows || !rows.length) return [];
+    return rows.map(r => ({ id: r.id, ...r.data }));
+  } catch {
+    // Fallback naar localStorage als tabel nog niet bestaat
+    try { const r = localStorage.getItem('lod_data_v3'); return r ? JSON.parse(r) : []; } catch { return []; }
+  }
 }
-function lodSave(lods) {
-  try { localStorage.setItem(LOD_STORAGE_KEY, JSON.stringify(lods)); } catch {}
+
+async function lodSupaSave(lod) {
+  try {
+    const existing = await sbFetch(`${LOD_TABLE}?id=eq.${lod.id}&select=id`);
+    if (existing && existing.length) {
+      await sbFetch(`${LOD_TABLE}?id=eq.${lod.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: lod })
+      });
+    } else {
+      await sbFetch(LOD_TABLE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ id: lod.id, data: lod })
+      });
+    }
+    // Ook lokaal opslaan als backup
+    try {
+      const all = JSON.parse(localStorage.getItem('lod_data_v3')||'[]');
+      const idx = all.findIndex(l=>l.id===lod.id);
+      if (idx>=0) all[idx]=lod; else all.unshift(lod);
+      localStorage.setItem('lod_data_v3', JSON.stringify(all));
+    } catch {}
+  } catch {
+    // Fallback naar localStorage
+    try {
+      const all = JSON.parse(localStorage.getItem('lod_data_v3')||'[]');
+      const idx = all.findIndex(l=>l.id===lod.id);
+      if (idx>=0) all[idx]=lod; else all.unshift(lod);
+      localStorage.setItem('lod_data_v3', JSON.stringify(all));
+    } catch {}
+  }
 }
+
+async function lodSupaDelete(id) {
+  try {
+    await sbFetch(`${LOD_TABLE}?id=eq.${id}`, { method: 'DELETE' });
+    try {
+      const all = JSON.parse(localStorage.getItem('lod_data_v3')||'[]');
+      localStorage.setItem('lod_data_v3', JSON.stringify(all.filter(l=>l.id!==id)));
+    } catch {}
+  } catch {
+    try {
+      const all = JSON.parse(localStorage.getItem('lod_data_v3')||'[]');
+      localStorage.setItem('lod_data_v3', JSON.stringify(all.filter(l=>l.id!==id)));
+    } catch {}
+  }
+}
+
+function lodLocalLoad() {
+  try { const r = localStorage.getItem('lod_data_v3'); return r ? JSON.parse(r) : []; } catch { return []; }
+}
+
 function lodDagenTot(deadline) {
   if (!deadline) return null;
   const now = new Date(); now.setHours(0,0,0,0);
   return Math.ceil((new Date(deadline) - now) / 86400000);
 }
 function lodDeadlineKleur(dagen) {
-  if (dagen === null) return '';
-  if (dagen < 0) return 'text-red-600 font-bold';
-  if (dagen <= 14) return 'text-red-500 font-semibold';
-  if (dagen <= 30) return 'text-red-400 font-semibold';
+  if (dagen===null) return '';
+  if (dagen<0) return 'text-red-600 font-bold';
+  if (dagen<=14) return 'text-red-500 font-semibold';
+  if (dagen<=30) return 'text-red-400 font-semibold';
   return 'text-gray-600';
 }
 function lodFmt(n) {
-  if (!n || isNaN(n)) return '-';
-  return '€ ' + Number(n).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (!n||isNaN(n)) return '-';
+  return '€ '+Number(n).toLocaleString('nl-NL',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
 function lodNow() { return new Date().toISOString(); }
 function lodFmtDt(iso) {
   if (!iso) return '';
-  return new Date(iso).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
 }
 
 // Auto-status op basis van offerte vinkjes
 function berekenAutoStatus(lod) {
-  const offertes = lod.offertes || [];
-  if (lod.status === 'afgerond' || lod.status === 'overschreden') return lod.status;
-  const heeftOpdracht   = offertes.some(o => o.opdracht);
-  const heeftVveAkkoord = offertes.some(o => o.vveAkkoord);
-  const heeftOntvangen  = offertes.some(o => o.ontvangen);
-  const heeftAangevraagd = offertes.some(o => o.aangevraagd);
-  const heeftAfwachting = offertes.some(o => o.aangevraagd && !o.ontvangen);
-  if (heeftOpdracht)    return 'opdracht_uit';
-  if (heeftVveAkkoord)  return 'vve_akkoord';
-  if (heeftOntvangen)   return 'offertes_lopen';
-  if (heeftAfwachting)  return 'offertes_afwacht';
-  if (heeftAangevraagd) return 'in_behandeling';
+  const s = lod.status;
+  if (s==='afgerond'||s==='overschreden') return s;
+  const ofs = lod.offertes||[];
+  if (ofs.some(o=>o.opdracht))             return 'opdracht_uit';
+  if (ofs.some(o=>o.vveAkkoord))           return 'vve_akkoord';
+  if (ofs.some(o=>o.vveVoorlegd))          return 'vve_afwachting';
+  if (ofs.some(o=>o.ontvangen))            return 'offertes_lopen';
+  if (ofs.some(o=>o.aangevraagd&&!o.ontvangen)) return 'offertes_afwacht';
+  if (ofs.some(o=>o.aangevraagd))          return 'in_behandeling';
   return 'nieuw';
 }
 
 function LodStatusBadge({ status }) {
-  const s = LOD_STATUS[status] || LOD_STATUS.nieuw;
+  const s = LOD_STATUS[status]||LOD_STATUS.nieuw;
   return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'3px 9px', borderRadius:20, background:s.bg, color:s.color, fontSize:11, fontWeight:600 }}>
-      <span style={{ width:6, height:6, borderRadius:'50%', background:s.dot, display:'inline-block' }} />
+    <span style={{display:'inline-flex',alignItems:'center',gap:5,padding:'3px 9px',borderRadius:20,background:s.bg,color:s.color,fontSize:11,fontWeight:600}}>
+      <span style={{width:6,height:6,borderRadius:'50%',background:s.dot,display:'inline-block'}} />
       {s.label}
     </span>
   );
@@ -1548,27 +1604,72 @@ function LodStatusBadge({ status }) {
 
 function buildTijdlijn(lod) {
   const events = [];
-  const add = (ts, tekst, kleur) => { if (ts) events.push({ ts, tekst, kleur }); };
-  add(lod.tijdlijn?.ontvangen,         'LOD ontvangen van gemeente',              '#1A4D7A');
-  add(lod.tijdlijn?.vveGenotificeerd,  'VvE genotificeerd',                       '#5B3FA6');
-  add(lod.tijdlijn?.vergaderingBelegd, 'Vergadering belegd',                      LOD_ROOD);
-  (lod.offertes||[]).forEach(o => {
-    add(o.tijdlijn?.aangevraagd, `Offerte aangevraagd bij ${o.partij||'onbekend'}`, '#1A4D7A');
-    add(o.tijdlijn?.ontvangen,   `Offerte ontvangen van ${o.partij||'onbekend'}`,   '#5B3FA6');
-    add(o.tijdlijn?.vveVoorlegd, `Offerte voorgelegd aan VvE (${o.partij||'onbekend'})`, LOD_ROOD);
-    add(o.tijdlijn?.vveAkkoord,  `VvE akkoord op offerte ${o.partij||'onbekend'}`,  '#2D6A4F');
-    add(o.tijdlijn?.opdracht,    `Opdracht verstrekt aan ${o.partij||'onbekend'}`,   '#065F46');
+  const add = (ts,tekst,kleur) => { if(ts) events.push({ts,tekst,kleur}); };
+  add(lod.tijdlijn?.ontvangen,        'LOD ontvangen van gemeente',                   '#1A4D7A');
+  add(lod.tijdlijn?.vveGenotificeerd, 'VvE in kennis gesteld',                        '#5B3FA6');
+  add(lod.tijdlijn?.vergaderingBelegd,'Vergadering belegd',                            LOD_ROOD);
+  (lod.offertes||[]).forEach(o=>{
+    add(o.tijdlijn?.aangevraagd,`Offerte aangevraagd bij ${o.partij||'onbekend'}`,    '#1A4D7A');
+    add(o.tijdlijn?.ontvangen,  `Offerte ontvangen van ${o.partij||'onbekend'}`,      '#5B3FA6');
+    add(o.tijdlijn?.vveVoorlegd,`Offerte voorgelegd aan VvE (${o.partij||'onbekend'})`,'#92400E');
+    add(o.tijdlijn?.vveAkkoord, `VvE akkoord op offerte ${o.partij||'onbekend'}`,     '#2D6A4F');
+    add(o.tijdlijn?.opdracht,   `Opdracht verstrekt aan ${o.partij||'onbekend'}`,     '#1E3A5F');
   });
-  add(lod.tijdlijn?.gemeenteBevestigd, 'Gemeente bevestigd / gereed gemeld',       '#2D6A4F');
-  add(lod.tijdlijn?.afgerond,          'LOD afgerond',                             '#374151');
-  return events.sort((a,b) => new Date(a.ts) - new Date(b.ts));
+  add(lod.tijdlijn?.gemeenteBevestigd,'Gemeente bevestigd / gereed gemeld',           '#2D6A4F');
+  add(lod.tijdlijn?.afgerond,         'LOD afgerond',                                 '#374151');
+  return events.sort((a,b)=>new Date(a.ts)-new Date(b.ts));
 }
 
-function lodExportPDF(lod) {
-  const tijdlijn = buildTijdlijn(lod);
-  const dagen = lodDagenTot(lod.deadlineAlgemeen);
-  const statusLabel = (LOD_STATUS[lod.status||'nieuw']||LOD_STATUS.nieuw).label;
-  const offerteRijen = (lod.offertes||[]).map((o,i) => `
+// Voortgangsstappen voor de voortgangsbalk
+function lodVoortgang(lod) {
+  const ofs = lod.offertes||[];
+  return [
+    { lbl:'LOD ontvangen',         ok: !!lod.lodOntvangen },
+    { lbl:'VvE in kennis gesteld', ok: !!lod.vveGenotificeerd },
+    { lbl:'Vergadering belegd',    ok: !!lod.vergaderingBelegd },
+    { lbl:'Offerte aangevraagd',   ok: ofs.some(o=>o.aangevraagd) },
+    { lbl:'Offerte ontvangen',     ok: ofs.some(o=>o.ontvangen) },
+    { lbl:'Aan VvE voorgelegd',    ok: ofs.some(o=>o.vveVoorlegd) },
+    { lbl:'VvE akkoord',           ok: ofs.some(o=>o.vveAkkoord) },
+    { lbl:'Opdracht verstrekt',    ok: ofs.some(o=>o.opdracht) },
+    { lbl:'Gemeente bevestigd',    ok: !!lod.gemeenteBevestigd },
+  ];
+}
+
+function LodVoortgangBalk({ lod }) {
+  const stappen = lodVoortgang(lod);
+  const gedaan  = stappen.filter(s=>s.ok).length;
+  const pct     = Math.round(gedaan/stappen.length*100);
+  return (
+    <div style={{minWidth:160,maxWidth:200}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+        <span style={{fontSize:10,fontWeight:600,color:'#8A7E7B',textTransform:'uppercase',letterSpacing:'0.05em'}}>Voortgang</span>
+        <span style={{fontSize:11,fontWeight:700,color:pct===100?'#2D6A4F':LOD_ROOD}}>{pct}%</span>
+      </div>
+      <div style={{height:6,background:'#F3F4F6',borderRadius:3,overflow:'hidden',marginBottom:5}}>
+        <div style={{height:'100%',width:pct+'%',background:pct===100?'#2D6A4F':LOD_ROOD,borderRadius:3,transition:'width .3s'}} />
+      </div>
+      <div style={{display:'flex',flexDirection:'column',gap:2}}>
+        {stappen.map((s,i)=>(
+          <div key={i} style={{display:'flex',alignItems:'center',gap:4,fontSize:9,color:s.ok?'#2D6A4F':'#9CA3AF'}}>
+            <span style={{width:10,height:10,borderRadius:'50%',background:s.ok?'#2D6A4F':'#E5DEDA',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:7,color:'#fff',flexShrink:0}}>{s.ok?'✓':''}</span>
+            {s.lbl}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// PDF export voor LOD + eenmalige bijdrage resultaat
+function lodExportPDF(lod, eenmaligResult) {
+  const tijdlijn  = buildTijdlijn(lod);
+  const dagen     = lodDagenTot(lod.deadlineAlgemeen);
+  const statusLbl = (LOD_STATUS[lod.status||'nieuw']||LOD_STATUS.nieuw).label;
+  const stappen   = lodVoortgang(lod);
+  const gedaan    = stappen.filter(s=>s.ok).length;
+
+  const offerteRijen = (lod.offertes||[]).map((o,i)=>`
     <tr style="background:${i%2===0?'#fff':'#FAF7F2'}">
       <td>${o.partij||'-'}</td><td style="text-align:right">${lodFmt(o.bedrag)}</td>
       <td style="text-align:center">${o.aangevraagd?'✓':''}</td>
@@ -1577,184 +1678,243 @@ function lodExportPDF(lod) {
       <td style="text-align:center">${o.vveAkkoord?'✓':''}</td>
       <td style="text-align:center">${o.opdracht?'✓':''}</td>
     </tr>`).join('');
-  const puntenRijen = (lod.onderdelen||[]).map((o,i) => `
+
+  const puntenRijen = (lod.onderdelen||[]).map((o,i)=>`
     <tr style="background:${i%2===0?'#fff':'#FAF7F2'}"><td>${i+1}</td><td>${o.omschrijving||'-'}</td></tr>`).join('');
-  const tijdlijnRijen = tijdlijn.map(e => `
+
+  const tijdlijnRijen = tijdlijn.map(e=>`
     <tr><td style="white-space:nowrap;color:#8A7E7B">${lodFmtDt(e.ts)}</td><td style="color:${e.kleur};font-weight:500">${e.tekst}</td></tr>`).join('');
+
+  const voortgangRijen = stappen.map(s=>`
+    <tr><td style="color:${s.ok?'#2D6A4F':'#9CA3AF'}">${s.ok?'✓':'○'} ${s.lbl}</td></tr>`).join('');
+
+  let eenmaligHTML = '';
+  if (eenmaligResult && eenmaligResult.length) {
+    eenmaligHTML = '<div class="sec">Eenmalige bijdragen per eigenaar</div>';
+    eenmaligResult.forEach(item => {
+      eenmaligHTML += `<p style="font-size:9pt;font-weight:600;margin:10px 0 4px">${item.omschrijving} — Offerte: ${lodFmt(item.offerte)}${item.totaleKorting>0?' — Netto: '+lodFmt(item.nettoOfferte):''} — ${item.tekort>0?'Tekort: '+lodFmt(item.tekort):'Volledig gedekt'}</p>`;
+      eenmaligHTML += `<p style="font-size:8pt;color:#8A7E7B;margin-bottom:6px">Reserve: ${lodFmt(item.reserve)} — buffer: ${lodFmt(item.buffer)} — beschikbaar: ${lodFmt(item.beschikbaar)}</p>`;
+      if (item.tekort>0 && item.perEigenaar.length) {
+        eenmaligHTML += `<table><thead><tr><th>Eigenaar</th><th style="text-align:right">Aandeel</th><th style="text-align:right">Korting</th><th style="text-align:right">Bijdrage</th></tr></thead><tbody>`;
+        item.perEigenaar.forEach((e,i)=>{
+          eenmaligHTML += `<tr style="background:${i%2===0?'#fff':'#FAF7F2'}"><td>${e.naam}</td><td style="text-align:right">${(e.aandeel*100).toFixed(2)}%</td><td style="text-align:right;color:#2D6A4F">${e.korting>0?lodFmt(e.korting):'—'}</td><td style="text-align:right;font-weight:600;color:#991A21">${lodFmt(e.bijdrage)}</td></tr>`;
+        });
+        eenmaligHTML += `</tbody><tfoot><tr><td colspan="3"><strong>Totaal tekort</strong></td><td style="text-align:right">${lodFmt(item.tekort)}</td></tr></tfoot></table>`;
+      }
+    });
+  }
 
   const html = `<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8">
     <title>LOD Dossier - ${lod.vveNaam||'onbekend'}</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-    <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:"DM Sans",Arial,sans-serif;color:#1A1614;font-size:10pt;background:#fff;padding:32px 40px}.hdr{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:12px;border-bottom:3px solid #991A21;margin-bottom:22px}.hdr h1{font-family:"DM Serif Display",serif;font-size:18pt;color:#991A21;font-weight:400}.hdr .meta{font-size:9pt;color:#8A7E7B;margin-top:3px}.badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:9pt;font-weight:600;background:#FDEAEB;color:#991A21}.sec{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8A7E7B;margin:20px 0 8px;padding-bottom:4px;border-bottom:1px solid #E5DEDA}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}.info-block{background:#FAF7F2;border-left:3px solid #991A21;padding:10px 14px;border-radius:4px}.info-label{font-size:8pt;color:#8A7E7B;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}.info-val{font-size:10pt;font-weight:600;color:#1A1614}table{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:14px}thead tr{background:#991A21;color:#fff}thead th{padding:7px 10px;text-align:left;font-size:8pt;font-weight:600;text-transform:uppercase;letter-spacing:.04em}tbody td{padding:6px 10px;border-bottom:1px solid #E5DEDA}.footer{margin-top:20px;padding-top:8px;border-top:1px solid #E5DEDA;display:flex;justify-content:space-between;font-size:7.5pt;color:#8A7E7B}.print-btn{position:fixed;top:18px;right:18px;padding:9px 18px;background:#991A21;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer}@media print{.print-btn{display:none}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
+    <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:"DM Sans",Arial,sans-serif;color:#1A1614;font-size:10pt;background:#fff;padding:32px 40px}
+    .hdr{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:12px;border-bottom:3px solid #991A21;margin-bottom:22px}
+    .hdr h1{font-family:"DM Serif Display",serif;font-size:18pt;color:#991A21;font-weight:400}.hdr .meta{font-size:9pt;color:#8A7E7B;margin-top:3px}
+    .badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:9pt;font-weight:600;background:#FDEAEB;color:#991A21}
+    .sec{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8A7E7B;margin:20px 0 8px;padding-bottom:4px;border-bottom:1px solid #E5DEDA}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+    .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px}
+    .info-block{background:#FAF7F2;border-left:3px solid #991A21;padding:10px 14px;border-radius:4px}
+    .info-label{font-size:8pt;color:#8A7E7B;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+    .info-val{font-size:10pt;font-weight:600;color:#1A1614}
+    table{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:14px}
+    thead tr{background:#991A21;color:#fff}thead th{padding:7px 10px;text-align:left;font-size:8pt;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+    tbody td{padding:6px 10px;border-bottom:1px solid #E5DEDA}
+    tfoot td{padding:7px 10px;font-weight:600;color:#991A21;border-top:2px solid #991A21;background:#FDEAEB}
+    .voortgang-ok{color:#2D6A4F}.voortgang-nok{color:#9CA3AF}
+    .footer{margin-top:20px;padding-top:8px;border-top:1px solid #E5DEDA;display:flex;justify-content:space-between;font-size:7.5pt;color:#8A7E7B}
+    .print-btn{position:fixed;top:18px;right:18px;padding:9px 18px;background:#991A21;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer}
+    @media print{.print-btn{display:none}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
     </head><body>
     <button class="print-btn" onclick="window.print()">Afdrukken / PDF</button>
-    <div class="hdr"><div><h1>LOD Dossier</h1><div class="meta">${lod.vveNaam||'onbekend'} · Ref: ${lod.gemeenteReferentie||'-'} · Opgesteld op ${new Date().toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric'})}</div></div><span class="badge">${statusLabel}</span></div>
+    <div class="hdr">
+      <div><h1>LOD Dossier</h1><div class="meta">${lod.vveNaam||'onbekend'} · Ref: ${lod.gemeenteReferentie||'-'} · Opgesteld op ${new Date().toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric'})}</div></div>
+      <div style="text-align:right"><span class="badge">${statusLbl}</span><div style="font-size:9pt;color:#8A7E7B;margin-top:4px">Voortgang: ${gedaan}/${stappen.length} stappen</div></div>
+    </div>
     <div class="grid2">
       <div class="info-block"><div class="info-label">VvE</div><div class="info-val">${lod.vveNaam||'-'}</div></div>
       <div class="info-block"><div class="info-label">Behandelend beheerder</div><div class="info-val">${lod.behandelaar||'-'}</div></div>
       <div class="info-block"><div class="info-label">Gemeente referentie</div><div class="info-val">${lod.gemeenteReferentie||'-'}</div></div>
+      <div class="info-block"><div class="info-label">Contactpersoon gemeente</div><div class="info-val">${lod.contactpersoon||'-'} ${lod.contactGemeente?'· '+lod.contactGemeente:''}</div></div>
       <div class="info-block"><div class="info-label">Ontvangstdatum</div><div class="info-val">${lod.ontvangstdatum?new Date(lod.ontvangstdatum).toLocaleDateString('nl-NL'):'-'}</div></div>
-      <div class="info-block"><div class="info-label">Algehele deadline</div><div class="info-val" style="color:${dagen!==null&&dagen<0?'#991A21':'inherit'}">${lod.deadlineAlgemeen?new Date(lod.deadlineAlgemeen).toLocaleDateString('nl-NL'):'-'}${dagen!==null?' ('+Math.abs(dagen)+(dagen<0?' dagen over':' dagen')+')'  :''}</div></div>
+      <div class="info-block"><div class="info-label">Algehele deadline</div><div class="info-val" style="color:${dagen!==null&&dagen<0?'#991A21':'inherit'}">${lod.deadlineAlgemeen?new Date(lod.deadlineAlgemeen).toLocaleDateString('nl-NL'):'-'}${dagen!==null?' ('+Math.abs(dagen)+(dagen<0?' dagen over':' dagen')+')':''}</div></div>
       <div class="info-block"><div class="info-label">Max. boete totaal</div><div class="info-val">${lodFmt(lod.boeteMax)}</div></div>
     </div>
-    ${lod.notitie?`<div style="margin-bottom:16px;padding:10px 14px;background:#FAF7F2;border-radius:6px;font-size:9pt;color:#374151"><strong>Notitie:</strong> ${lod.notitie}</div>`:''}
+    ${lod.notitie?`<div style="margin-bottom:16px;padding:10px 14px;background:#FAF7F2;border-radius:6px;font-size:9pt"><strong>Notitie:</strong> ${lod.notitie}</div>`:''}
+    <div class="sec">Voortgang</div>
+    <table style="width:auto"><tbody>${voortgangRijen}</tbody></table>
     <div class="sec">Onderhoudspunten</div>
     <table><thead><tr><th>#</th><th>Omschrijving</th></tr></thead><tbody>${puntenRijen||'<tr><td colspan=2 style="color:#8A7E7B">Geen onderhoudspunten</td></tr>'}</tbody></table>
     <div class="sec">Offertes</div>
     <table><thead><tr><th>Partij</th><th style="text-align:right">Bedrag</th><th style="text-align:center">Aangevraagd</th><th style="text-align:center">Ontvangen</th><th style="text-align:center">VvE voorgelegd</th><th style="text-align:center">VvE akkoord</th><th style="text-align:center">Opdracht</th></tr></thead><tbody>${offerteRijen||'<tr><td colspan=7 style="color:#8A7E7B">Geen offertes</td></tr>'}</tbody></table>
+    ${eenmaligHTML}
     <div class="sec">Tijdlijn dossier</div>
     <table><thead><tr><th>Datum en tijd</th><th>Actie</th></tr></thead><tbody>${tijdlijnRijen||'<tr><td colspan=2 style="color:#8A7E7B">Geen tijdlijn</td></tr>'}</tbody></table>
     <div class="footer"><span>Totaal VvE Beheer Den Haag en omstreken B.V. · Rijswijk</span><span>Last onder Dwangsom module</span></div>
     </body></html>`;
 
-  const w = window.open('', '_blank', 'width=1050,height=850');
+  const w = window.open('','_blank','width=1050,height=850');
   if (w) { w.document.write(html); w.document.close(); }
   else alert('Pop-up geblokkeerd.');
 }
 
-// ── Eenmalige bijdrage tab voor LOD ─────────────────────────────
+// ── Eenmalige bijdrage tab ────────────────────────────────────────
 function LodEenmaligTab({ lod, onUpdate }) {
-  const S = CALC_S;
+  const S   = CALC_S;
   const fmt = calcFmt;
-  const uid = calcUid;
-  const eigenaren = (lod.onderdelen||[]).filter(o=>o.omschrijving).map((o,i)=>({
-    id: 'e_'+i, naam: o.omschrijving, teller: String(o.breukTeller||1), noemer: String(o.breukNoemer||lod.aantalEigenaren||1), huidig: ''
-  }));
 
-  const [items, setItems] = useState(() => lod.eenmaligItems || [
-    { id: uid(), omschrijving:'', bedrag:'', reserveStand:'', buffer:'2500', kortingAan:false, kortingBedrag:'' }
-  ]);
-  const [eigRows, setEigRows] = useState(() => lod.eenmaligEigenaren || [
-    { id: uid(), naam:'', teller:'', huidig:'' },
-    { id: uid(), naam:'', teller:'', huidig:'' },
-  ]);
+  // Offertedata overnemen uit het Offertes tabblad
+  const [items, setItems] = useState(() => {
+    const bestaand = lod.eenmaligItems||[];
+    const offertes = (lod.offertes||[]).filter(o=>o.partij||o.bedrag);
+    if (!bestaand.length && offertes.length) {
+      return offertes.map(o=>({ id:calcUid(), omschrijving:o.partij||'Offerte', bedrag:o.bedrag||'', reserveStand:'', buffer:'2500', kortingAan:false, kortingBedrag:'' }));
+    }
+    return bestaand.length ? bestaand : [{ id:calcUid(), omschrijving:'', bedrag:'', reserveStand:'', buffer:'2500', kortingAan:false, kortingBedrag:'' }];
+  });
+  const [eigRows, setEigRows] = useState(()=>lod.eenmaligEigenaren||[{id:calcUid(),naam:'',teller:''},{id:calcUid(),naam:'',teller:''}]);
   const [vasteNoemer, setVasteNoemer] = useState(lod.eenmaligNoemer||'');
   const [result, setResult] = useState(null);
 
-  const save = (patch) => onUpdate({ ...lod, ...patch });
+  // Sync offertes als ze veranderen
+  const syncOffertes = () => {
+    const offertes = (lod.offertes||[]).filter(o=>o.partij||o.bedrag);
+    if (!offertes.length) return;
+    const synced = offertes.map(o=>{
+      const bestaand = items.find(i=>i.omschrijving===o.partij||i.id===o.id);
+      return bestaand ? { ...bestaand, omschrijving:o.partij||bestaand.omschrijving, bedrag:o.bedrag||bestaand.bedrag } : { id:calcUid(), omschrijving:o.partij||'', bedrag:o.bedrag||'', reserveStand:'', buffer:'2500', kortingAan:false, kortingBedrag:'' };
+    });
+    setItems(synced);
+    onUpdate({...lod, eenmaligItems:synced});
+  };
+
+  const save = (patch) => onUpdate({...lod,...patch});
 
   const bereken = () => {
-    const noemer = parseFloat(vasteNoemer) > 0 ? parseFloat(vasteNoemer) : eigRows.reduce((s,r)=>s+(parseFloat(r.teller)||0),0);
+    const noemer = parseFloat(vasteNoemer)>0?parseFloat(vasteNoemer):eigRows.reduce((s,r)=>s+(parseFloat(r.teller)||0),0);
     const validRows = eigRows.filter(r=>r.teller!==''&&parseFloat(r.teller)>0);
     if (!validRows.length) return;
     const aantalEig = validRows.length;
-    const eigenaren = validRows.map(r => {
-      const teller = parseFloat(r.teller)||0;
-      const aandeel = noemer > 0 ? teller/noemer : 0;
-      return { naam: r.naam||'Eigenaar', teller:r.teller, noemer, aandeel };
-    });
-    const berekend = items.map(item => {
-      const offerte = parseFloat(item.bedrag)||0;
-      const reserve = parseFloat(item.reserveStand)||0;
-      const buffer  = parseFloat(item.buffer)>=0?parseFloat(item.buffer):2500;
+    const eigenaren = validRows.map(r=>({ naam:r.naam||'Eigenaar', teller:r.teller, noemer, aandeel:noemer>0?(parseFloat(r.teller)||0)/noemer:0 }));
+    const berekend = items.map(item=>{
+      const offerte   = parseFloat(item.bedrag)||0;
+      const reserve   = parseFloat(item.reserveStand)||0;
+      const buffer    = parseFloat(item.buffer)>=0?parseFloat(item.buffer):2500;
       const kortingPE = item.kortingAan?(parseFloat(item.kortingBedrag)||0):0;
-      const totaleKorting = kortingPE * aantalEig;
-      const nettoOfferte = Math.max(0, offerte - totaleKorting);
-      const beschikbaar  = Math.max(0, reserve - buffer);
-      const tekort       = Math.max(0, nettoOfferte - beschikbaar);
-      const perEigenaar  = eigenaren.map(e=>({ naam:e.naam, aandeel:e.aandeel, korting:kortingPE, bijdrage:tekort>0?e.aandeel*tekort:0 }));
-      return { omschrijving:item.omschrijving||'Eenmalige bijdrage', offerte, nettoOfferte, totaleKorting, reserve, buffer, beschikbaar, tekort, perEigenaar };
+      const totaleKorting = kortingPE*aantalEig;
+      const nettoOfferte  = Math.max(0,offerte-totaleKorting);
+      const beschikbaar   = Math.max(0,reserve-buffer);
+      const tekort        = Math.max(0,nettoOfferte-beschikbaar);
+      const perEigenaar   = eigenaren.map(e=>({naam:e.naam,aandeel:e.aandeel,korting:kortingPE,bijdrage:tekort>0?e.aandeel*tekort:0}));
+      return {omschrijving:item.omschrijving||'Offerte',offerte,nettoOfferte,totaleKorting,reserve,buffer,beschikbaar,tekort,perEigenaar};
     });
     setResult(berekend);
   };
 
   return (
     <div>
-      <p style={{fontSize:12,color:S.muted,marginBottom:14}}>Bereken de eenmalige bijdrage per eigenaar op basis van de offerte(s) voor deze LOD.</p>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+        <p style={{fontSize:12,color:CALC_S.muted}}>Bereken de eenmalige bijdrage per eigenaar. Offertedata is overgenomen uit het Offertes tabblad.</p>
+        <button onClick={syncOffertes} style={{padding:'5px 12px',background:'#fff',border:`1px solid ${LOD_ROOD}`,borderRadius:7,fontSize:11,color:LOD_ROOD,cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>
+          Offertes syncen
+        </button>
+      </div>
 
       {/* Eigenaren */}
       <div style={{marginBottom:14}}>
         <div style={{fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#2D2D2D',marginBottom:8,display:'flex',alignItems:'center',gap:8}}>
           Eigenaren &amp; breukdelen
           <div style={{flex:1,height:1,background:'#E5DEDA'}} />
-          <label style={{fontSize:10,fontWeight:600,color:S.muted,display:'flex',alignItems:'center',gap:6}}>
+          <label style={{fontSize:10,fontWeight:600,color:CALC_S.muted,display:'flex',alignItems:'center',gap:6}}>
             Noemer: <input type="number" value={vasteNoemer} onChange={e=>{setVasteNoemer(e.target.value);save({eenmaligNoemer:e.target.value})}} placeholder="totaal" className="calc-inp" style={{width:80,fontSize:12}} />
           </label>
         </div>
         {eigRows.map((r,i)=>(
           <div key={r.id} style={{display:'grid',gridTemplateColumns:'1fr 100px 36px',gap:8,marginBottom:6,alignItems:'center'}}>
-            <input value={r.naam} onChange={e=>{const nr=[...eigRows];nr[i]={...nr[i],naam:e.target.value};setEigRows(nr);save({eenmaligEigenaren:nr})}} placeholder="Naam eigenaar / app." className="calc-inp" style={{fontSize:12}} />
+            <input value={r.naam} onChange={e=>{const nr=[...eigRows];nr[i]={...nr[i],naam:e.target.value};setEigRows(nr);save({eenmaligEigenaren:nr})}} placeholder="Naam eigenaar / appartement" className="calc-inp" style={{fontSize:12}} />
             <input type="number" value={r.teller} onChange={e=>{const nr=[...eigRows];nr[i]={...nr[i],teller:e.target.value};setEigRows(nr);save({eenmaligEigenaren:nr})}} placeholder="Teller" className="calc-inp" style={{fontSize:12}} />
-            <button onClick={()=>{const nr=eigRows.filter((_,j)=>j!==i);setEigRows(nr);save({eenmaligEigenaren:nr})}} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,color:S.muted}}>×</button>
+            <button onClick={()=>{const nr=eigRows.filter((_,j)=>j!==i);setEigRows(nr);save({eenmaligEigenaren:nr})}} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,color:CALC_S.muted}}>×</button>
           </div>
         ))}
-        <button onClick={()=>{const nr=[...eigRows,{id:uid(),naam:'',teller:'',huidig:''}];setEigRows(nr);save({eenmaligEigenaren:nr})}} style={{width:'100%',padding:'7px',background:'#fff',border:'1.5px dashed #E5DEDA',borderRadius:8,fontFamily:'inherit',fontSize:12,color:S.muted,cursor:'pointer'}}>+ Eigenaar toevoegen</button>
+        <button onClick={()=>{const nr=[...eigRows,{id:calcUid(),naam:'',teller:''}];setEigRows(nr);save({eenmaligEigenaren:nr})}} style={{width:'100%',padding:'7px',background:'#fff',border:'1.5px dashed #E5DEDA',borderRadius:8,fontFamily:'inherit',fontSize:12,color:CALC_S.muted,cursor:'pointer'}}>+ Eigenaar toevoegen</button>
       </div>
 
       {/* Offertes */}
       <div style={{marginBottom:14}}>
         <div style={{fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#2D2D2D',marginBottom:8,display:'flex',alignItems:'center',gap:8}}>
-          Offerte(s)
-          <div style={{flex:1,height:1,background:'#E5DEDA'}} />
+          Offerte(s) <div style={{flex:1,height:1,background:'#E5DEDA'}} />
         </div>
         {items.map((item,i)=>(
           <div key={item.id} style={{background:'#FAF7F2',border:'1px solid #E5DEDA',borderRadius:10,padding:'12px 14px',marginBottom:8,position:'relative'}}>
-            {items.length>1&&<button onClick={()=>{const ni=items.filter((_,j)=>j!==i);setItems(ni);save({eenmaligItems:ni})}} style={{position:'absolute',top:8,right:10,background:'none',border:'none',cursor:'pointer',fontSize:16,color:S.muted}}>×</button>}
+            {items.length>1&&<button onClick={()=>{const ni=items.filter((_,j)=>j!==i);setItems(ni);save({eenmaligItems:ni})}} style={{position:'absolute',top:8,right:10,background:'none',border:'none',cursor:'pointer',fontSize:16,color:CALC_S.muted}}>×</button>}
             <div style={{display:'grid',gridTemplateColumns:'1fr 160px',gap:10,marginBottom:8}}>
-              <div><label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Omschrijving</label>
-                <input value={item.omschrijving} onChange={e=>{const ni=[...items];ni[i]={...ni[i],omschrijving:e.target.value};setItems(ni);save({eenmaligItems:ni})}} placeholder="bijv. Gevelrenovatie LOD" className="calc-inp" style={{fontSize:12}} /></div>
-              <div><label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Offertebedrag (€)</label>
+              <div><label style={{fontSize:10,fontWeight:600,color:CALC_S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Omschrijving / partij</label>
+                <input value={item.omschrijving} onChange={e=>{const ni=[...items];ni[i]={...ni[i],omschrijving:e.target.value};setItems(ni);save({eenmaligItems:ni})}} placeholder="bijv. Bouwbedrijf Jansen" className="calc-inp" style={{fontSize:12}} /></div>
+              <div><label style={{fontSize:10,fontWeight:600,color:CALC_S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Offertebedrag (€)</label>
                 <input type="number" value={item.bedrag} onChange={e=>{const ni=[...items];ni[i]={...ni[i],bedrag:e.target.value};setItems(ni);save({eenmaligItems:ni})}} placeholder="bijv. 38000" className="calc-inp" style={{fontSize:12}} /></div>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:8}}>
-              <div><label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Stand reservefonds (€)</label>
+              <div><label style={{fontSize:10,fontWeight:600,color:CALC_S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Stand reservefonds (€)</label>
                 <input type="number" value={item.reserveStand} onChange={e=>{const ni=[...items];ni[i]={...ni[i],reserveStand:e.target.value};setItems(ni);save({eenmaligItems:ni})}} placeholder="bijv. 12000" className="calc-inp" style={{fontSize:12}} /></div>
-              <div><label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Buffer (€)</label>
+              <div><label style={{fontSize:10,fontWeight:600,color:CALC_S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Buffer (€)</label>
                 <input type="number" value={item.buffer} onChange={e=>{const ni=[...items];ni[i]={...ni[i],buffer:e.target.value};setItems(ni);save({eenmaligItems:ni})}} placeholder="2500" className="calc-inp" style={{fontSize:12}} /></div>
             </div>
-            <label style={{display:'flex',alignItems:'center',gap:7,cursor:'pointer',fontSize:12,fontWeight:600,color:S.ink}}>
+            <label style={{display:'flex',alignItems:'center',gap:7,cursor:'pointer',fontSize:12,fontWeight:600,color:CALC_S.ink}}>
               <input type="checkbox" checked={!!item.kortingAan} onChange={e=>{const ni=[...items];ni[i]={...ni[i],kortingAan:e.target.checked};setItems(ni);save({eenmaligItems:ni})}} style={{width:13,height:13,accentColor:LOD_ROOD,cursor:'pointer'}} />
               Gemeentelijke korting
             </label>
-            {item.kortingAan&&<div style={{marginTop:6}}><label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Korting per eigenaar (€)</label>
+            {item.kortingAan&&<div style={{marginTop:6}}><label style={{fontSize:10,fontWeight:600,color:CALC_S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Korting per eigenaar (€)</label>
               <input type="number" value={item.kortingBedrag} onChange={e=>{const ni=[...items];ni[i]={...ni[i],kortingBedrag:e.target.value};setItems(ni);save({eenmaligItems:ni})}} placeholder="bijv. 1000" className="calc-inp" style={{width:160,fontSize:12}} /></div>}
           </div>
         ))}
-        <button onClick={()=>{const ni=[...items,{id:calcUid(),omschrijving:'',bedrag:'',reserveStand:'',buffer:'2500',kortingAan:false,kortingBedrag:''}];setItems(ni);save({eenmaligItems:ni})}} style={{width:'100%',padding:'7px',background:'#fff',border:'1.5px dashed #E5DEDA',borderRadius:8,fontFamily:'inherit',fontSize:12,color:S.muted,cursor:'pointer',marginBottom:10}}>+ Offerte toevoegen</button>
+        <button onClick={()=>{const ni=[...items,{id:calcUid(),omschrijving:'',bedrag:'',reserveStand:'',buffer:'2500',kortingAan:false,kortingBedrag:''}];setItems(ni);save({eenmaligItems:ni})}} style={{width:'100%',padding:'7px',background:'#fff',border:'1.5px dashed #E5DEDA',borderRadius:8,fontFamily:'inherit',fontSize:12,color:CALC_S.muted,cursor:'pointer',marginBottom:10}}>+ Offerte toevoegen</button>
       </div>
 
       <button onClick={bereken} style={{width:'100%',padding:12,background:LOD_ROOD,border:'none',borderRadius:10,fontFamily:'Georgia,serif',fontSize:15,color:'#fff',cursor:'pointer'}}>
         Bereken eenmalige bijdragen →
       </button>
 
-      {result && result.map((item,idx)=>(
-        <div key={idx} style={{marginTop:14,background:'#fff',border:'1px solid #E5DEDA',borderRadius:10,overflow:'hidden'}}>
-          <div style={{padding:'10px 14px',background:'#FAF7F2',borderBottom:'1px solid #E5DEDA',display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
-            <span style={{fontWeight:600,fontSize:13}}>{item.omschrijving}</span>
-            <span style={{fontFamily:'Georgia,serif',fontSize:16,color:item.tekort>0?LOD_ROOD:'#2D6A4F'}}>
-              {item.tekort>0?'Tekort: '+fmt(item.tekort):'Volledig gedekt'}
-            </span>
-          </div>
-          <div style={{padding:'6px 14px',fontSize:11,color:S.muted,fontFamily:'monospace',borderBottom:'1px solid #E5DEDA'}}>
-            Reserve: {fmt(item.reserve)} — buffer: {fmt(item.buffer)} — beschikbaar: {fmt(item.beschikbaar)}
-          </div>
-          {item.tekort>0&&(
-            <table style={{width:'100%',borderCollapse:'collapse'}}>
-              <thead><tr style={{background:'#FAF7F2',borderBottom:'1px solid #E5DEDA'}}>
-                {['Eigenaar','Aandeel','Korting','Eenmalige bijdrage'].map((h,i)=>(
-                  <th key={i} style={{padding:'6px 12px',textAlign:i>0?'right':'left',fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {item.perEigenaar.map((e,i)=>(
-                  <tr key={i} style={{borderBottom:i<item.perEigenaar.length-1?'1px solid #E5DEDA':'none',background:i%2===0?'#fff':'#FAF7F2'}}>
-                    <td style={{padding:'6px 12px',fontSize:12,fontWeight:500}}>{e.naam}</td>
-                    <td style={{padding:'6px 12px',fontFamily:'monospace',fontSize:12,textAlign:'right'}}>{(e.aandeel*100).toFixed(2)}%</td>
-                    <td style={{padding:'6px 12px',fontFamily:'monospace',fontSize:12,textAlign:'right',color:e.korting>0?'#2D6A4F':S.muted}}>{e.korting>0?fmt(e.korting):'—'}</td>
-                    <td style={{padding:'6px 12px',fontFamily:'monospace',fontSize:12,textAlign:'right',color:LOD_ROOD,fontWeight:600}}>{fmt(e.bijdrage)}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot style={{borderTop:`2px solid ${LOD_ROOD}`}}>
-                <tr style={{background:'#FDEAEB'}}>
-                  <td colSpan={3} style={{padding:'7px 12px',fontSize:12,fontWeight:600,color:S.muted}}>Totaal tekort</td>
-                  <td style={{padding:'7px 12px',fontFamily:'monospace',fontSize:13,fontWeight:600,color:LOD_ROOD,textAlign:'right'}}>{fmt(item.tekort)}</td>
-                </tr>
-              </tfoot>
-            </table>
-          )}
-        </div>
-      ))}
+      {result && (
+        <>
+          <button onClick={()=>lodExportPDF(lod, result)} style={{width:'100%',marginTop:10,padding:'9px',background:'#fff',border:`1.5px solid ${LOD_ROOD}`,borderRadius:8,fontFamily:'inherit',fontSize:13,color:LOD_ROOD,cursor:'pointer',fontWeight:500}}>
+            PDF rapport exporteren (incl. berekening)
+          </button>
+          {result.map((item,idx)=>(
+            <div key={idx} style={{marginTop:12,background:'#fff',border:'1px solid #E5DEDA',borderRadius:10,overflow:'hidden'}}>
+              <div style={{padding:'10px 14px',background:'#FAF7F2',borderBottom:'1px solid #E5DEDA',display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+                <span style={{fontWeight:600,fontSize:13}}>{item.omschrijving}</span>
+                <span style={{fontFamily:'Georgia,serif',fontSize:16,color:item.tekort>0?LOD_ROOD:'#2D6A4F'}}>{item.tekort>0?'Tekort: '+fmt(item.tekort):'Volledig gedekt'}</span>
+              </div>
+              <div style={{padding:'5px 14px',fontSize:11,color:CALC_S.muted,fontFamily:'monospace',borderBottom:'1px solid #E5DEDA'}}>
+                Reserve: {fmt(item.reserve)} — buffer: {fmt(item.buffer)} — beschikbaar: {fmt(item.beschikbaar)}
+              </div>
+              {item.tekort>0&&(
+                <table style={{width:'100%',borderCollapse:'collapse'}}>
+                  <thead><tr style={{background:'#FAF7F2',borderBottom:'1px solid #E5DEDA'}}>
+                    {['Eigenaar','Aandeel','Korting','Bijdrage'].map((h,i)=>(
+                      <th key={i} style={{padding:'6px 12px',textAlign:i>0?'right':'left',fontSize:10,fontWeight:600,color:CALC_S.muted,textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>{item.perEigenaar.map((e,i)=>(
+                    <tr key={i} style={{borderBottom:i<item.perEigenaar.length-1?'1px solid #E5DEDA':'none',background:i%2===0?'#fff':'#FAF7F2'}}>
+                      <td style={{padding:'6px 12px',fontSize:12,fontWeight:500}}>{e.naam}</td>
+                      <td style={{padding:'6px 12px',fontFamily:'monospace',fontSize:12,textAlign:'right'}}>{(e.aandeel*100).toFixed(2)}%</td>
+                      <td style={{padding:'6px 12px',fontFamily:'monospace',fontSize:12,textAlign:'right',color:e.korting>0?'#2D6A4F':CALC_S.muted}}>{e.korting>0?fmt(e.korting):'—'}</td>
+                      <td style={{padding:'6px 12px',fontFamily:'monospace',fontSize:12,textAlign:'right',color:LOD_ROOD,fontWeight:600}}>{fmt(e.bijdrage)}</td>
+                    </tr>
+                  ))}</tbody>
+                  <tfoot style={{borderTop:`2px solid ${LOD_ROOD}`}}>
+                    <tr style={{background:LOD_ROOD_BG}}>
+                      <td colSpan={3} style={{padding:'7px 12px',fontSize:12,fontWeight:600,color:CALC_S.muted}}>Totaal tekort</td>
+                      <td style={{padding:'7px 12px',fontFamily:'monospace',fontSize:13,fontWeight:600,color:LOD_ROOD,textAlign:'right'}}>{fmt(item.tekort)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              )}
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }
@@ -1762,15 +1922,14 @@ function LodEenmaligTab({ lod, onUpdate }) {
 // ── LodKaart ─────────────────────────────────────────────────────
 function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList }) {
   const S = CALC_S;
-  const open = openId === lod.id;
+  const open = openId===lod.id;
   const dagen = lodDagenTot(lod.deadlineAlgemeen);
   const [tabKaart, setTabKaart] = useState('details');
 
   const update = (changes) => {
-    const updated = { ...lod, ...changes };
-    // Auto-status berekenen maar niet als afgerond/overschreden
-    if (!['afgerond','overschreden'].includes(updated.status) || changes.offertes) {
-      if (changes.offertes !== undefined) {
+    const updated = {...lod,...changes};
+    if (!['afgerond','overschreden'].includes(updated.status)||changes.offertes!==undefined) {
+      if (changes.offertes!==undefined) {
         updated.status = berekenAutoStatus(updated);
       }
     }
@@ -1778,60 +1937,62 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
   };
 
   const toggleCheck = (field, tlKey, value) => {
-    const tl = { ...(lod.tijdlijn||{}) };
-    if (value && !tl[tlKey]) tl[tlKey] = lodNow();
+    const tl = {...(lod.tijdlijn||{})};
+    if (value&&!tl[tlKey]) tl[tlKey] = lodNow();
     else if (!value) delete tl[tlKey];
-    update({ [field]: value, tijdlijn: tl });
+    update({[field]:value, tijdlijn:tl});
   };
 
   const updateOfferte = (idx, changes) => {
     const offertes = [...(lod.offertes||[])];
-    offertes[idx] = { ...offertes[idx], ...changes };
-    update({ offertes });
+    offertes[idx] = {...offertes[idx],...changes};
+    update({offertes});
   };
 
   const toggleOfferteCheck = (idx, field, tlKey, value) => {
     const offertes = [...(lod.offertes||[])];
-    const tl = { ...(offertes[idx].tijdlijn||{}) };
-    if (value && !tl[tlKey]) tl[tlKey] = lodNow();
+    const tl = {...(offertes[idx].tijdlijn||{})};
+    if (value&&!tl[tlKey]) tl[tlKey] = lodNow();
     else if (!value) delete tl[tlKey];
-    offertes[idx] = { ...offertes[idx], [field]: value, tijdlijn: tl };
-    update({ offertes });
+    offertes[idx] = {...offertes[idx],[field]:value,tijdlijn:tl};
+    update({offertes});
   };
 
-  const addOfferte = () => update({ offertes: [...(lod.offertes||[]), { id:lodUid(), partij:'', bedrag:'', aangevraagd:false, ontvangen:false, vveVoorlegd:false, vveAkkoord:false, opdracht:false, tijdlijn:{} }] });
-  const delOfferte = (idx) => { const o=[...(lod.offertes||[])]; o.splice(idx,1); update({offertes:o}); };
-  const addOnderdeel = () => update({ onderdelen:[...(lod.onderdelen||[]),{id:lodUid(),omschrijving:''}] });
-  const delOnderdeel = (idx) => { const o=[...(lod.onderdelen||[])]; o.splice(idx,1); update({onderdelen:o}); };
-  const updOnderdeel = (idx,val) => { const o=[...(lod.onderdelen||[])]; o[idx]={...o[idx],omschrijving:val}; update({onderdelen:o}); };
+  const addOfferte  = () => update({offertes:[...(lod.offertes||[]),{id:lodUid(),partij:'',bedrag:'',aangevraagd:false,ontvangen:false,vveVoorlegd:false,vveAkkoord:false,opdracht:false,tijdlijn:{}}]});
+  const delOfferte  = (idx) => {const o=[...(lod.offertes||[])];o.splice(idx,1);update({offertes:o});};
+  const addOnderdeel= () => update({onderdelen:[...(lod.onderdelen||[]),{id:lodUid(),omschrijving:''}]});
+  const delOnderdeel= (idx) => {const o=[...(lod.onderdelen||[])];o.splice(idx,1);update({onderdelen:o});};
+  const updOnderdeel= (idx,val) => {const o=[...(lod.onderdelen||[])];o[idx]={...o[idx],omschrijving:val};update({onderdelen:o});};
 
   const markeerAfgerond = () => {
-    const tl = { ...(lod.tijdlijn||{}), afgerond: lodNow() };
-    onUpdate({ ...lod, status:'afgerond', tijdlijn:tl });
+    const tl = {...(lod.tijdlijn||{}),afgerond:lodNow()};
+    onUpdate({...lod,status:'afgerond',tijdlijn:tl});
     setOpenId(null);
   };
 
   const tijdlijn = buildTijdlijn(lod);
-  const openOffertes = (lod.offertes||[]).filter(o=>o.aangevraagd&&!o.opdracht).length;
+  const aantalAangevraagd = (lod.offertes||[]).filter(o=>o.aangevraagd).length;
   const cardBorder = lod.status==='afgerond'?'#D1D5DB':open?LOD_ROOD:'#E5E0DB';
 
   return (
-    <div style={{ background:lod.status==='afgerond'?'#FAFAFA':'#fff', border:`1.5px solid ${cardBorder}`, borderRadius:12, overflow:'hidden', marginBottom:10, boxShadow:open?`0 2px 12px rgba(153,26,33,.08)`:'none', transition:'all .2s', opacity:lod.status==='afgerond'?.7:1 }}>
+    <div style={{background:lod.status==='afgerond'?'#FAFAFA':'#fff',border:`1.5px solid ${cardBorder}`,borderRadius:12,overflow:'hidden',marginBottom:10,boxShadow:open?`0 2px 12px rgba(153,26,33,.08)`:'none',transition:'all .2s',opacity:lod.status==='afgerond'?.7:1}}>
       {/* Header */}
-      <div onClick={()=>setOpenId(open?null:lod.id)} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', cursor:'pointer', userSelect:'none' }}>
-        <div style={{ flex:1 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-            <span style={{ fontWeight:700, fontSize:14, color:'#2D2D2D' }}>{lod.vveNaam||<span style={{color:'#aaa',fontStyle:'italic'}}>VvE naam</span>}</span>
+      <div onClick={()=>setOpenId(open?null:lod.id)} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',cursor:'pointer',userSelect:'none'}}>
+        <div style={{flex:1}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+            <span style={{fontWeight:700,fontSize:14,color:'#2D2D2D'}}>{lod.vveNaam||<span style={{color:'#aaa',fontStyle:'italic'}}>VvE naam</span>}</span>
             <LodStatusBadge status={lod.status||'nieuw'} />
-            {lod.behandelaar && <span style={{fontSize:10,color:'#8A7E7B',background:'#F3F4F6',padding:'2px 7px',borderRadius:8}}>{lod.behandelaar}</span>}
-            {openOffertes>0&&lod.status!=='afgerond'&&(
-              <span style={{fontSize:10,fontWeight:600,background:'#F3EFFD',color:'#5B3FA6',padding:'2px 7px',borderRadius:10}}>{openOffertes} offerte{openOffertes>1?'s':''} loopt</span>
+            {lod.behandelaar&&<span style={{fontSize:10,color:'#8A7E7B',background:'#F3F4F6',padding:'2px 7px',borderRadius:8}}>{lod.behandelaar}</span>}
+            {aantalAangevraagd>0&&lod.status!=='afgerond'&&(
+              <span style={{fontSize:10,fontWeight:600,background:'#F3EFFD',color:'#5B3FA6',padding:'2px 7px',borderRadius:10}}>
+                {aantalAangevraagd} offerte{aantalAangevraagd>1?'s':''} aangevraagd
+              </span>
             )}
             {lod.status!=='afgerond'&&dagen!==null&&dagen<0&&(
               <span style={{fontSize:10,fontWeight:600,background:LOD_ROOD_BG,color:LOD_ROOD,padding:'2px 7px',borderRadius:10}}>Deadline voorbij</span>
             )}
           </div>
-          <div style={{ display:'flex', gap:12, marginTop:4, flexWrap:'wrap' }}>
+          <div style={{display:'flex',gap:12,marginTop:4,flexWrap:'wrap'}}>
             {lod.gemeenteReferentie&&<span style={{fontSize:11,color:'#8A7E7B'}}>Ref: {lod.gemeenteReferentie}</span>}
             {lod.ontvangstdatum&&<span style={{fontSize:11,color:'#8A7E7B'}}>Ontvangen: {new Date(lod.ontvangstdatum).toLocaleDateString('nl-NL')}</span>}
             {lod.deadlineAlgemeen&&(
@@ -1843,49 +2004,52 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
             {lod.boeteMax&&<span style={{fontSize:11,color:LOD_ROOD,fontWeight:600}}>Max. boete: {lodFmt(lod.boeteMax)}</span>}
           </div>
         </div>
+        {/* Voortgangsbalk rechts */}
+        <div onClick={e=>e.stopPropagation()}>
+          <LodVoortgangBalk lod={lod} />
+        </div>
         <span style={{fontSize:14,color:'#8A7E7B',transform:open?'rotate(180deg)':'none',transition:'transform .2s'}}>▾</span>
       </div>
 
       {/* Body */}
       {open && (
-        <div style={{ borderTop:'1.5px solid #E5E0DB', background:'#FDFCFB' }}>
+        <div style={{borderTop:'1.5px solid #E5E0DB',background:'#FDFCFB'}}>
           {/* Tabs */}
-          <div style={{ display:'flex', borderBottom:'1px solid #E5DEDA', background:'#fff', paddingLeft:16, overflowX:'auto' }}>
+          <div style={{display:'flex',borderBottom:'1px solid #E5DEDA',background:'#fff',paddingLeft:16,overflowX:'auto'}}>
             {[['details','Gegevens'],['onderdelen','Onderhoudspunten'],['offertes','Offertes'],['tijdlijn','Tijdlijn'],['eenmalig','Eenmalige bijdrage']].map(([key,lbl])=>(
               <button key={key} onClick={()=>setTabKaart(key)}
-                style={{ padding:'9px 14px', border:'none', borderBottom:`2px solid ${tabKaart===key?LOD_ROOD:'transparent'}`, background:'transparent', fontSize:12, fontWeight:tabKaart===key?600:400, color:tabKaart===key?LOD_ROOD:'#6B7280', cursor:'pointer', transition:'all .15s', whiteSpace:'nowrap' }}>
+                style={{padding:'9px 14px',border:'none',borderBottom:`2px solid ${tabKaart===key?LOD_ROOD:'transparent'}`,background:'transparent',fontSize:12,fontWeight:tabKaart===key?600:400,color:tabKaart===key?LOD_ROOD:'#6B7280',cursor:'pointer',transition:'all .15s',whiteSpace:'nowrap'}}>
                 {lbl}
               </button>
             ))}
           </div>
 
-          <div style={{ padding:'16px' }}>
+          <div style={{padding:'16px'}}>
             {/* TAB: Gegevens */}
-            {tabKaart==='details' && (
+            {tabKaart==='details'&&(
               <div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:14 }}>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,marginBottom:14}}>
                   {[
-                    ['VvE naam', 'text', 'vveNaam', 'bijv. VvE Reinkenstraat 1-24', null],
-                    ['Gemeente referentie', 'text', 'gemeenteReferentie', 'bijv. LOD-2026-04821', null],
-                    ['Status', 'select', 'status', null, null],
-                    ['Ontvangstdatum LOD', 'date', 'ontvangstdatum', null, null],
-                    ['Algehele deadline gemeente', 'date', 'deadlineAlgemeen', null, null],
-                    ['Max. boete totaal (€)', 'number', 'boeteMax', 'bijv. 25000', null],
-                    ['Contactpersoon gemeente', 'text', 'contactpersoon', 'bijv. dhr. J. de Vries', null],
-                    ['Tel. / e-mail gemeente', 'text', 'contactGemeente', 'bijv. 070-123 4567', null],
-                  ].map(([label, type, field, placeholder]) => (
+                    ['VvE naam','text','vveNaam','bijv. VvE Reinkenstraat 1-24'],
+                    ['Gemeente referentie','text','gemeenteReferentie','bijv. LOD-2026-04821'],
+                    ['Status','select','status',null],
+                    ['Ontvangstdatum LOD','date','ontvangstdatum',null],
+                    ['Algehele deadline gemeente','date','deadlineAlgemeen',null],
+                    ['Max. boete totaal (€)','number','boeteMax','bijv. 25000'],
+                    ['Contactpersoon gemeente','text','contactpersoon','bijv. dhr. J. de Vries'],
+                    ['Tel. / e-mail gemeente','text','contactGemeente','bijv. 070-123 4567'],
+                  ].map(([label,type,field,placeholder])=>(
                     <div key={field}>
                       <label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>{label}</label>
-                      {type==='select' ? (
+                      {type==='select'?(
                         <select value={lod[field]||'nieuw'} onChange={e=>update({[field]:e.target.value})} className="calc-inp" style={{fontSize:13,cursor:'pointer'}}>
                           {Object.entries(LOD_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
                         </select>
-                      ) : (
+                      ):(
                         <input type={type} value={lod[field]||''} onChange={e=>update({[field]:e.target.value})} placeholder={placeholder||''} className="calc-inp" style={{fontSize:13}} />
                       )}
                     </div>
                   ))}
-                  {/* Behandelaar dropdown */}
                   <div>
                     <label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>Behandelend beheerder</label>
                     <select value={lod.behandelaar||''} onChange={e=>update({behandelaar:e.target.value})} className="calc-inp" style={{fontSize:13,cursor:'pointer'}}>
@@ -1895,13 +2059,12 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
                   </div>
                 </div>
 
-                {/* LOD checkboxes */}
                 <div style={{marginBottom:14}}>
                   <div style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Voortgang LOD</div>
                   <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6}}>
                     {[
                       ['lodOntvangen','ontvangen','LOD ontvangen'],
-                      ['vveGenotificeerd','vveGenotificeerd','VvE genotificeerd'],
+                      ['vveGenotificeerd','vveGenotificeerd','VvE in kennis gesteld'],
                       ['vergaderingBelegd','vergaderingBelegd','Vergadering belegd'],
                       ['gemeenteBevestigd','gemeenteBevestigd','Gemeente bevestigd'],
                     ].map(([field,tlKey,lbl])=>(
@@ -1924,7 +2087,7 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
                     LOD verwijderen
                   </button>
                   <div style={{display:'flex',gap:8}}>
-                    <button onClick={()=>lodExportPDF(lod)} style={{padding:'7px 14px',background:'#fff',border:`1.5px solid ${LOD_ROOD}`,borderRadius:8,fontSize:12,color:LOD_ROOD,cursor:'pointer',fontFamily:'inherit',fontWeight:500}}>
+                    <button onClick={()=>lodExportPDF(lod,null)} style={{padding:'7px 14px',background:'#fff',border:`1.5px solid ${LOD_ROOD}`,borderRadius:8,fontSize:12,color:LOD_ROOD,cursor:'pointer',fontFamily:'inherit',fontWeight:500}}>
                       PDF rapport
                     </button>
                     {lod.status!=='afgerond'&&(
@@ -1938,7 +2101,7 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
             )}
 
             {/* TAB: Onderhoudspunten */}
-            {tabKaart==='onderdelen' && (
+            {tabKaart==='onderdelen'&&(
               <div>
                 <p style={{fontSize:12,color:S.muted,marginBottom:12}}>Beschrijf de onderhoudspunten zoals benoemd in de LOD.</p>
                 {(lod.onderdelen||[]).length===0&&<div style={{textAlign:'center',padding:'30px',color:'#9CA3AF',fontSize:13}}>Nog geen onderhoudspunten toegevoegd.</div>}
@@ -1956,7 +2119,7 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
             )}
 
             {/* TAB: Offertes */}
-            {tabKaart==='offertes' && (
+            {tabKaart==='offertes'&&(
               <div>
                 <p style={{fontSize:12,color:S.muted,marginBottom:12}}>Registreer per partij de offerte. De status van de LOD wordt automatisch bijgewerkt.</p>
                 {(lod.offertes||[]).length===0&&<div style={{textAlign:'center',padding:'30px',color:'#9CA3AF',fontSize:13}}>Nog geen offertes geregistreerd.</div>}
@@ -1997,11 +2160,11 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
             )}
 
             {/* TAB: Tijdlijn */}
-            {tabKaart==='tijdlijn' && (
+            {tabKaart==='tijdlijn'&&(
               <div>
-                {tijdlijn.length===0 ? (
+                {tijdlijn.length===0?(
                   <div style={{textAlign:'center',padding:'30px',color:'#9CA3AF',fontSize:13}}>Nog geen acties. Vink stappen aan om de tijdlijn op te bouwen.</div>
-                ) : (
+                ):(
                   <div style={{position:'relative',paddingLeft:24}}>
                     <div style={{position:'absolute',left:7,top:0,bottom:0,width:2,background:'#E5DEDA',borderRadius:2}} />
                     {tijdlijn.map((e,i)=>(
@@ -2017,7 +2180,7 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
             )}
 
             {/* TAB: Eenmalige bijdrage */}
-            {tabKaart==='eenmalig' && <LodEenmaligTab lod={lod} onUpdate={onUpdate} />}
+            {tabKaart==='eenmalig'&&<LodEenmaligTab lod={lod} onUpdate={onUpdate} />}
           </div>
         </div>
       )}
@@ -2034,9 +2197,7 @@ function LodKalender({ lods }) {
   lods.filter(l=>l.status!=='afgerond').forEach(l=>{
     if (l.deadlineAlgemeen) {
       const d = new Date(l.deadlineAlgemeen);
-      if (d.getFullYear()===jaar) {
-        events.push({maand:d.getMonth(),dag:d.getDate(),naam:l.vveNaam||'Naamloos',ref:l.gemeenteReferentie,dagen:lodDagenTot(l.deadlineAlgemeen)});
-      }
+      if (d.getFullYear()===jaar) events.push({maand:d.getMonth(),dag:d.getDate(),naam:l.vveNaam||'Naamloos',dagen:lodDagenTot(l.deadlineAlgemeen)});
     }
   });
   return (
@@ -2076,54 +2237,90 @@ function LodKalender({ lods }) {
 
 // ── LodBeheer ─────────────────────────────────────────────────────
 function LodBeheer({ onTerug, beheerderList }) {
-  const [lods, setLods] = useState(()=>lodLoad());
+  const [lods, setLods] = useState(()=>lodLocalLoad());
   const [openId, setOpenId] = useState(null);
   const [zoek, setZoek] = useState('');
   const [filterStatus, setFilterStatus] = useState('alle');
   const [tabHoofd, setTabHoofd] = useState('lods');
+  const [loading, setLoading] = useState(true);
 
-  const saveAndSet = (nl) => { setLods(nl); lodSave(nl); };
-  const addLod = () => {
-    const n = { id:lodUid(), vveNaam:'', gemeenteReferentie:'', status:'nieuw', behandelaar:'',
-      ontvangstdatum:new Date().toISOString().slice(0,10), deadlineAlgemeen:'', boeteMax:'',
-      notitie:'', contactpersoon:'', contactGemeente:'',
-      lodOntvangen:true, vveGenotificeerd:false, vergaderingBelegd:false, gemeenteBevestigd:false,
-      onderdelen:[], offertes:[], tijdlijn:{ ontvangen:lodNow() } };
-    saveAndSet([n,...lods]);
+  // Laad uit Supabase bij mount
+  useState(()=>{
+    setTimeout(()=>{
+      lodSupaLoad().then(data=>{
+        if (data && data.length) setLods(data);
+        setLoading(false);
+      }).catch(()=>setLoading(false));
+    },0);
+  });
+
+  const saveAndSet = async (nl) => {
+    setLods(nl);
+    // Sla alleen de gewijzigde LOD op
+  };
+
+  const addLod = async () => {
+    const n = {id:lodUid(),vveNaam:'',gemeenteReferentie:'',status:'nieuw',behandelaar:'',
+      ontvangstdatum:new Date().toISOString().slice(0,10),deadlineAlgemeen:'',boeteMax:'',
+      notitie:'',contactpersoon:'',contactGemeente:'',
+      lodOntvangen:true,vveGenotificeerd:false,vergaderingBelegd:false,gemeenteBevestigd:false,
+      onderdelen:[],offertes:[],tijdlijn:{ontvangen:lodNow()}};
+    const updated = [n,...lods];
+    setLods(updated);
+    await lodSupaSave(n);
     setOpenId(n.id);
     setTabHoofd('lods');
   };
-  const updateLod = (u) => saveAndSet(lods.map(l=>l.id===u.id?u:l));
-  const deleteLod = (id) => saveAndSet(lods.filter(l=>l.id!==id));
+
+  const updateLod = async (u) => {
+    setLods(prev=>prev.map(l=>l.id===u.id?u:l));
+    await lodSupaSave(u);
+  };
+
+  const deleteLod = async (id) => {
+    setLods(prev=>prev.filter(l=>l.id!==id));
+    await lodSupaDelete(id);
+  };
 
   // Stats
-  const actief = lods.filter(l=>l.status!=='afgerond');
-  const urgent = lods.filter(l=>{const d=lodDagenTot(l.deadlineAlgemeen);return d!==null&&d<=14&&d>=0&&l.status!=='afgerond';});
+  const actief       = lods.filter(l=>l.status!=='afgerond');
+  const ofwacht      = lods.filter(l=>l.status==='offertes_afwacht');
+  const vveAfwacht   = lods.filter(l=>l.status==='vve_afwachting');
+  const urgent       = lods.filter(l=>{const d=lodDagenTot(l.deadlineAlgemeen);return d!==null&&d<=14&&d>=0&&l.status!=='afgerond';});
   const overschreden = lods.filter(l=>{const d=lodDagenTot(l.deadlineAlgemeen);return d!==null&&d<0&&l.status!=='afgerond';});
-  const ofwacht = lods.filter(l=>l.status==='offertes_afwacht');
-  const wachtOpVve = lods.filter(l=>l.status!=='afgerond'&&(l.offertes||[]).some(o=>o.ontvangen&&!o.vveAkkoord));
-  const totaalBoete = actief.reduce((s,l)=>s+(parseFloat(l.boeteMax)||0),0);
+  const totaalBoete  = actief.reduce((s,l)=>s+(parseFloat(l.boeteMax)||0),0);
 
-  // Klikbare stats filter
   const statFilters = [
-    { key:'alle',            label:"Alle LOD's",          val:lods.length,       tc:'#2D2D2D', dc:'#2D2D2D' },
-    { key:'actief',          label:'Actief',              val:actief.length,      tc:'#1A4D7A', dc:'#1A4D7A' },
-    { key:'offertes_afwacht',label:'Offerte in afwachting',val:ofwacht.length,   tc:'#92400E', dc:'#B45309' },
-    { key:'wacht_vve',       label:'Wacht op VvE',        val:wachtOpVve.length,  tc:LOD_ROOD,  dc:LOD_ROOD  },
-    { key:'urgent',          label:'Urgent (≤14d)',        val:urgent.length,     tc:LOD_ROOD,  dc:LOD_ROOD  },
-    { key:'overschreden',    label:'Overschreden',         val:overschreden.length,tc:LOD_ROOD, dc:LOD_ROOD  },
+    {key:'alle',           label:"Alle LOD's",            val:lods.length,           tc:'#2D2D2D',dc:'#2D2D2D'},
+    {key:'actief',         label:'Actief',                val:actief.length,          tc:'#1A4D7A',dc:'#1A4D7A'},
+    {key:'offertes_afwacht',label:'Offerte in afwachting',val:ofwacht.length,         tc:'#92400E',dc:'#B45309'},
+    {key:'vve_afwachting', label:'In afwachting van VvE', val:vveAfwacht.length,      tc:'#065F46',dc:'#059669'},
+    {key:'urgent',         label:'Urgent',                val:urgent.length,          tc:LOD_ROOD, dc:LOD_ROOD},
+    {key:'overschreden',   label:'Overschreden',          val:overschreden.length,    tc:LOD_ROOD, dc:LOD_ROOD},
   ];
+
+  // Filterlijst zijbalk: exclusief 'in_behandeling' en 'offertes_lopen'
+  const filterLijstStatussen = Object.entries(LOD_STATUS).filter(([k])=>k!=='in_behandeling'&&k!=='offertes_lopen');
 
   let zichtbaar = lods.filter(l=>{
     const mz = !zoek||(l.vveNaam||'').toLowerCase().includes(zoek.toLowerCase())||(l.gemeenteReferentie||'').toLowerCase().includes(zoek.toLowerCase());
     let ms = true;
-    if (filterStatus==='actief') ms = l.status!=='afgerond';
-    else if (filterStatus==='wacht_vve') ms = (l.offertes||[]).some(o=>o.ontvangen&&!o.vveAkkoord)&&l.status!=='afgerond';
-    else if (filterStatus==='urgent') ms = (()=>{const d=lodDagenTot(l.deadlineAlgemeen);return d!==null&&d<=14&&d>=0&&l.status!=='afgerond';})();
-    else if (filterStatus==='overschreden') ms = (()=>{const d=lodDagenTot(l.deadlineAlgemeen);return d!==null&&d<0&&l.status!=='afgerond';})();
-    else if (filterStatus!=='alle') ms = l.status===filterStatus;
+    if (filterStatus==='actief')         ms=l.status!=='afgerond';
+    else if (filterStatus==='urgent')    ms=(()=>{const d=lodDagenTot(l.deadlineAlgemeen);return d!==null&&d<=14&&d>=0&&l.status!=='afgerond';})();
+    else if (filterStatus==='overschreden') ms=(()=>{const d=lodDagenTot(l.deadlineAlgemeen);return d!==null&&d<0&&l.status!=='afgerond';})();
+    else if (filterStatus!=='alle')      ms=l.status===filterStatus;
     return mz&&ms;
   });
+
+  if (loading) return (
+    <div className="min-h-screen bg-[#F2EFEC] flex items-center justify-center">
+      <style>{CSS_FONT}</style>
+      <div style={{textAlign:'center',color:'#8A7E7B'}}>
+        <div style={{fontSize:24,marginBottom:8}}>⏳</div>
+        <div style={{fontSize:14}}>LOD data laden...</div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-[#F2EFEC]">
@@ -2149,25 +2346,22 @@ function LodBeheer({ onTerug, beheerderList }) {
         </div>
       </div>
 
-      {/* Stats balk — klikbaar */}
+      {/* Stats balk — klikbaar, breed, cijfer links */}
       <div style={{background:'#fff',borderBottom:'1px solid #E5DEDA',display:'flex',flexWrap:'wrap'}}>
         {statFilters.map(sf=>(
           <button key={sf.key} onClick={()=>setFilterStatus(sf.key)}
-            style={{display:'flex',alignItems:'center',gap:8,padding:'10px 16px',border:'none',borderBottom:`2px solid ${filterStatus===sf.key?sf.tc:'transparent'}`,background:filterStatus===sf.key?'#FAF7F2':'transparent',cursor:'pointer',transition:'all .15s',borderRight:'1px solid #F3F4F6'}}>
-            <div style={{width:8,height:8,borderRadius:'50%',background:sf.dc}} />
+            style={{display:'flex',alignItems:'center',gap:12,padding:'12px 20px',border:'none',borderBottom:`2px solid ${filterStatus===sf.key?sf.tc:'transparent'}`,background:filterStatus===sf.key?'#FAF7F2':'transparent',cursor:'pointer',transition:'all .15s',borderRight:'1px solid #F3F4F6',minWidth:140}}>
+            <span style={{fontSize:28,fontWeight:700,color:sf.tc,fontFamily:'DM Sans,sans-serif',lineHeight:1}}>{sf.val}</span>
             <div style={{textAlign:'left'}}>
-              <div style={{fontSize:18,fontWeight:700,color:sf.tc,fontFamily:'DM Sans,sans-serif',lineHeight:1}}>{sf.val}</div>
-              <div style={{fontSize:10,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.05em',fontWeight:600,marginTop:2}}>{sf.label}</div>
+              <div style={{fontSize:11,color:sf.tc,fontWeight:600,lineHeight:1.2}}>{sf.label}</div>
+              {filterStatus===sf.key&&<div style={{fontSize:9,color:'#9CA3AF',marginTop:2}}>actief filter</div>}
             </div>
           </button>
         ))}
         {totaalBoete>0&&(
-          <div style={{display:'flex',alignItems:'center',gap:8,padding:'10px 16px',borderRight:'1px solid #F3F4F6'}}>
-            <div style={{width:8,height:8,borderRadius:'50%',background:LOD_ROOD}} />
-            <div>
-              <div style={{fontSize:14,fontWeight:700,color:LOD_ROOD,fontFamily:'monospace',lineHeight:1}}>{lodFmt(totaalBoete)}</div>
-              <div style={{fontSize:10,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.05em',fontWeight:600,marginTop:2}}>Totaal boeterisico</div>
-            </div>
+          <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 20px',borderRight:'1px solid #F3F4F6',minWidth:160}}>
+            <span style={{fontSize:22,fontWeight:700,color:LOD_ROOD,fontFamily:'monospace',lineHeight:1}}>{lodFmt(totaalBoete)}</span>
+            <div style={{fontSize:11,color:LOD_ROOD,fontWeight:600,lineHeight:1.2}}>Totaal<br/>boeterisico</div>
           </div>
         )}
       </div>
@@ -2182,12 +2376,12 @@ function LodBeheer({ onTerug, beheerderList }) {
         ))}
       </div>
 
-      <div style={{maxWidth:1100,margin:'0 auto',padding:'24px 20px 80px'}}>
-        {tabHoofd==='kalender' ? <LodKalender lods={lods} /> : (
+      <div style={{maxWidth:1200,margin:'0 auto',padding:'24px 20px 80px'}}>
+        {tabHoofd==='kalender'?<LodKalender lods={lods}/>:(
           <div style={{display:'grid',gridTemplateColumns:'240px 1fr',gap:20}}>
             {/* Zijbalk */}
             <div>
-              {(overschreden.length>0||urgent.length>0||ofwacht.length>0||wachtOpVve.length>0)&&(
+              {(overschreden.length>0||urgent.length>0||ofwacht.length>0||vveAfwacht.length>0)&&(
                 <div style={{background:'#fff',border:'1.5px solid #E5DEDA',borderRadius:12,padding:'14px 16px',marginBottom:14}}>
                   <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:LOD_ROOD,marginBottom:10}}>Actie vereist</div>
                   {overschreden.map(l=>(
@@ -2208,17 +2402,17 @@ function LodBeheer({ onTerug, beheerderList }) {
                       <span style={{color:'#5B3FA6'}}>offerte open</span>
                     </div>
                   ))}
-                  {wachtOpVve.filter(l=>!overschreden.includes(l)&&!urgent.includes(l)&&!ofwacht.includes(l)).map(l=>(
-                    <div key={l.id} onClick={()=>setOpenId(l.id)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 8px',background:'#FEF3E2',border:'1px solid #FDE68A',borderRadius:7,marginBottom:5,cursor:'pointer',fontSize:11}}>
-                      <span style={{fontWeight:600,color:'#92400E'}}>{l.vveNaam||'Naamloos'}</span>
-                      <span style={{color:'#92400E'}}>wacht VvE</span>
+                  {vveAfwacht.filter(l=>!overschreden.includes(l)&&!urgent.includes(l)&&!ofwacht.includes(l)).map(l=>(
+                    <div key={l.id} onClick={()=>setOpenId(l.id)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 8px',background:'#D1FAE5',border:'1px solid #6EE7B7',borderRadius:7,marginBottom:5,cursor:'pointer',fontSize:11}}>
+                      <span style={{fontWeight:600,color:'#065F46'}}>{l.vveNaam||'Naamloos'}</span>
+                      <span style={{color:'#065F46'}}>wacht VvE</span>
                     </div>
                   ))}
                 </div>
               )}
               <div style={{background:'#fff',border:'1px solid #E5DEDA',borderRadius:12,padding:'14px 16px'}}>
                 <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#8A7E7B',marginBottom:10}}>Filter op status</div>
-                {[['alle',"Alle LOD's"],...Object.entries(LOD_STATUS).map(([k,v])=>[k,v.label])].map(([key,lbl])=>(
+                {[['alle',"Alle LOD's"],...filterLijstStatussen.map(([k,v])=>[k,v.label])].map(([key,lbl])=>(
                   <button key={key} onClick={()=>setFilterStatus(key)}
                     style={{display:'block',width:'100%',textAlign:'left',padding:'7px 10px',borderRadius:7,border:'none',background:filterStatus===key?LOD_ROOD_BG:'transparent',color:filterStatus===key?LOD_ROOD:'#374151',fontSize:12,fontWeight:filterStatus===key?600:400,cursor:'pointer',marginBottom:2}}>
                     {lbl}
@@ -2234,15 +2428,15 @@ function LodBeheer({ onTerug, beheerderList }) {
                 <input value={zoek} onChange={e=>setZoek(e.target.value)} placeholder="Zoek op VvE naam of referentie..."
                   className="calc-inp" style={{flex:1,fontSize:13}} />
                 {zoek&&<button onClick={()=>setZoek('')} style={{padding:'8px 12px',background:'#fff',border:'1px solid #E5DEDA',borderRadius:8,cursor:'pointer',fontSize:12,color:'#8A7E7B'}}>✕</button>}
-                {filterStatus!=='alle'&&<button onClick={()=>setFilterStatus('alle')} style={{padding:'6px 12px',background:LOD_ROOD_BG,border:`1px solid #fca5a5`,borderRadius:8,cursor:'pointer',fontSize:11,color:LOD_ROOD,fontWeight:600,whiteSpace:'nowrap'}}>✕ Filter wissen</button>}
+                {filterStatus!=='alle'&&<button onClick={()=>setFilterStatus('alle')} style={{padding:'6px 12px',background:LOD_ROOD_BG,border:`1px solid #fca5a5`,borderRadius:8,cursor:'pointer',fontSize:11,color:LOD_ROOD,fontWeight:600,whiteSpace:'nowrap'}}>✕ Wis filter</button>}
               </div>
-              {zichtbaar.length===0 ? (
+              {zichtbaar.length===0?(
                 <div style={{textAlign:'center',padding:'60px 20px',color:'#9CA3AF'}}>
                   <div style={{fontSize:32,marginBottom:12}}>📋</div>
                   <div style={{fontSize:14,fontWeight:600,marginBottom:4}}>{lods.length===0?"Nog geen LOD's geregistreerd":"Geen resultaten"}</div>
                   <div style={{fontSize:12}}>{lods.length===0?"Klik op + Nieuwe LOD om te beginnen.":"Probeer een andere zoekterm of filter."}</div>
                 </div>
-              ) : zichtbaar.map(lod=>(
+              ):zichtbaar.map(lod=>(
                 <LodKaart key={lod.id} lod={lod} onUpdate={updateLod} onDelete={()=>deleteLod(lod.id)} openId={openId} setOpenId={setOpenId} beheerderList={beheerderList} />
               ))}
             </div>
