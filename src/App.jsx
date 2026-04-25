@@ -2526,6 +2526,531 @@ function LodBeheer({ onTerug, beheerderList }) {
   );
 }
 
+// ── MJOP Analyse ─────────────────────────────────────────────────
+
+const MJOP_CATEGORIEEN = [
+  'dak','dakvlak','dakbedekking','dakgoot','gevel','gevelbekleding','metselwerk',
+  'voegwerk','kozijn','kozijnen','raam','ramen','deur','deuren','beglazing',
+  'schilderwerk','houtwerk','balkon','balkons','galerij','galerijvloer',
+  'fundering','vloer','installatie','cv','centrale verwarming','warmtepomp',
+  'lift','liftinstallatie','elektra','elektriciteit','bedrading',
+  'waterleiding','riolering','afvoer','hemelwaterafvoer',
+  'buitenriolering','drainage','parkeerplaats','bestrating','verharding',
+  'trap','trappenhuis','entree','hal','gemeenschappelijke ruimte',
+  'brandveiligheid','brandinstallatie','sprinkler','rookmelder',
+  'zonnepanelen','isolatie','gevelisolatie','dakisolatie','ventilatiesysteem',
+  'mechanische ventilatie','buitenluifel','luifel','erfafscheiding',
+  'hekwerk','buitenverlichting','intercom'
+];
+
+function mjopParseer(tekst) {
+  const regels = tekst.split(/\r?\n/).map(r => r.trim()).filter(Boolean);
+  const resultaat = [];
+  let _id = 0;
+
+  // Herkenningstabel voor jaar-patronen
+  const jaarRegex = /(20[2-9]\d)/g;
+  const bedragRegex = /€?\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)\s*(?:,-|euro|EUR)?/gi;
+
+  // Detecteer tabelrijen: regel bevat jaar + bedrag
+  for (let i = 0; i < regels.length; i++) {
+    const regel = regels[i];
+    const jaren = [...regel.matchAll(jaarRegex)].map(m => parseInt(m[1]));
+    const lowerRegel = regel.toLowerCase();
+
+    // Skip regels die puur headers/totalen zijn
+    if (/^(jaar|omschrijving|beschrijving|post|onderdeel|totaal|subtotaal|pagina|tabel)/i.test(regel.trim())) continue;
+    if (regel.length < 5) continue;
+
+    // Zoek naar bedragen
+    const bedragMatches = [];
+    let m;
+    const bedragRe = /€?\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?)/g;
+    while ((m = bedragRe.exec(regel)) !== null) {
+      const numStr = m[1].replace(/\./g, '').replace(',', '.');
+      const num = parseFloat(numStr);
+      if (num >= 100 && num <= 10000000) bedragMatches.push(num);
+    }
+
+    if (jaren.length === 0 && bedragMatches.length === 0) {
+      // Mogelijk een omschrijvingsregel — sla op als context voor volgende rij
+      continue;
+    }
+
+    // Bepaal omschrijving: zoek in huidige en vorige regels
+    let omschrijving = '';
+    const categorieGevonden = MJOP_CATEGORIEEN.find(cat => lowerRegel.includes(cat));
+
+    if (categorieGevonden) {
+      // Neem de tekst vóór het eerste jaar/bedrag als omschrijving
+      omschrijving = regel
+        .replace(/€?\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?/g, '')
+        .replace(/20[2-9]\d/g, '')
+        .replace(/[,;|]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    } else {
+      // Kijk naar vorige regels voor context
+      for (let j = Math.max(0, i-3); j < i; j++) {
+        const prev = regels[j].toLowerCase();
+        const catPrev = MJOP_CATEGORIEEN.find(cat => prev.includes(cat));
+        if (catPrev && regels[j].length > 3 && regels[j].length < 120) {
+          omschrijving = regels[j]
+            .replace(/€?\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?/g, '')
+            .replace(/20[2-9]\d/g, '')
+            .replace(/[,;|]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+          break;
+        }
+      }
+      if (!omschrijving) {
+        omschrijving = regel
+          .replace(/€?\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?/g, '')
+          .replace(/20[2-9]\d/g, '')
+          .replace(/[,;|]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+      }
+    }
+
+    if (!omschrijving || omschrijving.length < 3) continue;
+
+    // Maak een rij per jaar/bedrag combinatie
+    if (jaren.length > 0 && bedragMatches.length > 0) {
+      const jaar = jaren[0];
+      const bedrag = bedragMatches[bedragMatches.length > 1 ? bedragMatches.length - 1 : 0];
+      resultaat.push({
+        id: 'mjop_' + (++_id),
+        jaar,
+        omschrijving: omschrijving.substring(0, 120),
+        bedrag,
+        notitie: ''
+      });
+    } else if (jaren.length > 0) {
+      // Jaar zonder bedrag — voeg toe met 0
+      resultaat.push({
+        id: 'mjop_' + (++_id),
+        jaar: jaren[0],
+        omschrijving: omschrijving.substring(0, 120),
+        bedrag: 0,
+        notitie: ''
+      });
+    }
+  }
+
+  // Deduplicieer bijna-identieke rijen
+  const uniek = [];
+  const gezien = new Set();
+  for (const r of resultaat) {
+    const sleutel = r.jaar + '|' + r.omschrijving.toLowerCase().substring(0, 30) + '|' + r.bedrag;
+    if (!gezien.has(sleutel)) {
+      gezien.add(sleutel);
+      uniek.push(r);
+    }
+  }
+
+  return uniek.sort((a, b) => a.jaar - b.jaar || a.omschrijving.localeCompare(b.omschrijving));
+}
+
+function mjopFmt(n) {
+  if (!n && n !== 0) return '—';
+  return '€ ' + Number(n).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function mjopExportPDF(vveNaam, planPeriode, rijen) {
+  const nu = new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  // Groepeer per jaar
+  const perJaar = {};
+  rijen.forEach(r => {
+    if (!perJaar[r.jaar]) perJaar[r.jaar] = [];
+    perJaar[r.jaar].push(r);
+  });
+
+  const jaren = Object.keys(perJaar).sort();
+  const totaalAlles = rijen.reduce((s, r) => s + (r.bedrag || 0), 0);
+
+  let tabelHTML = '';
+  jaren.forEach(jaar => {
+    const items = perJaar[jaar];
+    const totaalJaar = items.reduce((s, r) => s + (r.bedrag || 0), 0);
+    tabelHTML += `
+      <tr class="jaar-header">
+        <td colspan="2" style="background:#1A4D7A;color:#fff;padding:8px 12px;font-weight:700;font-size:10pt;font-family:'DM Serif Display',serif">
+          ${jaar}
+        </td>
+        <td style="background:#1A4D7A;color:#fff;padding:8px 12px;font-weight:700;text-align:right;font-family:monospace">
+          ${mjopFmt(totaalJaar)}
+        </td>
+      </tr>`;
+    items.forEach((r, i) => {
+      tabelHTML += `
+        <tr style="background:${i % 2 === 0 ? '#fff' : '#FAF7F2'}">
+          <td style="padding:7px 12px;font-size:9pt;color:#374151;width:60px;text-align:center;font-family:monospace">${i + 1}</td>
+          <td style="padding:7px 12px;font-size:9pt;color:#1A1614">${r.omschrijving}${r.notitie ? '<br><span style="font-size:8pt;color:#8A7E7B;font-style:italic">' + r.notitie + '</span>' : ''}</td>
+          <td style="padding:7px 12px;font-size:9pt;font-family:monospace;text-align:right;font-weight:500;color:${r.bedrag > 0 ? '#1A1614' : '#9CA3AF'}">${r.bedrag > 0 ? mjopFmt(r.bedrag) : '—'}</td>
+        </tr>`;
+    });
+    tabelHTML += `
+      <tr style="background:#EAF1F8;border-top:2px solid #1A4D7A">
+        <td colspan="2" style="padding:7px 12px;font-size:9pt;font-weight:600;color:#1A4D7A">Totaal ${jaar}</td>
+        <td style="padding:7px 12px;font-family:monospace;font-size:9pt;font-weight:700;text-align:right;color:#1A4D7A">${mjopFmt(totaalJaar)}</td>
+      </tr>
+      <tr><td colspan="3" style="padding:4px"></td></tr>`;
+  });
+
+  const html = `<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8">
+    <title>MJOP Overzicht — ${vveNaam||'VvE'}</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:"DM Sans",Arial,sans-serif;color:#1A1614;font-size:10pt;background:#fff;padding:32px 40px}
+      .hdr{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:14px;border-bottom:3px solid #1A4D7A;margin-bottom:24px}
+      .hdr h1{font-family:"DM Serif Display",serif;font-size:20pt;color:#1A4D7A;font-weight:400}
+      .hdr .meta{font-size:9pt;color:#8A7E7B;margin-top:4px}
+      .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px}
+      .stat{background:#EAF1F8;border-left:4px solid #1A4D7A;padding:12px 16px;border-radius:6px}
+      .stat-num{font-family:"DM Serif Display",serif;font-size:20pt;color:#1A4D7A;font-weight:400;line-height:1}
+      .stat-lbl{font-size:8pt;color:#8A7E7B;text-transform:uppercase;letter-spacing:.06em;margin-top:4px}
+      table{width:100%;border-collapse:collapse;margin-bottom:0}
+      .jaar-header td{letter-spacing:.02em}
+      .note{margin-top:28px;padding:12px 16px;background:#FAF7F2;border-left:4px solid #1A4D7A;font-size:8.5pt;color:#8A7E7B;border-radius:4px;line-height:1.6}
+      .footer{margin-top:20px;padding-top:8px;border-top:1px solid #E5DEDA;display:flex;justify-content:space-between;font-size:7.5pt;color:#8A7E7B}
+      .totaal-rij{background:#1A4D7A!important}
+      .print-btn{position:fixed;top:18px;right:18px;padding:9px 20px;background:#1A4D7A;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-family:sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+      @media print{body{padding:16px 20px}.print-btn{display:none}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+    </style></head><body>
+    <button class="print-btn" onclick="window.print()">Afdrukken / PDF</button>
+    <div class="hdr">
+      <div>
+        <h1>MJOP Overzicht</h1>
+        <div class="meta">${vveNaam||'VvE'} · Planperiode ${planPeriode} · Opgesteld op ${nu}</div>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-num">${rijen.length}</div>
+        <div class="stat-lbl">Onderhoudspunten</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">${jaren.length}</div>
+        <div class="stat-lbl">Jaar${jaren.length !== 1 ? 'en' : ''} in plan</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num" style="font-size:14pt">${mjopFmt(totaalAlles)}</div>
+        <div class="stat-lbl">Totaal geraamde kosten</div>
+      </div>
+    </div>
+    <table>
+      <thead>
+        <tr style="background:#2D2D2D;color:#fff">
+          <th style="padding:8px 12px;text-align:center;font-size:8pt;font-weight:600;text-transform:uppercase;letter-spacing:.05em;width:50px">#</th>
+          <th style="padding:8px 12px;text-align:left;font-size:8pt;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Onderhoudspunt</th>
+          <th style="padding:8px 12px;text-align:right;font-size:8pt;font-weight:600;text-transform:uppercase;letter-spacing:.05em;width:140px">Geraamd bedrag</th>
+        </tr>
+      </thead>
+      <tbody>${tabelHTML}</tbody>
+      <tfoot>
+        <tr style="background:#2D2D2D">
+          <td colspan="2" style="padding:10px 12px;font-family:'DM Serif Display',serif;font-size:12pt;color:#fff;font-weight:400">Totaal planperiode</td>
+          <td style="padding:10px 12px;font-family:monospace;font-size:12pt;font-weight:700;text-align:right;color:#fff">${mjopFmt(totaalAlles)}</td>
+        </tr>
+      </tfoot>
+    </table>
+    <div class="note">
+      <strong>Toelichting:</strong> De genoemde bedragen zijn ramingen zoals opgesteld door de bouwkundige adviseur en zijn exclusief BTW, tenzij anders vermeld.
+      Werkelijke uitvoeringskosten kunnen afwijken. Dit overzicht dient als planningsinstrument en geeft geen garantie over toekomstige kosten.
+      Wij adviseren de onderhoudspunten tijdig te agenderen in de VvE vergadering.
+    </div>
+    <div class="footer">
+      <span>Totaal VvE Beheer Den Haag en omstreken B.V. · Rijswijk</span>
+      <span>MJOP Analyse · ${nu}</span>
+    </div>
+    </body></html>`;
+
+  const w = window.open('', '_blank', 'width=1050,height=850');
+  if (w) { w.document.write(html); w.document.close(); }
+  else alert('Pop-up geblokkeerd. Sta pop-ups toe voor deze pagina.');
+}
+
+// ── MjopAnalyse component ─────────────────────────────────────────
+function MjopAnalyse({ onTerug }) {
+  const [stap, setStap] = useState('invoer'); // invoer | resultaat
+  const [vveNaam, setVveNaam] = useState('');
+  const [planPeriode, setPlanPeriode] = useState('');
+  const [tekst, setTekst] = useState('');
+  const [rijen, setRijen] = useState([]);
+  const [error, setError] = useState('');
+  const [filterJaar, setFilterJaar] = useState('alle');
+
+  const verwerk = () => {
+    setError('');
+    if (!tekst.trim()) { setError('Plak eerst de MJOP tekst in het invoerveld.'); return; }
+    const gevonden = mjopParseer(tekst);
+    if (!gevonden.length) {
+      setError('Geen onderhoudspunten herkend. Zorg dat de tekst jaren (bijv. 2025) en bedragen bevat, of pas de tekst aan en probeer opnieuw.');
+      return;
+    }
+    setRijen(gevonden);
+    setStap('resultaat');
+  };
+
+  const updateRij = (id, changes) => setRijen(prev => prev.map(r => r.id === id ? { ...r, ...changes } : r));
+  const deleteRij = (id) => setRijen(prev => prev.filter(r => r.id !== id));
+  const addRij = () => {
+    const nieuwJaar = rijen.length ? Math.max(...rijen.map(r => r.jaar)) : new Date().getFullYear();
+    setRijen(prev => [...prev, { id: 'mjop_new_' + Date.now(), jaar: nieuwJaar, omschrijving: '', bedrag: 0, notitie: '' }]);
+  };
+
+  const jaren = [...new Set(rijen.map(r => r.jaar))].sort();
+  const zichtbaar = filterJaar === 'alle' ? rijen : rijen.filter(r => r.jaar === parseInt(filterJaar));
+  const totaalAlles = rijen.reduce((s, r) => s + (r.bedrag || 0), 0);
+  const totaalZichtbaar = zichtbaar.reduce((s, r) => s + (r.bedrag || 0), 0);
+
+  // Groepeer zichtbare rijen per jaar voor tabelweergave
+  const perJaar = {};
+  zichtbaar.forEach(r => {
+    if (!perJaar[r.jaar]) perJaar[r.jaar] = [];
+    perJaar[r.jaar].push(r);
+  });
+
+  return (
+    <div className="min-h-screen bg-[#F2EFEC]">
+      <style>{CSS_FONT}</style>
+      {/* Topbar */}
+      <div className="border-b border-gray-200 px-6 h-14 flex items-center justify-between bg-white shadow-sm sticky top-0 z-50">
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1">
+            <div style={{ width:28, height:28, background:'#1A4D7A', borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <span style={{ color:'#fff', fontSize:13 }}>🏗</span>
+            </div>
+            <div style={{ width:28, height:28, background:'#2D2D2D', borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <span style={{ color:'#fff', fontSize:11, fontWeight:700 }}>M</span>
+            </div>
+          </div>
+          <div className="w-px h-5 bg-gray-200" />
+          <span className="text-sm font-bold text-[#2D2D2D]">MJOP Analyse</span>
+          <span className="text-xs text-gray-400">Meerjarenonderhoudsplan overzicht</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {stap === 'resultaat' && (
+            <>
+              <button onClick={() => mjopExportPDF(vveNaam, planPeriode || `${jaren[0]}–${jaren[jaren.length-1]}`, rijen)}
+                style={{ fontSize:12, padding:'6px 14px', background:'#1A4D7A', color:'#fff', border:'none', borderRadius:8, cursor:'pointer', fontFamily:'inherit', fontWeight:600 }}>
+                PDF rapport exporteren
+              </button>
+              <button onClick={() => { setStap('invoer'); setRijen([]); setError(''); }}
+                style={{ fontSize:12, padding:'6px 14px', background:'#fff', color:'#374151', border:'1px solid #E5DEDA', borderRadius:8, cursor:'pointer', fontFamily:'inherit' }}>
+                Nieuw MJOP
+              </button>
+            </>
+          )}
+          <button onClick={onTerug} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-gray-600 transition-colors">
+            ← Terug naar portaal
+          </button>
+        </div>
+      </div>
+
+      <div style={{ maxWidth:960, margin:'0 auto', padding:'32px 20px 80px' }}>
+
+        {/* ── STAP 1: Invoer ── */}
+        {stap === 'invoer' && (
+          <div>
+            <div style={{ marginBottom:28 }}>
+              <h2 style={{ fontFamily:'Georgia,serif', fontSize:22, color:'#2D2D2D', marginBottom:6 }}>MJOP tekst invoeren</h2>
+              <p style={{ fontSize:13, color:'#8A7E7B', lineHeight:1.6 }}>
+                Open het MJOP als PDF, selecteer alle tekst (Ctrl+A), kopieer (Ctrl+C) en plak het hieronder.
+                De tool herkent automatisch onderhoudspunten, jaren en geraamde bedragen.
+              </p>
+            </div>
+
+            {/* Basisgegevens */}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:20 }}>
+              <div>
+                <label style={{ fontSize:11, fontWeight:600, color:'#8A7E7B', textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:6 }}>VvE naam</label>
+                <input value={vveNaam} onChange={e => setVveNaam(e.target.value)}
+                  placeholder="bijv. VvE Reinkenstraat 1–24"
+                  className="calc-inp" style={{ fontSize:14 }} />
+              </div>
+              <div>
+                <label style={{ fontSize:11, fontWeight:600, color:'#8A7E7B', textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:6 }}>Planperiode (optioneel)</label>
+                <input value={planPeriode} onChange={e => setPlanPeriode(e.target.value)}
+                  placeholder="bijv. 2025–2035"
+                  className="calc-inp" style={{ fontSize:14 }} />
+              </div>
+            </div>
+
+            {/* Tekstveld */}
+            <div style={{ marginBottom:16 }}>
+              <label style={{ fontSize:11, fontWeight:600, color:'#8A7E7B', textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:6 }}>
+                MJOP tekst
+              </label>
+              <textarea
+                value={tekst}
+                onChange={e => setTekst(e.target.value)}
+                placeholder={`Plak hier de volledige tekst uit het MJOP...
+
+Voorbeeld:
+2025  Schilderwerk kozijnen buitenzijde  € 8.500
+2026  Herstel gevelmetselwerk noordgevel  € 14.200
+2028  Vervanging dakbedekking plat dak    € 22.000`}
+                style={{
+                  width:'100%', minHeight:320, padding:'16px', border:'1.5px solid #E5DEDA',
+                  borderRadius:12, fontFamily:'monospace', fontSize:12, color:'#1A1614',
+                  background:'#fff', outline:'none', resize:'vertical', lineHeight:1.6
+                }}
+                onFocus={e => e.target.style.borderColor = '#1A4D7A'}
+                onBlur={e => e.target.style.borderColor = '#E5DEDA'}
+              />
+              <div style={{ display:'flex', justifyContent:'space-between', marginTop:6, fontSize:11, color:'#9CA3AF' }}>
+                <span>{tekst.split(/\r?\n/).filter(Boolean).length} regels · {tekst.length} tekens</span>
+
+                {tekst && <button onClick={() => { setTekst(''); setError(''); }} style={{ background:'none', border:'none', cursor:'pointer', color:'#9CA3AF', fontSize:11 }}>Wissen</button>}
+              </div>
+            </div>
+
+            {error && (
+              <div style={{ background:'#FDEAEB', border:'1px solid #fca5a5', borderRadius:8, padding:'10px 14px', fontSize:13, color:'#991A21', marginBottom:14 }}>
+                {error}
+              </div>
+            )}
+
+            <button onClick={verwerk} style={{
+              width:'100%', padding:14, background:'#1A4D7A', border:'none', borderRadius:12,
+              fontFamily:'Georgia,serif', fontSize:17, color:'#fff', cursor:'pointer'
+            }}>
+              Analyseer MJOP →
+            </button>
+
+            {/* Uitleg */}
+            <div style={{ marginTop:24, padding:'16px 20px', background:'#EAF1F8', borderRadius:12, border:'1px solid #BFDBFE' }}>
+              <div style={{ fontSize:12, fontWeight:600, color:'#1A4D7A', marginBottom:8 }}>Tips voor beste resultaat</div>
+              <div style={{ fontSize:12, color:'#374151', lineHeight:1.7 }}>
+                <div>• Kopieer de volledige tekst uit de PDF — ook tabelrijen worden herkend</div>
+                <div>• De tool herkent jaren (2025, 2026–2028) en bedragen (€ 12.500 of 12500)</div>
+                <div>• Na de analyse kun je rijen handmatig aanpassen, toevoegen of verwijderen</div>
+                <div>• Bedragen zonder jaar worden overgeslagen</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── STAP 2: Resultaat ── */}
+        {stap === 'resultaat' && (
+          <div>
+            {/* Header */}
+            <div style={{ marginBottom:24 }}>
+              <h2 style={{ fontFamily:'Georgia,serif', fontSize:22, color:'#2D2D2D', marginBottom:4 }}>
+                {vveNaam || 'MJOP Overzicht'}
+              </h2>
+              <p style={{ fontSize:13, color:'#8A7E7B' }}>
+                {planPeriode && `Planperiode ${planPeriode} · `}
+                {rijen.length} onderhoudspunten herkend · Geraamd totaal: <strong style={{ color:'#1A4D7A' }}>{mjopFmt(totaalAlles)}</strong>
+              </p>
+            </div>
+
+            {/* Stats */}
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14, marginBottom:24 }}>
+              <div style={{ background:'#fff', border:'1px solid #E5DEDA', borderRadius:12, padding:'16px 20px' }}>
+                <div style={{ fontFamily:'Georgia,serif', fontSize:28, color:'#1A4D7A' }}>{rijen.length}</div>
+                <div style={{ fontSize:11, color:'#8A7E7B', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:4 }}>Onderhoudspunten</div>
+              </div>
+              <div style={{ background:'#fff', border:'1px solid #E5DEDA', borderRadius:12, padding:'16px 20px' }}>
+                <div style={{ fontFamily:'Georgia,serif', fontSize:28, color:'#1A4D7A' }}>{jaren.length}</div>
+                <div style={{ fontSize:11, color:'#8A7E7B', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:4 }}>Jaar{jaren.length !== 1 ? 'en' : ''} in plan</div>
+              </div>
+              <div style={{ background:'#fff', border:'1px solid #E5DEDA', borderRadius:12, padding:'16px 20px' }}>
+                <div style={{ fontFamily:'Georgia,serif', fontSize:22, color:'#1A4D7A', lineHeight:1.2 }}>{mjopFmt(totaalAlles)}</div>
+                <div style={{ fontSize:11, color:'#8A7E7B', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:4 }}>Totaal geraamd</div>
+              </div>
+            </div>
+
+            {/* Filter per jaar */}
+            <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap', alignItems:'center' }}>
+              <span style={{ fontSize:11, fontWeight:600, color:'#8A7E7B', textTransform:'uppercase', letterSpacing:'0.06em' }}>Filter:</span>
+              {['alle', ...jaren.map(String)].map(j => (
+                <button key={j} onClick={() => setFilterJaar(j)}
+                  style={{ padding:'5px 12px', border:`1.5px solid ${filterJaar===j?'#1A4D7A':'#E5DEDA'}`, borderRadius:20, background:filterJaar===j?'#EAF1F8':'#fff', color:filterJaar===j?'#1A4D7A':'#374151', fontSize:12, fontWeight:filterJaar===j?600:400, cursor:'pointer', transition:'all .15s' }}>
+                  {j === 'alle' ? 'Alle jaren' : j}
+                </button>
+              ))}
+              {filterJaar !== 'alle' && (
+                <span style={{ fontSize:12, color:'#8A7E7B', marginLeft:8 }}>
+                  {zichtbaar.length} punt{zichtbaar.length !== 1 ? 'en' : ''} · {mjopFmt(totaalZichtbaar)}
+                </span>
+              )}
+            </div>
+
+            {/* Tabel per jaar */}
+            {Object.entries(perJaar).sort(([a],[b]) => parseInt(a)-parseInt(b)).map(([jaar, items]) => (
+              <div key={jaar} style={{ marginBottom:16 }}>
+                {/* Jaar header */}
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', background:'#1A4D7A', borderRadius:'10px 10px 0 0' }}>
+                  <span style={{ fontFamily:'Georgia,serif', fontSize:16, color:'#fff', fontWeight:400 }}>{jaar}</span>
+                  <span style={{ fontFamily:'monospace', fontSize:13, color:'rgba(255,255,255,.85)', fontWeight:600 }}>
+                    {mjopFmt(items.reduce((s,r)=>s+(r.bedrag||0),0))}
+                  </span>
+                </div>
+                {/* Rijen */}
+                <div style={{ background:'#fff', border:'1px solid #E5DEDA', borderBottom:'none', overflow:'hidden' }}>
+                  {items.map((r, i) => (
+                    <div key={r.id} style={{ display:'grid', gridTemplateColumns:'1fr 180px 36px', gap:8, padding:'8px 12px', borderBottom:'1px solid #F3F4F6', background:i%2===0?'#fff':'#FAF7F2', alignItems:'center' }}>
+                      <div>
+                        <input value={r.omschrijving} onChange={e => updateRij(r.id, { omschrijving: e.target.value })}
+                          className="calc-inp" style={{ fontSize:13, background:'transparent', border:'1px solid transparent', padding:'4px 6px' }}
+                          onFocus={e => e.target.style.background = '#fff'}
+                          onBlur={e => e.target.style.background = 'transparent'}
+                        />
+                      </div>
+                      <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                        <span style={{ fontSize:12, color:'#8A7E7B' }}>€</span>
+                        <input type="number" value={r.bedrag||''} onChange={e => updateRij(r.id, { bedrag: parseFloat(e.target.value)||0 })}
+                          className="calc-inp" style={{ fontSize:13, fontFamily:'monospace', background:'transparent', border:'1px solid transparent', padding:'4px 6px' }}
+                          onFocus={e => e.target.style.background = '#fff'}
+                          onBlur={e => e.target.style.background = 'transparent'}
+                        />
+                      </div>
+                      <button onClick={() => deleteRij(r.id)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:14, color:'#D1D5DB', padding:'4px', borderRadius:4 }}
+                        onMouseEnter={e => e.target.style.color = '#991A21'}
+                        onMouseLeave={e => e.target.style.color = '#D1D5DB'}>
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {/* Totaalrij jaar */}
+                <div style={{ display:'flex', justifyContent:'space-between', padding:'8px 16px', background:'#EAF1F8', border:'1px solid #E5DEDA', borderRadius:'0 0 10px 10px' }}>
+                  <span style={{ fontSize:12, fontWeight:600, color:'#1A4D7A' }}>Totaal {jaar}</span>
+                  <span style={{ fontFamily:'monospace', fontSize:13, fontWeight:700, color:'#1A4D7A' }}>{mjopFmt(items.reduce((s,r)=>s+(r.bedrag||0),0))}</span>
+                </div>
+              </div>
+            ))}
+
+            {/* Rij toevoegen */}
+            <button onClick={addRij} style={{ width:'100%', padding:'10px', background:'#fff', border:'1.5px dashed #E5DEDA', borderRadius:10, fontFamily:'inherit', fontSize:13, color:'#8A7E7B', cursor:'pointer', marginBottom:20 }}>
+              + Onderhoudspunt toevoegen
+            </button>
+
+            {/* Totaal alle jaren */}
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'16px 20px', background:'#2D2D2D', borderRadius:12 }}>
+              <span style={{ fontFamily:'Georgia,serif', fontSize:16, color:'#fff' }}>Totaal planperiode</span>
+              <span style={{ fontFamily:'Georgia,serif', fontSize:24, color:'#fff' }}>{mjopFmt(totaalAlles)}</span>
+            </div>
+
+            {/* Disclaimer */}
+            <div style={{ marginTop:16, padding:'12px 16px', background:'#EAF1F8', borderRadius:8, fontSize:12, color:'#374151', lineHeight:1.6, border:'1px solid #BFDBFE' }}>
+              <strong style={{ color:'#1A4D7A' }}>Toelichting:</strong> De genoemde bedragen zijn ramingen van de bouwkundige adviseur en kunnen afwijken van de werkelijke uitvoeringskosten.
+              Controleer de geëxtraheerde punten en pas waar nodig aan voor het exporteren.
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 function exportAdminPDF(allData, beheerderList) {
   const year = new Date().getFullYear();
   let html = `<html><head><meta charset="utf-8"><style>
@@ -3258,6 +3783,7 @@ export default function App() {
   // ── Screens ──────────────────────────────────────────────────
   if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBack={()=>setScreen("portaal")}/>;
   if (screen==="lod") return <LodBeheer onTerug={()=>setScreen("portaal")} beheerderList={beheerderList}/>;
+  if (screen==="mjop") return <MjopAnalyse onTerug={()=>setScreen("portaal")}/>;
   if (screen==="calculator") return <VveCalculator onTerug={()=>setScreen("portaal")}/>;
 
   if (screen==="login") return (
@@ -3473,6 +3999,23 @@ export default function App() {
                   {lodUrgent === 0 && lodDezesMaand === 0 && (
                     <p className="text-xs text-gray-400">Geen urgente deadlines</p>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* MJOP Analyse — alleen voor admin */}
+            {isAdmin && (
+              <div
+                onClick={()=>setScreen("mjop")}
+                className="bg-white border-2 border-gray-200 hover:border-[#1A4D7A] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
+              >
+                <div className="absolute top-0 left-0 right-0 h-1 bg-[#1A4D7A] rounded-t-2xl" />
+                <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-2xl mb-4">🏗️</div>
+                <h3 className="text-base font-bold text-[#2D2D2D] mb-2">MJOP Analyse</h3>
+                <p className="text-xs text-gray-500 mb-4 leading-relaxed">Plak tekst uit een meerjarenonderhoudsplan en genereer een overzichtsrapport.</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs bg-blue-50 text-[#1A4D7A] px-2 py-1 rounded-full font-semibold border border-blue-100">Admin only</span>
+                  <span className="text-[#1A4D7A] font-bold group-hover:translate-x-1 transition-transform">→</span>
                 </div>
               </div>
             )}
