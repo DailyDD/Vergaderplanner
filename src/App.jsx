@@ -2544,112 +2544,83 @@ const MJOP_CATEGORIEEN = [
 ];
 
 function mjopParseer(tekst) {
-  const regels = tekst.split(/\r?\n/).map(r => r.trim()).filter(Boolean);
+  const regels = tekst.split(/\r?\n/);
   const resultaat = [];
   let _id = 0;
 
-  // Herkenningstabel voor jaar-patronen
-  const jaarRegex = /(20[2-9]\d)/g;
-  const bedragRegex = /€?\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)\s*(?:,-|euro|EUR)?/gi;
+  const skipRe = /^(code|omschrijving|element|locatie|handeling|hvh|ehd|stj|cy|totaal|toelichting|tabel|pagina|alle prijzen|btw|meerjarenonderhoudsplan|inhoudsopgave|elementenoverzicht|bevindingen|jaarplan|overzicht 15|urgentie|activiteit|gebrek|bevinding|conditie|n\.v\.t\.|geen actie|zie exploitatie|zie exploitatiebegroting|staartkosten|directievoering|benaderings|niet te inspecteren|kruipruimte|splitsingsakte|geschilderde geveldelen|overige zelf|weersgesteldheid|financieel|technisch|inspecteur|inspectiedatum|opdrachtgever|contactpersoon|klantcode|handelskade|volmerlaan|rijswijk|den haag|prijspeil|\d{4}\.\d+)/i;
 
-  // Detecteer tabelrijen: regel bevat jaar + bedrag
   for (let i = 0; i < regels.length; i++) {
-    const regel = regels[i];
-    const jaren = [...regel.matchAll(jaarRegex)].map(m => parseInt(m[1]));
-    const lowerRegel = regel.toLowerCase();
+    const r = regels[i].trim();
+    if (!r || r.length < 8) continue;
+    if (skipRe.test(r)) continue;
 
-    // Skip regels die puur headers/totalen zijn
-    if (/^(jaar|omschrijving|beschrijving|post|onderdeel|totaal|subtotaal|pagina|tabel)/i.test(regel.trim())) continue;
-    if (regel.length < 5) continue;
+    // Zoek jaar op deze regel
+    const jaren = r.match(/\b(20[2-9]\d)\b/g);
+    if (!jaren) continue;
 
-    // Zoek naar bedragen
-    const bedragMatches = [];
-    let m;
-    const bedragRe = /€?\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?)/g;
-    while ((m = bedragRe.exec(regel)) !== null) {
-      const numStr = m[1].replace(/\./g, '').replace(',', '.');
-      const num = parseFloat(numStr);
-      if (num >= 100 && num <= 10000000) bedragMatches.push(num);
-    }
+    // Zoek alle euro-bedragen op deze regel
+    const bedragenRaw = r.match(/€\s*([\d.]+)/g);
+    if (!bedragenRaw || !bedragenRaw.length) continue;
 
-    if (jaren.length === 0 && bedragMatches.length === 0) {
-      // Mogelijk een omschrijvingsregel — sla op als context voor volgende rij
-      continue;
-    }
+    // Het laatste bedrag is het totaal (kolom Totaal in MJOP)
+    const laatste = bedragenRaw[bedragenRaw.length - 1];
+    const bedragNum = parseFloat(laatste.replace(/€\s*/, '').replace(/\./g, '').replace(',', '.'));
+    if (isNaN(bedragNum) || bedragNum < 100 || bedragNum > 5000000) continue;
 
-    // Bepaal omschrijving: zoek in huidige en vorige regels
-    let omschrijving = '';
-    const categorieGevonden = MJOP_CATEGORIEEN.find(cat => lowerRegel.includes(cat));
+    // Bouw omschrijving: strip getallen, eenheden, bedragen, jaren
+    let omschrijving = r
+      .replace(/€\s*[\d.]+/g, '')
+      .replace(/\b20[2-9]\d\b/g, '')
+      .replace(/\b\d+[,.]\d+\s*(m2|m1|st|pst|opm|ml)\b/gi, '')
+      .replace(/\b\d+\s*(m2|m1|st|pst|opm|ml)\b/gi, '')
+      .replace(/\b\d+\b/g, '')
+      .replace(/[,.|€]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
 
-    if (categorieGevonden) {
-      // Neem de tekst vóór het eerste jaar/bedrag als omschrijving
-      omschrijving = regel
-        .replace(/€?\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?/g, '')
-        .replace(/20[2-9]\d/g, '')
-        .replace(/[,;|]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-    } else {
-      // Kijk naar vorige regels voor context
-      for (let j = Math.max(0, i-3); j < i; j++) {
-        const prev = regels[j].toLowerCase();
-        const catPrev = MJOP_CATEGORIEEN.find(cat => prev.includes(cat));
-        if (catPrev && regels[j].length > 3 && regels[j].length < 120) {
-          omschrijving = regels[j]
-            .replace(/€?\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?/g, '')
-            .replace(/20[2-9]\d/g, '')
-            .replace(/[,;|]/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
+    // Als omschrijving te kort — kijk in vorige regels
+    if (omschrijving.length < 10) {
+      for (let j = Math.max(0, i - 4); j < i; j++) {
+        const prev = regels[j].trim();
+        if (prev && prev.length > 10 &&
+            !prev.match(/€|\b20[2-9]\d\b/) &&
+            !skipRe.test(prev) &&
+            !/^(hele gebouw|achtergevel|voorgevel|intern|algemene|dak\b|uitbouwen|bergingen|entreehal|portiek)/i.test(prev)) {
+          omschrijving = prev.replace(/\s+/g, ' ').trim().substring(0, 100);
           break;
         }
       }
-      if (!omschrijving) {
-        omschrijving = regel
-          .replace(/€?\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?/g, '')
-          .replace(/20[2-9]\d/g, '')
-          .replace(/[,;|]/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
+    }
+
+    if (omschrijving.length < 5) continue;
+
+    // Prefix met categoriecode als beschikbaar
+    let categorie = '';
+    for (let j = Math.max(0, i - 8); j < i; j++) {
+      const prev = regels[j].trim();
+      if (/^(0[1-9]|[1-9]\d)\s+[A-Z]/.test(prev)) {
+        categorie = prev.replace(/^(\d+)\s+/, '').trim().substring(0, 30);
+        break;
       }
     }
 
-    if (!omschrijving || omschrijving.length < 3) continue;
-
-    // Maak een rij per jaar/bedrag combinatie
-    if (jaren.length > 0 && bedragMatches.length > 0) {
-      const jaar = jaren[0];
-      const bedrag = bedragMatches[bedragMatches.length > 1 ? bedragMatches.length - 1 : 0];
-      resultaat.push({
-        id: 'mjop_' + (++_id),
-        jaar,
-        omschrijving: omschrijving.substring(0, 120),
-        bedrag,
-        notitie: ''
-      });
-    } else if (jaren.length > 0) {
-      // Jaar zonder bedrag — voeg toe met 0
-      resultaat.push({
-        id: 'mjop_' + (++_id),
-        jaar: jaren[0],
-        omschrijving: omschrijving.substring(0, 120),
-        bedrag: 0,
-        notitie: ''
-      });
-    }
+    resultaat.push({
+      id: 'mjop_' + (++_id),
+      jaar: parseInt(jaren[0]),
+      categorie: categorie || '',
+      omschrijving: omschrijving.substring(0, 110),
+      bedrag: bedragNum,
+    });
   }
 
   // Deduplicieer bijna-identieke rijen
-  const uniek = [];
   const gezien = new Set();
+  const uniek = [];
   for (const r of resultaat) {
-    const sleutel = r.jaar + '|' + r.omschrijving.toLowerCase().substring(0, 30) + '|' + r.bedrag;
-    if (!gezien.has(sleutel)) {
-      gezien.add(sleutel);
-      uniek.push(r);
-    }
+    const sleutel = r.jaar + '|' + r.omschrijving.toLowerCase().substring(0, 25) + '|' + r.bedrag;
+    if (!gezien.has(sleutel)) { gezien.add(sleutel); uniek.push(r); }
   }
-
   return uniek.sort((a, b) => a.jaar - b.jaar || a.omschrijving.localeCompare(b.omschrijving));
 }
 
