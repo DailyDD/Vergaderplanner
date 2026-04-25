@@ -399,6 +399,9 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className={`text-sm font-semibold truncate ${afgerond ? "text-emerald-700" : "text-[#2D2D2D]"}`}>{vve.naam}</span>
+            {vveHeeftLod && vveHeeftLod(vve.naam) && (
+              <span style={{fontSize:9,fontWeight:700,background:'#FDEAEB',color:'#991A21',padding:'1px 6px',borderRadius:8,border:'1px solid #fca5a5',whiteSpace:'nowrap',flexShrink:0}}>⚠ LOD</span>
+            )}
             {afgerond && <Badge color="green">✓ Afgerond</Badge>}
             {afgerond && vve.voorkeurVolgendjaar && <Badge color="blue">📅 {new Date().getFullYear()+1} gepland</Badge>}
             {!afgerond && vergaderd1 && vve.datum2 && !vergaderd2 && <Badge color="blue">1e ✓ · 2e loopt</Badge>}
@@ -1605,9 +1608,9 @@ function LodStatusBadge({ status }) {
 function buildTijdlijn(lod) {
   const events = [];
   const add = (ts,tekst,kleur) => { if(ts) events.push({ts,tekst,kleur}); };
-  add(lod.tijdlijn?.ontvangen,        'LOD ontvangen van gemeente',                   '#1A4D7A');
-  add(lod.tijdlijn?.vveGenotificeerd, 'VvE in kennis gesteld',                        '#5B3FA6');
-  add(lod.tijdlijn?.vergaderingBelegd,'Vergadering belegd',                            LOD_ROOD);
+  add(lod.tijdlijn?.vveGenotificeerd,          'VvE in kennis gesteld',                '#1A4D7A');
+  add(lod.tijdlijn?.offertesMail,              'Offertes voorgelegd per e-mail',       '#5B3FA6');
+  add(lod.tijdlijn?.vergaderingUitgeschreven,  'Vergadering uitgeschreven',            LOD_ROOD);
   (lod.offertes||[]).forEach(o=>{
     add(o.tijdlijn?.aangevraagd,`Offerte aangevraagd bij ${o.partij||'onbekend'}`,    '#1A4D7A');
     add(o.tijdlijn?.ontvangen,  `Offerte ontvangen van ${o.partij||'onbekend'}`,      '#5B3FA6');
@@ -1624,15 +1627,13 @@ function buildTijdlijn(lod) {
 function lodVoortgang(lod) {
   const ofs = lod.offertes||[];
   return [
-    { lbl:'LOD ontvangen',         ok: !!lod.lodOntvangen },
-    { lbl:'VvE in kennis gesteld', ok: !!lod.vveGenotificeerd },
-    { lbl:'Vergadering belegd',    ok: !!lod.vergaderingBelegd },
-    { lbl:'Offerte aangevraagd',   ok: ofs.some(o=>o.aangevraagd) },
-    { lbl:'Offerte ontvangen',     ok: ofs.some(o=>o.ontvangen) },
-    { lbl:'Aan VvE voorgelegd',    ok: ofs.some(o=>o.vveVoorlegd) },
-    { lbl:'VvE akkoord',           ok: ofs.some(o=>o.vveAkkoord) },
-    { lbl:'Opdracht verstrekt',    ok: ofs.some(o=>o.opdracht) },
-    { lbl:'Gemeente bevestigd',    ok: !!lod.gemeenteBevestigd },
+    { lbl:'VvE in kennis gesteld',        ok: !!lod.vveGenotificeerd },
+    { lbl:'Offertes aangevraagd',         ok: ofs.some(o=>o.aangevraagd) },
+    { lbl:'Offerte ontvangen',            ok: ofs.some(o=>o.ontvangen) },
+    { lbl:'Aan VvE voorgelegd/vergaderd', ok: ofs.some(o=>o.vveVoorlegd) },
+    { lbl:'VvE akkoord',                  ok: ofs.some(o=>o.vveAkkoord) },
+    { lbl:'Opdracht verstrekt',           ok: ofs.some(o=>o.opdracht) },
+    { lbl:'Afronding gemeld gemeente',    ok: !!lod.gemeenteBevestigd },
   ];
 }
 
@@ -2063,10 +2064,10 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
                   <div style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Voortgang LOD</div>
                   <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6}}>
                     {[
-                      ['lodOntvangen','ontvangen','LOD ontvangen'],
                       ['vveGenotificeerd','vveGenotificeerd','VvE in kennis gesteld'],
-                      ['vergaderingBelegd','vergaderingBelegd','Vergadering belegd'],
-                      ['gemeenteBevestigd','gemeenteBevestigd','Gemeente bevestigd'],
+                      ['offertesMail','offertesMail','Offertes voorgelegd per e-mail'],
+                      ['vergaderingUitgeschreven','vergaderingUitgeschreven','Vergadering uitgeschreven'],
+                      ['gemeenteBevestigd','gemeenteBevestigd','Afronding gemeld gemeente'],
                     ].map(([field,tlKey,lbl])=>(
                       <label key={field} style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',padding:'8px 10px',background:lod[field]?'#EAF1F8':'#fff',border:`1.5px solid ${lod[field]?'#1A4D7A':'#E5DEDA'}`,borderRadius:8,fontSize:11,fontWeight:600,color:lod[field]?'#1A4D7A':'#8A7E7B',userSelect:'none',transition:'all .15s'}}>
                         <input type="checkbox" checked={!!lod[field]} onChange={e=>toggleCheck(field,tlKey,e.target.checked)} style={{width:13,height:13,accentColor:'#1A4D7A',cursor:'pointer'}} />
@@ -2235,6 +2236,81 @@ function LodKalender({ lods }) {
   );
 }
 
+
+function exportTotaalLodPDF(lods) {
+  const actief = lods.filter(l=>l.status!=='afgerond');
+  const nu = new Date().toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric'});
+
+  const rijen = actief.map((lod,i) => {
+    const dagen  = lodDagenTot(lod.deadlineAlgemeen);
+    const status = (LOD_STATUS[lod.status||'nieuw']||LOD_STATUS.nieuw).label;
+    const stappen = lodVoortgang(lod);
+    const gedaan  = stappen.filter(s=>s.ok).length;
+    const pct     = Math.round(gedaan/stappen.length*100);
+    const aantalOf = (lod.offertes||[]).filter(o=>o.aangevraagd).length;
+    const deadlineKleur = dagen===null?'#374151':dagen<0?'#991A21':dagen<=14?'#D97706':'#374151';
+    return `<tr style="background:${i%2===0?'#fff':'#FAF7F2'}">
+      <td style="font-weight:600">${lod.vveNaam||'-'}</td>
+      <td>${lod.gemeenteReferentie||'-'}</td>
+      <td>${lod.behandelaar||'-'}</td>
+      <td><span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:8pt;font-weight:600;background:${(LOD_STATUS[lod.status||'nieuw']||LOD_STATUS.nieuw).bg};color:${(LOD_STATUS[lod.status||'nieuw']||LOD_STATUS.nieuw).color}">${status}</span></td>
+      <td style="text-align:center;color:${deadlineKleur};font-weight:${dagen!==null&&dagen<=14?'600':'400'}">${lod.deadlineAlgemeen?new Date(lod.deadlineAlgemeen).toLocaleDateString('nl-NL'):'-'}${dagen!==null?' ('+Math.abs(dagen)+(dagen<0?'d over':' d')+')':''}</td>
+      <td style="text-align:right;color:#991A21;font-weight:600">${lodFmt(lod.boeteMax)}</td>
+      <td style="text-align:center">${aantalOf}</td>
+      <td style="text-align:center">
+        <div style="display:flex;align-items:center;gap:6px;justify-content:center">
+          <div style="width:60px;height:6px;background:#F3F4F6;border-radius:3px;overflow:hidden">
+            <div style="width:${pct}%;height:100%;background:${pct===100?'#2D6A4F':'#991A21'};border-radius:3px"></div>
+          </div>
+          <span style="font-size:8pt;font-weight:600;color:${pct===100?'#2D6A4F':'#991A21'}">${pct}%</span>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  const totaalBoete = actief.reduce((s,l)=>s+(parseFloat(l.boeteMax)||0),0);
+  const overschreden = actief.filter(l=>{const d=lodDagenTot(l.deadlineAlgemeen);return d!==null&&d<0;}).length;
+  const urgent = actief.filter(l=>{const d=lodDagenTot(l.deadlineAlgemeen);return d!==null&&d>=0&&d<=14;}).length;
+
+  const html = `<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8">
+    <title>LOD Totaaloverzicht - ${nu}</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:"DM Sans",Arial,sans-serif;color:#1A1614;font-size:10pt;background:#fff;padding:32px 40px}
+    .hdr{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:12px;border-bottom:3px solid #991A21;margin-bottom:22px}
+    .hdr h1{font-family:"DM Serif Display",serif;font-size:18pt;color:#991A21;font-weight:400}.hdr .meta{font-size:9pt;color:#8A7E7B;margin-top:3px}
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+    .stat{background:#FAF7F2;border-left:3px solid #991A21;padding:10px 14px;border-radius:4px}
+    .stat-num{font-family:"DM Serif Display",serif;font-size:22pt;color:#991A21;font-weight:400}
+    .stat-lbl{font-size:8pt;color:#8A7E7B;text-transform:uppercase;letter-spacing:.05em}
+    table{width:100%;border-collapse:collapse;font-size:9pt}
+    thead tr{background:#991A21;color:#fff}thead th{padding:8px 10px;text-align:left;font-size:8pt;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+    tbody td{padding:7px 10px;border-bottom:1px solid #E5DEDA}
+    .footer{margin-top:20px;padding-top:8px;border-top:1px solid #E5DEDA;display:flex;justify-content:space-between;font-size:7.5pt;color:#8A7E7B}
+    .print-btn{position:fixed;top:18px;right:18px;padding:9px 18px;background:#991A21;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer}
+    @media print{.print-btn{display:none}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
+    </head><body>
+    <button class="print-btn" onclick="window.print()">Afdrukken / PDF</button>
+    <div class="hdr"><div><h1>LOD Totaaloverzicht</h1><div class="meta">Alle actieve LOD dossiers · Opgesteld op ${nu}</div></div></div>
+    <div class="stats">
+      <div class="stat"><div class="stat-num">${actief.length}</div><div class="stat-lbl">Actieve LODs</div></div>
+      <div class="stat"><div class="stat-num" style="color:#D97706">${urgent}</div><div class="stat-lbl">Urgent (≤14 dagen)</div></div>
+      <div class="stat"><div class="stat-num">${overschreden}</div><div class="stat-lbl">Deadline voorbij</div></div>
+      <div class="stat"><div class="stat-num" style="font-size:16pt">${lodFmt(totaalBoete)}</div><div class="stat-lbl">Totaal boeterisico</div></div>
+    </div>
+    <table><thead><tr>
+      <th>VvE</th><th>Ref. gemeente</th><th>Behandelaar</th><th>Status</th>
+      <th>Deadline</th><th style="text-align:right">Max. boete</th>
+      <th style="text-align:center">Offertes</th><th style="text-align:center">Voortgang</th>
+    </tr></thead>
+    <tbody>${rijen||'<tr><td colspan=8 style="color:#8A7E7B;text-align:center;padding:20px">Geen actieve LODs</td></tr>'}</tbody></table>
+    <div class="footer"><span>Totaal VvE Beheer Den Haag en omstreken B.V. · Rijswijk</span><span>Last onder Dwangsom module</span></div>
+    </body></html>`;
+
+  const w = window.open('','_blank','width=1200,height=850');
+  if (w) { w.document.write(html); w.document.close(); }
+  else alert('Pop-up geblokkeerd.');
+}
+
 // ── LodBeheer ─────────────────────────────────────────────────────
 function LodBeheer({ onTerug, beheerderList }) {
   const [lods, setLods] = useState(()=>lodLocalLoad());
@@ -2263,7 +2339,7 @@ function LodBeheer({ onTerug, beheerderList }) {
     const n = {id:lodUid(),vveNaam:'',gemeenteReferentie:'',status:'nieuw',behandelaar:'',
       ontvangstdatum:new Date().toISOString().slice(0,10),deadlineAlgemeen:'',boeteMax:'',
       notitie:'',contactpersoon:'',contactGemeente:'',
-      lodOntvangen:true,vveGenotificeerd:false,vergaderingBelegd:false,gemeenteBevestigd:false,
+      vveGenotificeerd:false,offertesMail:false,vergaderingUitgeschreven:false,gemeenteBevestigd:false,
       onderdelen:[],offertes:[],tijdlijn:{ontvangen:lodNow()}};
     const updated = [n,...lods];
     setLods(updated);
@@ -2339,6 +2415,9 @@ function LodBeheer({ onTerug, beheerderList }) {
         <div className="flex items-center gap-2">
           <button onClick={addLod} style={{fontSize:12,padding:'6px 14px',background:LOD_ROOD,color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
             + Nieuwe LOD
+          </button>
+          <button onClick={()=>exportTotaalLodPDF(lods)} style={{fontSize:12,padding:'6px 14px',background:'#fff',color:LOD_ROOD,border:`1.5px solid ${LOD_ROOD}`,borderRadius:8,cursor:'pointer',fontFamily:'inherit',fontWeight:500}}>
+            Totaaloverzicht PDF
           </button>
           <button onClick={onTerug} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-gray-600 transition-colors">
             ← Terug naar portaal
@@ -3244,6 +3323,20 @@ export default function App() {
   // ── Portaal screen ──────────────────────────────────────────
   if (screen==="portaal") {
     const isAdmin = beheerder === "Admin";
+    // LOD statistieken voor dashboard
+    const lodData = isAdmin ? lodLocalLoad() : [];
+    const lodActief = lodData.filter(l=>l.status!=='afgerond');
+    const now = new Date();
+    const maandEind = new Date(now.getFullYear(), now.getMonth()+1, 0);
+    const lodDezesMaand = lodActief.filter(l=>{
+      if (!l.deadlineAlgemeen) return false;
+      const d = new Date(l.deadlineAlgemeen);
+      return d >= now && d <= maandEind;
+    }).length;
+    const lodUrgent = lodActief.filter(l=>{
+      const d = lodDagenTot(l.deadlineAlgemeen);
+      return d !== null && d <= 14 && d >= 0;
+    }).length;
     // Recente activiteit: laatste 3 vergaderde VvE's
     const recenteActiviteit = (data.vves || [])
       .filter(v => v.vergaderd1 || v.vergaderd2 || v.uitgenodigd1)
@@ -3358,6 +3451,32 @@ export default function App() {
               </div>
             )}
 
+            {/* LOD Dashboard tegel — alleen voor admin */}
+            {isAdmin && lodActief.length > 0 && (
+              <div
+                onClick={()=>setScreen("lod")}
+                className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-5 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group col-span-1"
+              >
+                <div className="absolute top-0 left-0 right-0 h-1 bg-[#991A21] rounded-t-2xl" />
+                <div className="flex items-start justify-between mb-3">
+                  <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center text-lg">⚠</div>
+                  <span className="text-xs bg-red-50 text-[#991A21] px-2 py-1 rounded-full font-semibold border border-red-100">{lodActief.length} actief</span>
+                </div>
+                <h3 className="text-sm font-bold text-[#2D2D2D] mb-1">LOD Dossiers</h3>
+                <div className="space-y-1">
+                  {lodUrgent > 0 && (
+                    <p className="text-xs text-[#991A21] font-semibold">⚡ {lodUrgent} urgent (≤14 dagen)</p>
+                  )}
+                  {lodDezesMaand > 0 && (
+                    <p className="text-xs text-amber-600">📅 {lodDezesMaand} deadline{lodDezesMaand>1?'s':''} deze maand</p>
+                  )}
+                  {lodUrgent === 0 && lodDezesMaand === 0 && (
+                    <p className="text-xs text-gray-400">Geen urgente deadlines</p>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Toekomstige tool placeholder */}
             {!isAdmin && (
               <div className="bg-white border-2 border-dashed border-gray-200 rounded-2xl p-6 opacity-50 relative overflow-hidden">
@@ -3389,6 +3508,15 @@ export default function App() {
       </div>
     );
   }
+
+  // LOD koppeling: laad actieve LODs voor vergaderplanner notitie
+  const activeLods = lodLocalLoad().filter(l=>l.status!=='afgerond');
+  const vveHeeftLod = (vveNaam) => activeLods.some(l =>
+    l.vveNaam && vveNaam && l.vveNaam.toLowerCase().includes(vveNaam.toLowerCase().trim().substring(0,8))
+  );
+  const getVveLodInfo = (vveNaam) => activeLods.filter(l =>
+    l.vveNaam && vveNaam && l.vveNaam.toLowerCase().includes(vveNaam.toLowerCase().trim().substring(0,8))
+  );
 
   // Main screen
   return (
@@ -3932,6 +4060,7 @@ export default function App() {
                         onAdd2nd={planningPreview ? ()=>{} : add2nd}
                         forceOpen={forceOpenId === vve.id}
                         onForceOpenHandled={() => setForceOpenId(null)}
+                        vveHeeftLod={vveHeeftLod}
                       />
                     </div>
                   </div>
