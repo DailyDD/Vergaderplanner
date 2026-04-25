@@ -1473,17 +1473,22 @@ function VveCalculator({ onTerug }) {
 let _lodId = 0;
 const lodUid = () => 'lod_' + (++_lodId) + '_' + Date.now();
 
+const LOD_ROOD = '#991A21';
+const LOD_ROOD_BG = '#FDEAEB';
+const LOD_ROOD_DARK = '#7a1419';
+
 const LOD_STATUS = {
-  nieuw:          { label: 'Nieuw ontvangen',        color: '#1A4D7A', bg: '#EAF1F8', dot: '#1A4D7A' },
-  in_behandeling: { label: 'In behandeling',          color: '#92550A', bg: '#FEF3E2', dot: '#D97706' },
-  offertes_lopen: { label: 'Offertes lopen',          color: '#5B3FA6', bg: '#F3EFFD', dot: '#7C3AED' },
-  vve_akkoord:    { label: 'VvE akkoord',             color: '#2D6A4F', bg: '#EAF4EE', dot: '#2D6A4F' },
-  opdracht_uit:   { label: 'Opdracht verstrekt',      color: '#065F46', bg: '#D1FAE5', dot: '#059669' },
-  afgerond:       { label: 'Afgerond',                color: '#374151', bg: '#F3F4F6', dot: '#6B7280' },
-  overschreden:   { label: 'Deadline overschreden',   color: '#991A21', bg: '#FDEAEB', dot: '#991A21' },
+  nieuw:             { label: 'Nieuw ontvangen',       color: '#1A4D7A', bg: '#EAF1F8', dot: '#1A4D7A' },
+  in_behandeling:    { label: 'In behandeling',         color: LOD_ROOD,  bg: LOD_ROOD_BG, dot: LOD_ROOD },
+  offertes_lopen:    { label: 'Offertes lopen',         color: '#5B3FA6', bg: '#F3EFFD', dot: '#7C3AED' },
+  offertes_afwacht:  { label: 'Offertes in afwachting', color: '#92400E', bg: '#FEF3E2', dot: '#B45309' },
+  vve_akkoord:       { label: 'VvE akkoord',            color: '#2D6A4F', bg: '#EAF4EE', dot: '#2D6A4F' },
+  opdracht_uit:      { label: 'Opdracht verstrekt',     color: '#065F46', bg: '#D1FAE5', dot: '#059669' },
+  afgerond:          { label: 'Afgerond',               color: '#374151', bg: '#F3F4F6', dot: '#6B7280' },
+  overschreden:      { label: 'Deadline overschreden',  color: LOD_ROOD,  bg: LOD_ROOD_BG, dot: LOD_ROOD },
 };
 
-const LOD_STORAGE_KEY = 'lod_data_v2';
+const LOD_STORAGE_KEY = 'lod_data_v3';
 
 function lodLoad() {
   try { const r = localStorage.getItem(LOD_STORAGE_KEY); return r ? JSON.parse(r) : []; }
@@ -1501,7 +1506,7 @@ function lodDeadlineKleur(dagen) {
   if (dagen === null) return '';
   if (dagen < 0) return 'text-red-600 font-bold';
   if (dagen <= 14) return 'text-red-500 font-semibold';
-  if (dagen <= 30) return 'text-amber-600 font-semibold';
+  if (dagen <= 30) return 'text-red-400 font-semibold';
   return 'text-gray-600';
 }
 function lodFmt(n) {
@@ -1514,6 +1519,23 @@ function lodFmtDt(iso) {
   return new Date(iso).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+// Auto-status op basis van offerte vinkjes
+function berekenAutoStatus(lod) {
+  const offertes = lod.offertes || [];
+  if (lod.status === 'afgerond' || lod.status === 'overschreden') return lod.status;
+  const heeftOpdracht   = offertes.some(o => o.opdracht);
+  const heeftVveAkkoord = offertes.some(o => o.vveAkkoord);
+  const heeftOntvangen  = offertes.some(o => o.ontvangen);
+  const heeftAangevraagd = offertes.some(o => o.aangevraagd);
+  const heeftAfwachting = offertes.some(o => o.aangevraagd && !o.ontvangen);
+  if (heeftOpdracht)    return 'opdracht_uit';
+  if (heeftVveAkkoord)  return 'vve_akkoord';
+  if (heeftOntvangen)   return 'offertes_lopen';
+  if (heeftAfwachting)  return 'offertes_afwacht';
+  if (heeftAangevraagd) return 'in_behandeling';
+  return 'nieuw';
+}
+
 function LodStatusBadge({ status }) {
   const s = LOD_STATUS[status] || LOD_STATUS.nieuw;
   return (
@@ -1524,112 +1546,221 @@ function LodStatusBadge({ status }) {
   );
 }
 
-// ── Tijdlijn helper ──────────────────────────────────────────────
 function buildTijdlijn(lod) {
   const events = [];
   const add = (ts, tekst, kleur) => { if (ts) events.push({ ts, tekst, kleur }); };
-  add(lod.tijdlijn?.ontvangen,         'LOD ontvangen van gemeente',          '#1A4D7A');
-  add(lod.tijdlijn?.vveGenotificeerd,  'VvE genotificeerd',                   '#5B3FA6');
-  add(lod.tijdlijn?.vergaderingBelegd, 'Vergadering belegd',                  '#92550A');
+  add(lod.tijdlijn?.ontvangen,         'LOD ontvangen van gemeente',              '#1A4D7A');
+  add(lod.tijdlijn?.vveGenotificeerd,  'VvE genotificeerd',                       '#5B3FA6');
+  add(lod.tijdlijn?.vergaderingBelegd, 'Vergadering belegd',                      LOD_ROOD);
   (lod.offertes||[]).forEach(o => {
-    add(o.tijdlijn?.aangevraagd,  `Offerte aangevraagd bij ${o.partij||'onbekend'}`, '#1A4D7A');
-    add(o.tijdlijn?.ontvangen,    `Offerte ontvangen van ${o.partij||'onbekend'}`,   '#5B3FA6');
-    add(o.tijdlijn?.vveVoorlegd,  `Offerte voorgelegd aan VvE (${o.partij||'onbekend'})`, '#92550A');
-    add(o.tijdlijn?.vveAkkoord,   `VvE akkoord op offerte ${o.partij||'onbekend'}`,  '#2D6A4F');
-    add(o.tijdlijn?.opdracht,     `Opdracht verstrekt aan ${o.partij||'onbekend'}`,  '#065F46');
+    add(o.tijdlijn?.aangevraagd, `Offerte aangevraagd bij ${o.partij||'onbekend'}`, '#1A4D7A');
+    add(o.tijdlijn?.ontvangen,   `Offerte ontvangen van ${o.partij||'onbekend'}`,   '#5B3FA6');
+    add(o.tijdlijn?.vveVoorlegd, `Offerte voorgelegd aan VvE (${o.partij||'onbekend'})`, LOD_ROOD);
+    add(o.tijdlijn?.vveAkkoord,  `VvE akkoord op offerte ${o.partij||'onbekend'}`,  '#2D6A4F');
+    add(o.tijdlijn?.opdracht,    `Opdracht verstrekt aan ${o.partij||'onbekend'}`,   '#065F46');
   });
-  add(lod.tijdlijn?.gemeenteBevestigd, 'Gemeente bevestigd / gereed gemeld',  '#2D6A4F');
-  add(lod.tijdlijn?.afgerond,          'LOD afgerond',                        '#374151');
+  add(lod.tijdlijn?.gemeenteBevestigd, 'Gemeente bevestigd / gereed gemeld',       '#2D6A4F');
+  add(lod.tijdlijn?.afgerond,          'LOD afgerond',                             '#374151');
   return events.sort((a,b) => new Date(a.ts) - new Date(b.ts));
 }
 
-// ── PDF export ───────────────────────────────────────────────────
 function lodExportPDF(lod) {
   const tijdlijn = buildTijdlijn(lod);
   const dagen = lodDagenTot(lod.deadlineAlgemeen);
   const statusLabel = (LOD_STATUS[lod.status||'nieuw']||LOD_STATUS.nieuw).label;
-
   const offerteRijen = (lod.offertes||[]).map((o,i) => `
     <tr style="background:${i%2===0?'#fff':'#FAF7F2'}">
-      <td>${o.partij||'-'}</td>
-      <td style="text-align:right">${lodFmt(o.bedrag)}</td>
+      <td>${o.partij||'-'}</td><td style="text-align:right">${lodFmt(o.bedrag)}</td>
       <td style="text-align:center">${o.aangevraagd?'✓':''}</td>
       <td style="text-align:center">${o.ontvangen?'✓':''}</td>
       <td style="text-align:center">${o.vveVoorlegd?'✓':''}</td>
       <td style="text-align:center">${o.vveAkkoord?'✓':''}</td>
       <td style="text-align:center">${o.opdracht?'✓':''}</td>
     </tr>`).join('');
-
   const puntenRijen = (lod.onderdelen||[]).map((o,i) => `
-    <tr style="background:${i%2===0?'#fff':'#FAF7F2'}">
-      <td>${i+1}</td><td>${o.omschrijving||'-'}</td>
-    </tr>`).join('');
-
+    <tr style="background:${i%2===0?'#fff':'#FAF7F2'}"><td>${i+1}</td><td>${o.omschrijving||'-'}</td></tr>`).join('');
   const tijdlijnRijen = tijdlijn.map(e => `
-    <tr>
-      <td style="white-space:nowrap;color:#8A7E7B">${lodFmtDt(e.ts)}</td>
-      <td style="color:${e.kleur};font-weight:500">${e.tekst}</td>
-    </tr>`).join('');
+    <tr><td style="white-space:nowrap;color:#8A7E7B">${lodFmtDt(e.ts)}</td><td style="color:${e.kleur};font-weight:500">${e.tekst}</td></tr>`).join('');
 
   const html = `<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8">
     <title>LOD Dossier - ${lod.vveNaam||'onbekend'}</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-    <style>
-      *{box-sizing:border-box;margin:0;padding:0}
-      body{font-family:"DM Sans",Arial,sans-serif;color:#1A1614;font-size:10pt;background:#fff;padding:32px 40px}
-      .hdr{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:12px;border-bottom:3px solid #92550A;margin-bottom:22px}
-      .hdr h1{font-family:"DM Serif Display",serif;font-size:18pt;color:#92550A;font-weight:400}
-      .hdr .meta{font-size:9pt;color:#8A7E7B;margin-top:3px}
-      .badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:9pt;font-weight:600;background:#FEF3E2;color:#92550A}
-      .sec{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8A7E7B;margin:20px 0 8px;padding-bottom:4px;border-bottom:1px solid #E5DEDA}
-      .grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:16px}
-      .info-block{background:#FAF7F2;border-left:3px solid #92550A;padding:10px 14px;border-radius:4px}
-      .info-label{font-size:8pt;color:#8A7E7B;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
-      .info-val{font-size:10pt;font-weight:600;color:#1A1614}
-      table{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:14px}
-      thead tr{background:#92550A;color:#fff}
-      thead th{padding:7px 10px;text-align:left;font-size:8pt;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
-      tbody td{padding:6px 10px;border-bottom:1px solid #E5DEDA}
-      .footer{margin-top:20px;padding-top:8px;border-top:1px solid #E5DEDA;display:flex;justify-content:space-between;font-size:7.5pt;color:#8A7E7B}
-      .print-btn{position:fixed;top:18px;right:18px;padding:9px 18px;background:#92550A;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer}
-      @media print{.print-btn{display:none}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-    </style></head><body>
+    <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:"DM Sans",Arial,sans-serif;color:#1A1614;font-size:10pt;background:#fff;padding:32px 40px}.hdr{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:12px;border-bottom:3px solid #991A21;margin-bottom:22px}.hdr h1{font-family:"DM Serif Display",serif;font-size:18pt;color:#991A21;font-weight:400}.hdr .meta{font-size:9pt;color:#8A7E7B;margin-top:3px}.badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:9pt;font-weight:600;background:#FDEAEB;color:#991A21}.sec{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8A7E7B;margin:20px 0 8px;padding-bottom:4px;border-bottom:1px solid #E5DEDA}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}.info-block{background:#FAF7F2;border-left:3px solid #991A21;padding:10px 14px;border-radius:4px}.info-label{font-size:8pt;color:#8A7E7B;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}.info-val{font-size:10pt;font-weight:600;color:#1A1614}table{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:14px}thead tr{background:#991A21;color:#fff}thead th{padding:7px 10px;text-align:left;font-size:8pt;font-weight:600;text-transform:uppercase;letter-spacing:.04em}tbody td{padding:6px 10px;border-bottom:1px solid #E5DEDA}.footer{margin-top:20px;padding-top:8px;border-top:1px solid #E5DEDA;display:flex;justify-content:space-between;font-size:7.5pt;color:#8A7E7B}.print-btn{position:fixed;top:18px;right:18px;padding:9px 18px;background:#991A21;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer}@media print{.print-btn{display:none}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
+    </head><body>
     <button class="print-btn" onclick="window.print()">Afdrukken / PDF</button>
-    <div class="hdr">
-      <div>
-        <h1>LOD Dossier</h1>
-        <div class="meta">${lod.vveNaam||'onbekend'} · Ref: ${lod.gemeenteReferentie||'-'} · Opgesteld op ${new Date().toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric'})}</div>
-      </div>
-      <span class="badge">${statusLabel}</span>
-    </div>
+    <div class="hdr"><div><h1>LOD Dossier</h1><div class="meta">${lod.vveNaam||'onbekend'} · Ref: ${lod.gemeenteReferentie||'-'} · Opgesteld op ${new Date().toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric'})}</div></div><span class="badge">${statusLabel}</span></div>
     <div class="grid2">
       <div class="info-block"><div class="info-label">VvE</div><div class="info-val">${lod.vveNaam||'-'}</div></div>
+      <div class="info-block"><div class="info-label">Behandelend beheerder</div><div class="info-val">${lod.behandelaar||'-'}</div></div>
       <div class="info-block"><div class="info-label">Gemeente referentie</div><div class="info-val">${lod.gemeenteReferentie||'-'}</div></div>
       <div class="info-block"><div class="info-label">Ontvangstdatum</div><div class="info-val">${lod.ontvangstdatum?new Date(lod.ontvangstdatum).toLocaleDateString('nl-NL'):'-'}</div></div>
-      <div class="info-block"><div class="info-label">Algehele deadline</div><div class="info-val" style="color:${dagen!==null&&dagen<0?'#991A21':dagen!==null&&dagen<=14?'#D97706':'#1A1614'}">${lod.deadlineAlgemeen?new Date(lod.deadlineAlgemeen).toLocaleDateString('nl-NL'):'-'}${dagen!==null?' ('+Math.abs(dagen)+(dagen<0?' dagen over':(dagen===0?' — vandaag!':' dagen'))+')'  :''}</div></div>
+      <div class="info-block"><div class="info-label">Algehele deadline</div><div class="info-val" style="color:${dagen!==null&&dagen<0?'#991A21':'inherit'}">${lod.deadlineAlgemeen?new Date(lod.deadlineAlgemeen).toLocaleDateString('nl-NL'):'-'}${dagen!==null?' ('+Math.abs(dagen)+(dagen<0?' dagen over':' dagen')+')'  :''}</div></div>
       <div class="info-block"><div class="info-label">Max. boete totaal</div><div class="info-val">${lodFmt(lod.boeteMax)}</div></div>
-      <div class="info-block"><div class="info-label">Contactpersoon gemeente</div><div class="info-val">${lod.contactpersoon||'-'}</div></div>
     </div>
     ${lod.notitie?`<div style="margin-bottom:16px;padding:10px 14px;background:#FAF7F2;border-radius:6px;font-size:9pt;color:#374151"><strong>Notitie:</strong> ${lod.notitie}</div>`:''}
     <div class="sec">Onderhoudspunten</div>
-    <table><thead><tr><th>#</th><th>Omschrijving onderhoudspunt</th></tr></thead>
-    <tbody>${puntenRijen||'<tr><td colspan=2 style="color:#8A7E7B">Geen onderhoudspunten geregistreerd</td></tr>'}</tbody></table>
+    <table><thead><tr><th>#</th><th>Omschrijving</th></tr></thead><tbody>${puntenRijen||'<tr><td colspan=2 style="color:#8A7E7B">Geen onderhoudspunten</td></tr>'}</tbody></table>
     <div class="sec">Offertes</div>
-    <table><thead><tr><th>Partij / aannemer</th><th style="text-align:right">Bedrag</th><th style="text-align:center">Aangevraagd</th><th style="text-align:center">Ontvangen</th><th style="text-align:center">VvE voorgelegd</th><th style="text-align:center">VvE akkoord</th><th style="text-align:center">Opdracht</th></tr></thead>
-    <tbody>${offerteRijen||'<tr><td colspan=7 style="color:#8A7E7B">Geen offertes geregistreerd</td></tr>'}</tbody></table>
+    <table><thead><tr><th>Partij</th><th style="text-align:right">Bedrag</th><th style="text-align:center">Aangevraagd</th><th style="text-align:center">Ontvangen</th><th style="text-align:center">VvE voorgelegd</th><th style="text-align:center">VvE akkoord</th><th style="text-align:center">Opdracht</th></tr></thead><tbody>${offerteRijen||'<tr><td colspan=7 style="color:#8A7E7B">Geen offertes</td></tr>'}</tbody></table>
     <div class="sec">Tijdlijn dossier</div>
-    <table><thead><tr><th>Datum en tijd</th><th>Actie</th></tr></thead>
-    <tbody>${tijdlijnRijen||'<tr><td colspan=2 style="color:#8A7E7B">Geen tijdlijn beschikbaar</td></tr>'}</tbody></table>
+    <table><thead><tr><th>Datum en tijd</th><th>Actie</th></tr></thead><tbody>${tijdlijnRijen||'<tr><td colspan=2 style="color:#8A7E7B">Geen tijdlijn</td></tr>'}</tbody></table>
     <div class="footer"><span>Totaal VvE Beheer Den Haag en omstreken B.V. · Rijswijk</span><span>Last onder Dwangsom module</span></div>
     </body></html>`;
 
   const w = window.open('', '_blank', 'width=1050,height=850');
   if (w) { w.document.write(html); w.document.close(); }
-  else alert('Pop-up geblokkeerd. Sta pop-ups toe voor deze pagina.');
+  else alert('Pop-up geblokkeerd.');
+}
+
+// ── Eenmalige bijdrage tab voor LOD ─────────────────────────────
+function LodEenmaligTab({ lod, onUpdate }) {
+  const S = CALC_S;
+  const fmt = calcFmt;
+  const uid = calcUid;
+  const eigenaren = (lod.onderdelen||[]).filter(o=>o.omschrijving).map((o,i)=>({
+    id: 'e_'+i, naam: o.omschrijving, teller: String(o.breukTeller||1), noemer: String(o.breukNoemer||lod.aantalEigenaren||1), huidig: ''
+  }));
+
+  const [items, setItems] = useState(() => lod.eenmaligItems || [
+    { id: uid(), omschrijving:'', bedrag:'', reserveStand:'', buffer:'2500', kortingAan:false, kortingBedrag:'' }
+  ]);
+  const [eigRows, setEigRows] = useState(() => lod.eenmaligEigenaren || [
+    { id: uid(), naam:'', teller:'', huidig:'' },
+    { id: uid(), naam:'', teller:'', huidig:'' },
+  ]);
+  const [vasteNoemer, setVasteNoemer] = useState(lod.eenmaligNoemer||'');
+  const [result, setResult] = useState(null);
+
+  const save = (patch) => onUpdate({ ...lod, ...patch });
+
+  const bereken = () => {
+    const noemer = parseFloat(vasteNoemer) > 0 ? parseFloat(vasteNoemer) : eigRows.reduce((s,r)=>s+(parseFloat(r.teller)||0),0);
+    const validRows = eigRows.filter(r=>r.teller!==''&&parseFloat(r.teller)>0);
+    if (!validRows.length) return;
+    const aantalEig = validRows.length;
+    const eigenaren = validRows.map(r => {
+      const teller = parseFloat(r.teller)||0;
+      const aandeel = noemer > 0 ? teller/noemer : 0;
+      return { naam: r.naam||'Eigenaar', teller:r.teller, noemer, aandeel };
+    });
+    const berekend = items.map(item => {
+      const offerte = parseFloat(item.bedrag)||0;
+      const reserve = parseFloat(item.reserveStand)||0;
+      const buffer  = parseFloat(item.buffer)>=0?parseFloat(item.buffer):2500;
+      const kortingPE = item.kortingAan?(parseFloat(item.kortingBedrag)||0):0;
+      const totaleKorting = kortingPE * aantalEig;
+      const nettoOfferte = Math.max(0, offerte - totaleKorting);
+      const beschikbaar  = Math.max(0, reserve - buffer);
+      const tekort       = Math.max(0, nettoOfferte - beschikbaar);
+      const perEigenaar  = eigenaren.map(e=>({ naam:e.naam, aandeel:e.aandeel, korting:kortingPE, bijdrage:tekort>0?e.aandeel*tekort:0 }));
+      return { omschrijving:item.omschrijving||'Eenmalige bijdrage', offerte, nettoOfferte, totaleKorting, reserve, buffer, beschikbaar, tekort, perEigenaar };
+    });
+    setResult(berekend);
+  };
+
+  return (
+    <div>
+      <p style={{fontSize:12,color:S.muted,marginBottom:14}}>Bereken de eenmalige bijdrage per eigenaar op basis van de offerte(s) voor deze LOD.</p>
+
+      {/* Eigenaren */}
+      <div style={{marginBottom:14}}>
+        <div style={{fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#2D2D2D',marginBottom:8,display:'flex',alignItems:'center',gap:8}}>
+          Eigenaren &amp; breukdelen
+          <div style={{flex:1,height:1,background:'#E5DEDA'}} />
+          <label style={{fontSize:10,fontWeight:600,color:S.muted,display:'flex',alignItems:'center',gap:6}}>
+            Noemer: <input type="number" value={vasteNoemer} onChange={e=>{setVasteNoemer(e.target.value);save({eenmaligNoemer:e.target.value})}} placeholder="totaal" className="calc-inp" style={{width:80,fontSize:12}} />
+          </label>
+        </div>
+        {eigRows.map((r,i)=>(
+          <div key={r.id} style={{display:'grid',gridTemplateColumns:'1fr 100px 36px',gap:8,marginBottom:6,alignItems:'center'}}>
+            <input value={r.naam} onChange={e=>{const nr=[...eigRows];nr[i]={...nr[i],naam:e.target.value};setEigRows(nr);save({eenmaligEigenaren:nr})}} placeholder="Naam eigenaar / app." className="calc-inp" style={{fontSize:12}} />
+            <input type="number" value={r.teller} onChange={e=>{const nr=[...eigRows];nr[i]={...nr[i],teller:e.target.value};setEigRows(nr);save({eenmaligEigenaren:nr})}} placeholder="Teller" className="calc-inp" style={{fontSize:12}} />
+            <button onClick={()=>{const nr=eigRows.filter((_,j)=>j!==i);setEigRows(nr);save({eenmaligEigenaren:nr})}} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,color:S.muted}}>×</button>
+          </div>
+        ))}
+        <button onClick={()=>{const nr=[...eigRows,{id:uid(),naam:'',teller:'',huidig:''}];setEigRows(nr);save({eenmaligEigenaren:nr})}} style={{width:'100%',padding:'7px',background:'#fff',border:'1.5px dashed #E5DEDA',borderRadius:8,fontFamily:'inherit',fontSize:12,color:S.muted,cursor:'pointer'}}>+ Eigenaar toevoegen</button>
+      </div>
+
+      {/* Offertes */}
+      <div style={{marginBottom:14}}>
+        <div style={{fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#2D2D2D',marginBottom:8,display:'flex',alignItems:'center',gap:8}}>
+          Offerte(s)
+          <div style={{flex:1,height:1,background:'#E5DEDA'}} />
+        </div>
+        {items.map((item,i)=>(
+          <div key={item.id} style={{background:'#FAF7F2',border:'1px solid #E5DEDA',borderRadius:10,padding:'12px 14px',marginBottom:8,position:'relative'}}>
+            {items.length>1&&<button onClick={()=>{const ni=items.filter((_,j)=>j!==i);setItems(ni);save({eenmaligItems:ni})}} style={{position:'absolute',top:8,right:10,background:'none',border:'none',cursor:'pointer',fontSize:16,color:S.muted}}>×</button>}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 160px',gap:10,marginBottom:8}}>
+              <div><label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Omschrijving</label>
+                <input value={item.omschrijving} onChange={e=>{const ni=[...items];ni[i]={...ni[i],omschrijving:e.target.value};setItems(ni);save({eenmaligItems:ni})}} placeholder="bijv. Gevelrenovatie LOD" className="calc-inp" style={{fontSize:12}} /></div>
+              <div><label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Offertebedrag (€)</label>
+                <input type="number" value={item.bedrag} onChange={e=>{const ni=[...items];ni[i]={...ni[i],bedrag:e.target.value};setItems(ni);save({eenmaligItems:ni})}} placeholder="bijv. 38000" className="calc-inp" style={{fontSize:12}} /></div>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:8}}>
+              <div><label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Stand reservefonds (€)</label>
+                <input type="number" value={item.reserveStand} onChange={e=>{const ni=[...items];ni[i]={...ni[i],reserveStand:e.target.value};setItems(ni);save({eenmaligItems:ni})}} placeholder="bijv. 12000" className="calc-inp" style={{fontSize:12}} /></div>
+              <div><label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Buffer (€)</label>
+                <input type="number" value={item.buffer} onChange={e=>{const ni=[...items];ni[i]={...ni[i],buffer:e.target.value};setItems(ni);save({eenmaligItems:ni})}} placeholder="2500" className="calc-inp" style={{fontSize:12}} /></div>
+            </div>
+            <label style={{display:'flex',alignItems:'center',gap:7,cursor:'pointer',fontSize:12,fontWeight:600,color:S.ink}}>
+              <input type="checkbox" checked={!!item.kortingAan} onChange={e=>{const ni=[...items];ni[i]={...ni[i],kortingAan:e.target.checked};setItems(ni);save({eenmaligItems:ni})}} style={{width:13,height:13,accentColor:LOD_ROOD,cursor:'pointer'}} />
+              Gemeentelijke korting
+            </label>
+            {item.kortingAan&&<div style={{marginTop:6}}><label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Korting per eigenaar (€)</label>
+              <input type="number" value={item.kortingBedrag} onChange={e=>{const ni=[...items];ni[i]={...ni[i],kortingBedrag:e.target.value};setItems(ni);save({eenmaligItems:ni})}} placeholder="bijv. 1000" className="calc-inp" style={{width:160,fontSize:12}} /></div>}
+          </div>
+        ))}
+        <button onClick={()=>{const ni=[...items,{id:calcUid(),omschrijving:'',bedrag:'',reserveStand:'',buffer:'2500',kortingAan:false,kortingBedrag:''}];setItems(ni);save({eenmaligItems:ni})}} style={{width:'100%',padding:'7px',background:'#fff',border:'1.5px dashed #E5DEDA',borderRadius:8,fontFamily:'inherit',fontSize:12,color:S.muted,cursor:'pointer',marginBottom:10}}>+ Offerte toevoegen</button>
+      </div>
+
+      <button onClick={bereken} style={{width:'100%',padding:12,background:LOD_ROOD,border:'none',borderRadius:10,fontFamily:'Georgia,serif',fontSize:15,color:'#fff',cursor:'pointer'}}>
+        Bereken eenmalige bijdragen →
+      </button>
+
+      {result && result.map((item,idx)=>(
+        <div key={idx} style={{marginTop:14,background:'#fff',border:'1px solid #E5DEDA',borderRadius:10,overflow:'hidden'}}>
+          <div style={{padding:'10px 14px',background:'#FAF7F2',borderBottom:'1px solid #E5DEDA',display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+            <span style={{fontWeight:600,fontSize:13}}>{item.omschrijving}</span>
+            <span style={{fontFamily:'Georgia,serif',fontSize:16,color:item.tekort>0?LOD_ROOD:'#2D6A4F'}}>
+              {item.tekort>0?'Tekort: '+fmt(item.tekort):'Volledig gedekt'}
+            </span>
+          </div>
+          <div style={{padding:'6px 14px',fontSize:11,color:S.muted,fontFamily:'monospace',borderBottom:'1px solid #E5DEDA'}}>
+            Reserve: {fmt(item.reserve)} — buffer: {fmt(item.buffer)} — beschikbaar: {fmt(item.beschikbaar)}
+          </div>
+          {item.tekort>0&&(
+            <table style={{width:'100%',borderCollapse:'collapse'}}>
+              <thead><tr style={{background:'#FAF7F2',borderBottom:'1px solid #E5DEDA'}}>
+                {['Eigenaar','Aandeel','Korting','Eenmalige bijdrage'].map((h,i)=>(
+                  <th key={i} style={{padding:'6px 12px',textAlign:i>0?'right':'left',fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {item.perEigenaar.map((e,i)=>(
+                  <tr key={i} style={{borderBottom:i<item.perEigenaar.length-1?'1px solid #E5DEDA':'none',background:i%2===0?'#fff':'#FAF7F2'}}>
+                    <td style={{padding:'6px 12px',fontSize:12,fontWeight:500}}>{e.naam}</td>
+                    <td style={{padding:'6px 12px',fontFamily:'monospace',fontSize:12,textAlign:'right'}}>{(e.aandeel*100).toFixed(2)}%</td>
+                    <td style={{padding:'6px 12px',fontFamily:'monospace',fontSize:12,textAlign:'right',color:e.korting>0?'#2D6A4F':S.muted}}>{e.korting>0?fmt(e.korting):'—'}</td>
+                    <td style={{padding:'6px 12px',fontFamily:'monospace',fontSize:12,textAlign:'right',color:LOD_ROOD,fontWeight:600}}>{fmt(e.bijdrage)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot style={{borderTop:`2px solid ${LOD_ROOD}`}}>
+                <tr style={{background:'#FDEAEB'}}>
+                  <td colSpan={3} style={{padding:'7px 12px',fontSize:12,fontWeight:600,color:S.muted}}>Totaal tekort</td>
+                  <td style={{padding:'7px 12px',fontFamily:'monospace',fontSize:13,fontWeight:600,color:LOD_ROOD,textAlign:'right'}}>{fmt(item.tekort)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 // ── LodKaart ─────────────────────────────────────────────────────
-function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId }) {
+function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList }) {
   const S = CALC_S;
   const open = openId === lod.id;
   const dagen = lodDagenTot(lod.deadlineAlgemeen);
@@ -1637,14 +1768,19 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId }) {
 
   const update = (changes) => {
     const updated = { ...lod, ...changes };
+    // Auto-status berekenen maar niet als afgerond/overschreden
+    if (!['afgerond','overschreden'].includes(updated.status) || changes.offertes) {
+      if (changes.offertes !== undefined) {
+        updated.status = berekenAutoStatus(updated);
+      }
+    }
     onUpdate(updated);
   };
 
-  // Checkbox met tijdlijn tracking
-  const toggleCheck = (field, value) => {
+  const toggleCheck = (field, tlKey, value) => {
     const tl = { ...(lod.tijdlijn||{}) };
-    if (value && !tl[field]) tl[field] = lodNow();
-    else if (!value) delete tl[field];
+    if (value && !tl[tlKey]) tl[tlKey] = lodNow();
+    else if (!value) delete tl[tlKey];
     update({ [field]: value, tijdlijn: tl });
   };
 
@@ -1654,171 +1790,145 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId }) {
     update({ offertes });
   };
 
-  const toggleOfferteCheck = (idx, field, value) => {
+  const toggleOfferteCheck = (idx, field, tlKey, value) => {
     const offertes = [...(lod.offertes||[])];
     const tl = { ...(offertes[idx].tijdlijn||{}) };
-    if (value && !tl[field]) tl[field] = lodNow();
-    else if (!value) delete tl[field];
+    if (value && !tl[tlKey]) tl[tlKey] = lodNow();
+    else if (!value) delete tl[tlKey];
     offertes[idx] = { ...offertes[idx], [field]: value, tijdlijn: tl };
     update({ offertes });
   };
 
-  const addOfferte = () => {
-    update({ offertes: [...(lod.offertes||[]), { id: lodUid(), partij:'', bedrag:'', aangevraagd:false, ontvangen:false, vveVoorlegd:false, vveAkkoord:false, opdracht:false, tijdlijn:{} }] });
-  };
-  const delOfferte = (idx) => {
-    const offertes = [...(lod.offertes||[])];
-    offertes.splice(idx, 1);
-    update({ offertes });
-  };
-  const addOnderdeel = () => {
-    update({ onderdelen: [...(lod.onderdelen||[]), { id: lodUid(), omschrijving:'' }] });
-  };
-  const delOnderdeel = (idx) => {
-    const o = [...(lod.onderdelen||[])]; o.splice(idx, 1); update({ onderdelen: o });
-  };
-  const updOnderdeel = (idx, val) => {
-    const o = [...(lod.onderdelen||[])]; o[idx] = { ...o[idx], omschrijving: val }; update({ onderdelen: o });
-  };
+  const addOfferte = () => update({ offertes: [...(lod.offertes||[]), { id:lodUid(), partij:'', bedrag:'', aangevraagd:false, ontvangen:false, vveVoorlegd:false, vveAkkoord:false, opdracht:false, tijdlijn:{} }] });
+  const delOfferte = (idx) => { const o=[...(lod.offertes||[])]; o.splice(idx,1); update({offertes:o}); };
+  const addOnderdeel = () => update({ onderdelen:[...(lod.onderdelen||[]),{id:lodUid(),omschrijving:''}] });
+  const delOnderdeel = (idx) => { const o=[...(lod.onderdelen||[])]; o.splice(idx,1); update({onderdelen:o}); };
+  const updOnderdeel = (idx,val) => { const o=[...(lod.onderdelen||[])]; o[idx]={...o[idx],omschrijving:val}; update({onderdelen:o}); };
 
   const markeerAfgerond = () => {
     const tl = { ...(lod.tijdlijn||{}), afgerond: lodNow() };
-    update({ status:'afgerond', tijdlijn: tl });
+    onUpdate({ ...lod, status:'afgerond', tijdlijn:tl });
     setOpenId(null);
   };
 
   const tijdlijn = buildTijdlijn(lod);
-  const openOffertes = (lod.offertes||[]).filter(o => o.aangevraagd && !o.opdracht).length;
-
-  const cardBorder = lod.status === 'afgerond' ? '#D1D5DB' : open ? '#92550A' : '#E5E0DB';
-  const cardBg = lod.status === 'afgerond' ? '#FAFAFA' : '#fff';
+  const openOffertes = (lod.offertes||[]).filter(o=>o.aangevraagd&&!o.opdracht).length;
+  const cardBorder = lod.status==='afgerond'?'#D1D5DB':open?LOD_ROOD:'#E5E0DB';
 
   return (
-    <div style={{ background:cardBg, border:`1.5px solid ${cardBorder}`, borderRadius:12, overflow:'hidden', marginBottom:10, boxShadow:open?'0 2px 12px rgba(146,85,10,.08)':'none', transition:'all .2s', opacity:lod.status==='afgerond'?.75:1 }}>
+    <div style={{ background:lod.status==='afgerond'?'#FAFAFA':'#fff', border:`1.5px solid ${cardBorder}`, borderRadius:12, overflow:'hidden', marginBottom:10, boxShadow:open?`0 2px 12px rgba(153,26,33,.08)`:'none', transition:'all .2s', opacity:lod.status==='afgerond'?.7:1 }}>
       {/* Header */}
       <div onClick={()=>setOpenId(open?null:lod.id)} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', cursor:'pointer', userSelect:'none' }}>
         <div style={{ flex:1 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
             <span style={{ fontWeight:700, fontSize:14, color:'#2D2D2D' }}>{lod.vveNaam||<span style={{color:'#aaa',fontStyle:'italic'}}>VvE naam</span>}</span>
             <LodStatusBadge status={lod.status||'nieuw'} />
-            {openOffertes > 0 && lod.status !== 'afgerond' && (
-              <span style={{ fontSize:10, fontWeight:600, background:'#F3EFFD', color:'#5B3FA6', padding:'2px 7px', borderRadius:10 }}>
-                {openOffertes} offerte{openOffertes>1?'s':''} loopt
-              </span>
+            {lod.behandelaar && <span style={{fontSize:10,color:'#8A7E7B',background:'#F3F4F6',padding:'2px 7px',borderRadius:8}}>{lod.behandelaar}</span>}
+            {openOffertes>0&&lod.status!=='afgerond'&&(
+              <span style={{fontSize:10,fontWeight:600,background:'#F3EFFD',color:'#5B3FA6',padding:'2px 7px',borderRadius:10}}>{openOffertes} offerte{openOffertes>1?'s':''} loopt</span>
             )}
-            {lod.status !== 'afgerond' && dagen !== null && dagen < 0 && (
-              <span style={{ fontSize:10, fontWeight:600, background:'#FDEAEB', color:'#991A21', padding:'2px 7px', borderRadius:10 }}>Deadline voorbij</span>
+            {lod.status!=='afgerond'&&dagen!==null&&dagen<0&&(
+              <span style={{fontSize:10,fontWeight:600,background:LOD_ROOD_BG,color:LOD_ROOD,padding:'2px 7px',borderRadius:10}}>Deadline voorbij</span>
             )}
           </div>
           <div style={{ display:'flex', gap:12, marginTop:4, flexWrap:'wrap' }}>
-            {lod.gemeenteReferentie && <span style={{ fontSize:11, color:'#8A7E7B' }}>Ref: {lod.gemeenteReferentie}</span>}
-            {lod.ontvangstdatum && <span style={{ fontSize:11, color:'#8A7E7B' }}>Ontvangen: {new Date(lod.ontvangstdatum).toLocaleDateString('nl-NL')}</span>}
-            {lod.deadlineAlgemeen && (
-              <span style={{ fontSize:11 }} className={lodDeadlineKleur(dagen)}>
+            {lod.gemeenteReferentie&&<span style={{fontSize:11,color:'#8A7E7B'}}>Ref: {lod.gemeenteReferentie}</span>}
+            {lod.ontvangstdatum&&<span style={{fontSize:11,color:'#8A7E7B'}}>Ontvangen: {new Date(lod.ontvangstdatum).toLocaleDateString('nl-NL')}</span>}
+            {lod.deadlineAlgemeen&&(
+              <span style={{fontSize:11}} className={lodDeadlineKleur(dagen)}>
                 Deadline: {new Date(lod.deadlineAlgemeen).toLocaleDateString('nl-NL')}
-                {dagen !== null && ` (${dagen < 0 ? Math.abs(dagen)+' dagen over' : dagen === 0 ? 'vandaag!' : dagen+' dagen'})`}
+                {dagen!==null&&` (${dagen<0?Math.abs(dagen)+'d over':dagen===0?'vandaag!':dagen+'d'})`}
               </span>
             )}
-            {lod.boeteMax && <span style={{ fontSize:11, color:'#991A21', fontWeight:600 }}>Max. boete: {lodFmt(lod.boeteMax)}</span>}
+            {lod.boeteMax&&<span style={{fontSize:11,color:LOD_ROOD,fontWeight:600}}>Max. boete: {lodFmt(lod.boeteMax)}</span>}
           </div>
         </div>
-        <span style={{ fontSize:14, color:'#8A7E7B', transform:open?'rotate(180deg)':'none', transition:'transform .2s' }}>▾</span>
+        <span style={{fontSize:14,color:'#8A7E7B',transform:open?'rotate(180deg)':'none',transition:'transform .2s'}}>▾</span>
       </div>
 
-      {/* Uitgeklapte body */}
+      {/* Body */}
       {open && (
         <div style={{ borderTop:'1.5px solid #E5E0DB', background:'#FDFCFB' }}>
           {/* Tabs */}
-          <div style={{ display:'flex', borderBottom:'1px solid #E5DEDA', background:'#fff', paddingLeft:16 }}>
-            {[['details','Gegevens'],['onderdelen','Onderhoudspunten'],['offertes','Offertes'],['tijdlijn','Tijdlijn']].map(([key,lbl])=>(
+          <div style={{ display:'flex', borderBottom:'1px solid #E5DEDA', background:'#fff', paddingLeft:16, overflowX:'auto' }}>
+            {[['details','Gegevens'],['onderdelen','Onderhoudspunten'],['offertes','Offertes'],['tijdlijn','Tijdlijn'],['eenmalig','Eenmalige bijdrage']].map(([key,lbl])=>(
               <button key={key} onClick={()=>setTabKaart(key)}
-                style={{ padding:'9px 16px', border:'none', borderBottom:`2px solid ${tabKaart===key?'#92550A':'transparent'}`, background:'transparent', fontSize:12, fontWeight:tabKaart===key?600:400, color:tabKaart===key?'#92550A':'#6B7280', cursor:'pointer', transition:'all .15s' }}>
+                style={{ padding:'9px 14px', border:'none', borderBottom:`2px solid ${tabKaart===key?LOD_ROOD:'transparent'}`, background:'transparent', fontSize:12, fontWeight:tabKaart===key?600:400, color:tabKaart===key?LOD_ROOD:'#6B7280', cursor:'pointer', transition:'all .15s', whiteSpace:'nowrap' }}>
                 {lbl}
               </button>
             ))}
           </div>
 
-          <div style={{ padding:'16px 16px' }}>
+          <div style={{ padding:'16px' }}>
             {/* TAB: Gegevens */}
-            {tabKaart === 'details' && (
+            {tabKaart==='details' && (
               <div>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:14 }}>
+                  {[
+                    ['VvE naam', 'text', 'vveNaam', 'bijv. VvE Reinkenstraat 1-24', null],
+                    ['Gemeente referentie', 'text', 'gemeenteReferentie', 'bijv. LOD-2026-04821', null],
+                    ['Status', 'select', 'status', null, null],
+                    ['Ontvangstdatum LOD', 'date', 'ontvangstdatum', null, null],
+                    ['Algehele deadline gemeente', 'date', 'deadlineAlgemeen', null, null],
+                    ['Max. boete totaal (€)', 'number', 'boeteMax', 'bijv. 25000', null],
+                    ['Contactpersoon gemeente', 'text', 'contactpersoon', 'bijv. dhr. J. de Vries', null],
+                    ['Tel. / e-mail gemeente', 'text', 'contactGemeente', 'bijv. 070-123 4567', null],
+                  ].map(([label, type, field, placeholder]) => (
+                    <div key={field}>
+                      <label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>{label}</label>
+                      {type==='select' ? (
+                        <select value={lod[field]||'nieuw'} onChange={e=>update({[field]:e.target.value})} className="calc-inp" style={{fontSize:13,cursor:'pointer'}}>
+                          {Object.entries(LOD_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+                        </select>
+                      ) : (
+                        <input type={type} value={lod[field]||''} onChange={e=>update({[field]:e.target.value})} placeholder={placeholder||''} className="calc-inp" style={{fontSize:13}} />
+                      )}
+                    </div>
+                  ))}
+                  {/* Behandelaar dropdown */}
                   <div>
-                    <label style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>VvE naam</label>
-                    <input value={lod.vveNaam||''} onChange={e=>update({vveNaam:e.target.value})} placeholder="bijv. VvE Reinkenstraat 1-24" className="calc-inp" style={{fontSize:13}} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>Gemeente referentie</label>
-                    <input value={lod.gemeenteReferentie||''} onChange={e=>update({gemeenteReferentie:e.target.value})} placeholder="bijv. LOD-2026-04821" className="calc-inp" style={{fontSize:13}} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>Status</label>
-                    <select value={lod.status||'nieuw'} onChange={e=>update({status:e.target.value})} className="calc-inp" style={{fontSize:13,cursor:'pointer'}}>
-                      {Object.entries(LOD_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+                    <label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>Behandelend beheerder</label>
+                    <select value={lod.behandelaar||''} onChange={e=>update({behandelaar:e.target.value})} className="calc-inp" style={{fontSize:13,cursor:'pointer'}}>
+                      <option value="">— Selecteer beheerder —</option>
+                      {(beheerderList||[]).map(naam=><option key={naam} value={naam}>{naam}</option>)}
                     </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>Ontvangstdatum LOD</label>
-                    <input type="date" value={lod.ontvangstdatum||''} onChange={e=>update({ontvangstdatum:e.target.value})} className="calc-inp" style={{fontSize:13}} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>Algehele deadline gemeente</label>
-                    <input type="date" value={lod.deadlineAlgemeen||''} onChange={e=>update({deadlineAlgemeen:e.target.value})} className="calc-inp" style={{fontSize:13}} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>Max. boete totaal (€)</label>
-                    <input type="number" value={lod.boeteMax||''} onChange={e=>update({boeteMax:e.target.value})} placeholder="bijv. 25000" className="calc-inp" style={{fontSize:13}} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>Contactpersoon gemeente</label>
-                    <input value={lod.contactpersoon||''} onChange={e=>update({contactpersoon:e.target.value})} placeholder="bijv. dhr. J. de Vries" className="calc-inp" style={{fontSize:13}} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>Tel. / e-mail gemeente</label>
-                    <input value={lod.contactGemeente||''} onChange={e=>update({contactGemeente:e.target.value})} placeholder="bijv. 070-123 4567" className="calc-inp" style={{fontSize:13}} />
                   </div>
                 </div>
 
-                {/* LOD niveau checkboxes */}
-                <div style={{ marginBottom:14 }}>
-                  <div style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 }}>Voortgang LOD</div>
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:6 }}>
+                {/* LOD checkboxes */}
+                <div style={{marginBottom:14}}>
+                  <div style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Voortgang LOD</div>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6}}>
                     {[
-                      ['lodOntvangen',      'ontvangen',         'LOD ontvangen'],
-                      ['vveGenotificeerd',  'vveGenotificeerd',  'VvE genotificeerd'],
-                      ['vergaderingBelegd', 'vergaderingBelegd', 'Vergadering belegd'],
-                      ['gemeenteBevestigd', 'gemeenteBevestigd', 'Gemeente bevestigd'],
-                    ].map(([field, tlKey, lbl])=>(
-                      <label key={field} style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', padding:'8px 10px', background:lod[field]?'#EAF1F8':'#fff', border:`1.5px solid ${lod[field]?'#1A4D7A':'#E5DEDA'}`, borderRadius:8, fontSize:11, fontWeight:600, color:lod[field]?'#1A4D7A':'#8A7E7B', userSelect:'none', transition:'all .15s' }}>
-                        <input type="checkbox" checked={!!lod[field]} onChange={e=>toggleCheck(tlKey, e.target.checked)} style={{width:13,height:13,accentColor:'#1A4D7A',cursor:'pointer'}} />
+                      ['lodOntvangen','ontvangen','LOD ontvangen'],
+                      ['vveGenotificeerd','vveGenotificeerd','VvE genotificeerd'],
+                      ['vergaderingBelegd','vergaderingBelegd','Vergadering belegd'],
+                      ['gemeenteBevestigd','gemeenteBevestigd','Gemeente bevestigd'],
+                    ].map(([field,tlKey,lbl])=>(
+                      <label key={field} style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',padding:'8px 10px',background:lod[field]?'#EAF1F8':'#fff',border:`1.5px solid ${lod[field]?'#1A4D7A':'#E5DEDA'}`,borderRadius:8,fontSize:11,fontWeight:600,color:lod[field]?'#1A4D7A':'#8A7E7B',userSelect:'none',transition:'all .15s'}}>
+                        <input type="checkbox" checked={!!lod[field]} onChange={e=>toggleCheck(field,tlKey,e.target.checked)} style={{width:13,height:13,accentColor:'#1A4D7A',cursor:'pointer'}} />
                         {lbl}
                       </label>
                     ))}
                   </div>
                 </div>
 
-                {/* Notitie */}
-                <div style={{ marginBottom:14 }}>
-                  <label style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>Interne notitie</label>
-                  <textarea value={lod.notitie||''} onChange={e=>update({notitie:e.target.value})}
-                    placeholder="Bijv. bijzonderheden, afspraken, opmerkingen..."
-                    style={{ width:'100%', minHeight:70, padding:'8px 11px', border:'1.5px solid #E5DEDA', borderRadius:8, fontFamily:'inherit', fontSize:12, color:'#1A1614', background:'#FAF7F2', outline:'none', resize:'vertical' }} />
+                <div style={{marginBottom:14}}>
+                  <label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>Interne notitie</label>
+                  <textarea value={lod.notitie||''} onChange={e=>update({notitie:e.target.value})} placeholder="Bijzonderheden, afspraken, opmerkingen..."
+                    style={{width:'100%',minHeight:70,padding:'8px 11px',border:'1.5px solid #E5DEDA',borderRadius:8,fontFamily:'inherit',fontSize:12,color:'#1A1614',background:'#FAF7F2',outline:'none',resize:'vertical'}} />
                 </div>
 
-                {/* Acties onderaan */}
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', paddingTop:12, borderTop:'1px solid #E5DEDA' }}>
-                  <button onClick={()=>{ if(window.confirm('LOD verwijderen?')) onDelete(); }}
-                    style={{ padding:'7px 14px', background:'#fff', border:'1.5px solid #fca5a5', borderRadius:8, fontSize:12, color:'#991A21', cursor:'pointer', fontFamily:'inherit' }}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:12,borderTop:'1px solid #E5DEDA'}}>
+                  <button onClick={()=>{if(window.confirm('LOD verwijderen?'))onDelete()}} style={{padding:'7px 14px',background:'#fff',border:'1.5px solid #fca5a5',borderRadius:8,fontSize:12,color:LOD_ROOD,cursor:'pointer',fontFamily:'inherit'}}>
                     LOD verwijderen
                   </button>
-                  <div style={{ display:'flex', gap:8 }}>
-                    <button onClick={()=>lodExportPDF(lod)}
-                      style={{ padding:'7px 14px', background:'#fff', border:'1.5px solid #92550A', borderRadius:8, fontSize:12, color:'#92550A', cursor:'pointer', fontFamily:'inherit', fontWeight:500 }}>
+                  <div style={{display:'flex',gap:8}}>
+                    <button onClick={()=>lodExportPDF(lod)} style={{padding:'7px 14px',background:'#fff',border:`1.5px solid ${LOD_ROOD}`,borderRadius:8,fontSize:12,color:LOD_ROOD,cursor:'pointer',fontFamily:'inherit',fontWeight:500}}>
                       PDF rapport
                     </button>
-                    {lod.status !== 'afgerond' && (
-                      <button onClick={markeerAfgerond}
-                        style={{ padding:'7px 18px', background:'#2D6A4F', border:'none', borderRadius:8, fontSize:12, color:'#fff', cursor:'pointer', fontFamily:'inherit', fontWeight:600 }}>
+                    {lod.status!=='afgerond'&&(
+                      <button onClick={markeerAfgerond} style={{padding:'7px 18px',background:'#2D6A4F',border:'none',borderRadius:8,fontSize:12,color:'#fff',cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
                         LOD afgerond
                       </button>
                     )}
@@ -1828,95 +1938,86 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId }) {
             )}
 
             {/* TAB: Onderhoudspunten */}
-            {tabKaart === 'onderdelen' && (
+            {tabKaart==='onderdelen' && (
               <div>
-                <p style={{ fontSize:12, color:S.muted, marginBottom:12 }}>Beschrijf de onderhoudspunten zoals benoemd in de LOD. Deze vormen de basis van het dossier.</p>
-                {(lod.onderdelen||[]).length === 0 && (
-                  <div style={{ textAlign:'center', padding:'30px', color:'#9CA3AF', fontSize:13 }}>Nog geen onderhoudspunten toegevoegd.</div>
-                )}
+                <p style={{fontSize:12,color:S.muted,marginBottom:12}}>Beschrijf de onderhoudspunten zoals benoemd in de LOD.</p>
+                {(lod.onderdelen||[]).length===0&&<div style={{textAlign:'center',padding:'30px',color:'#9CA3AF',fontSize:13}}>Nog geen onderhoudspunten toegevoegd.</div>}
                 {(lod.onderdelen||[]).map((o,i)=>(
-                  <div key={o.id||i} style={{ display:'grid', gridTemplateColumns:'auto 1fr auto', gap:8, alignItems:'center', marginBottom:8 }}>
-                    <span style={{ fontSize:12, fontWeight:700, color:S.muted, minWidth:20, textAlign:'center' }}>{i+1}</span>
-                    <input value={o.omschrijving||''} onChange={e=>updOnderdeel(i,e.target.value)}
-                      placeholder={`Onderhoudspunt ${i+1} — bijv. Herstel gevelmetselwerk noordzijde`}
-                      className="calc-inp" style={{fontSize:13}} />
-                    <button onClick={()=>delOnderdeel(i)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:16, color:S.muted, padding:'4px 8px' }}>×</button>
+                  <div key={o.id||i} style={{display:'grid',gridTemplateColumns:'28px 1fr 36px',gap:8,alignItems:'center',marginBottom:8}}>
+                    <span style={{fontSize:12,fontWeight:700,color:S.muted,textAlign:'center'}}>{i+1}</span>
+                    <input value={o.omschrijving||''} onChange={e=>updOnderdeel(i,e.target.value)} placeholder={`Onderhoudspunt ${i+1} — bijv. Herstel gevelmetselwerk`} className="calc-inp" style={{fontSize:13}} />
+                    <button onClick={()=>delOnderdeel(i)} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,color:S.muted,padding:'4px 8px'}}>×</button>
                   </div>
                 ))}
-                <button onClick={addOnderdeel} style={{ width:'100%', padding:'9px', background:'#fff', border:'1.5px dashed #E5DEDA', borderRadius:8, fontFamily:'inherit', fontSize:13, color:'#8A7E7B', cursor:'pointer', marginTop:4 }}>
+                <button onClick={addOnderdeel} style={{width:'100%',padding:'9px',background:'#fff',border:'1.5px dashed #E5DEDA',borderRadius:8,fontFamily:'inherit',fontSize:13,color:'#8A7E7B',cursor:'pointer',marginTop:4}}>
                   + Onderhoudspunt toevoegen
                 </button>
               </div>
             )}
 
             {/* TAB: Offertes */}
-            {tabKaart === 'offertes' && (
+            {tabKaart==='offertes' && (
               <div>
-                <p style={{ fontSize:12, color:S.muted, marginBottom:12 }}>Registreer per partij de offerte voor alle onderhoudspunten in deze LOD.</p>
-                {(lod.offertes||[]).length === 0 && (
-                  <div style={{ textAlign:'center', padding:'30px', color:'#9CA3AF', fontSize:13 }}>Nog geen offertes geregistreerd.</div>
-                )}
+                <p style={{fontSize:12,color:S.muted,marginBottom:12}}>Registreer per partij de offerte. De status van de LOD wordt automatisch bijgewerkt.</p>
+                {(lod.offertes||[]).length===0&&<div style={{textAlign:'center',padding:'30px',color:'#9CA3AF',fontSize:13}}>Nog geen offertes geregistreerd.</div>}
                 {(lod.offertes||[]).map((o,i)=>(
-                  <div key={o.id||i} style={{ background:'#FAF7F2', border:'1px solid #E5DEDA', borderRadius:10, padding:'14px', marginBottom:10 }}>
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr auto', gap:10, marginBottom:10, alignItems:'end' }}>
+                  <div key={o.id||i} style={{background:'#FAF7F2',border:'1px solid #E5DEDA',borderRadius:10,padding:'14px',marginBottom:10}}>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:10,marginBottom:10,alignItems:'end'}}>
                       <div>
-                        <label style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>Partij / aannemer</label>
-                        <input value={o.partij||''} onChange={e=>updateOfferte(i,{partij:e.target.value})}
-                          placeholder="bijv. Bouwbedrijf Jansen" className="calc-inp" style={{fontSize:13}} />
+                        <label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>Partij / aannemer</label>
+                        <input value={o.partij||''} onChange={e=>updateOfferte(i,{partij:e.target.value})} placeholder="bijv. Bouwbedrijf Jansen" className="calc-inp" style={{fontSize:13}} />
                       </div>
                       <div>
-                        <label style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:4 }}>Totaalprijs offerte (€)</label>
-                        <input type="number" value={o.bedrag||''} onChange={e=>updateOfferte(i,{bedrag:e.target.value})}
-                          placeholder="bijv. 42000" className="calc-inp" style={{fontSize:13}} />
+                        <label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>Totaalprijs offerte (€)</label>
+                        <input type="number" value={o.bedrag||''} onChange={e=>updateOfferte(i,{bedrag:e.target.value})} placeholder="bijv. 42000" className="calc-inp" style={{fontSize:13}} />
                       </div>
-                      <button onClick={()=>delOfferte(i)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:16, color:S.muted, padding:'8px' }}>×</button>
+                      <button onClick={()=>delOfferte(i)} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,color:S.muted,padding:'8px'}}>×</button>
                     </div>
-                    <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:6 }}>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:6}}>
                       {[
-                        ['aangevraagd', 'aangevraagd', 'Offerte aangevraagd'],
-                        ['ontvangen',   'ontvangen',   'Offerte ontvangen'],
-                        ['vveVoorlegd', 'vveVoorlegd', 'Aan VvE voorgelegd'],
-                        ['vveAkkoord',  'vveAkkoord',  'VvE akkoord'],
-                        ['opdracht',    'opdracht',    'Opdracht verstrekt'],
-                      ].map(([field, tlKey, lbl])=>(
-                        <label key={field} style={{ display:'flex', alignItems:'center', gap:5, cursor:'pointer', padding:'7px 8px', background:o[field]?'#EAF4EE':'#fff', border:`1.5px solid ${o[field]?'#2D6A4F':'#E5DEDA'}`, borderRadius:7, fontSize:10, fontWeight:600, color:o[field]?'#2D6A4F':'#8A7E7B', userSelect:'none', transition:'all .15s' }}>
-                          <input type="checkbox" checked={!!o[field]} onChange={e=>toggleOfferteCheck(i,field,e.target.checked)} style={{width:12,height:12,accentColor:'#2D6A4F',cursor:'pointer'}} />
+                        ['aangevraagd','aangevraagd','Offerte aangevraagd'],
+                        ['ontvangen','ontvangen','Offerte ontvangen'],
+                        ['vveVoorlegd','vveVoorlegd','Aan VvE voorgelegd'],
+                        ['vveAkkoord','vveAkkoord','VvE akkoord'],
+                        ['opdracht','opdracht','Opdracht verstrekt'],
+                      ].map(([field,tlKey,lbl])=>(
+                        <label key={field} style={{display:'flex',alignItems:'center',gap:5,cursor:'pointer',padding:'7px 8px',background:o[field]?'#EAF4EE':'#fff',border:`1.5px solid ${o[field]?'#2D6A4F':'#E5DEDA'}`,borderRadius:7,fontSize:10,fontWeight:600,color:o[field]?'#2D6A4F':'#8A7E7B',userSelect:'none',transition:'all .15s'}}>
+                          <input type="checkbox" checked={!!o[field]} onChange={e=>toggleOfferteCheck(i,field,tlKey,e.target.checked)} style={{width:12,height:12,accentColor:'#2D6A4F',cursor:'pointer'}} />
                           {lbl}
                         </label>
                       ))}
                     </div>
-                    {o.ontvangen && o.bedrag && (
-                      <div style={{ marginTop:8, padding:'6px 10px', background:'#EAF4EE', borderRadius:6, fontSize:11, color:'#2D6A4F', fontFamily:'monospace' }}>
-                        Offertebedrag: {lodFmt(o.bedrag)}
-                      </div>
-                    )}
+                    {o.ontvangen&&o.bedrag&&<div style={{marginTop:8,padding:'5px 9px',background:'#EAF4EE',borderRadius:6,fontSize:11,color:'#2D6A4F',fontFamily:'monospace'}}>Offertebedrag: {lodFmt(o.bedrag)}</div>}
                   </div>
                 ))}
-                <button onClick={addOfferte} style={{ width:'100%', padding:'9px', background:'#fff', border:'1.5px dashed #E5DEDA', borderRadius:8, fontFamily:'inherit', fontSize:13, color:'#8A7E7B', cursor:'pointer', marginTop:4 }}>
+                <button onClick={addOfferte} style={{width:'100%',padding:'9px',background:'#fff',border:'1.5px dashed #E5DEDA',borderRadius:8,fontFamily:'inherit',fontSize:13,color:'#8A7E7B',cursor:'pointer',marginTop:4}}>
                   + Partij / offerte toevoegen
                 </button>
               </div>
             )}
 
             {/* TAB: Tijdlijn */}
-            {tabKaart === 'tijdlijn' && (
+            {tabKaart==='tijdlijn' && (
               <div>
-                {tijdlijn.length === 0 ? (
-                  <div style={{ textAlign:'center', padding:'30px', color:'#9CA3AF', fontSize:13 }}>Nog geen acties geregistreerd. Vink stappen aan om de tijdlijn op te bouwen.</div>
+                {tijdlijn.length===0 ? (
+                  <div style={{textAlign:'center',padding:'30px',color:'#9CA3AF',fontSize:13}}>Nog geen acties. Vink stappen aan om de tijdlijn op te bouwen.</div>
                 ) : (
-                  <div style={{ position:'relative', paddingLeft:24 }}>
-                    <div style={{ position:'absolute', left:7, top:0, bottom:0, width:2, background:'#E5DEDA', borderRadius:2 }} />
+                  <div style={{position:'relative',paddingLeft:24}}>
+                    <div style={{position:'absolute',left:7,top:0,bottom:0,width:2,background:'#E5DEDA',borderRadius:2}} />
                     {tijdlijn.map((e,i)=>(
-                      <div key={i} style={{ position:'relative', marginBottom:16 }}>
-                        <div style={{ position:'absolute', left:-20, top:3, width:10, height:10, borderRadius:'50%', background:e.kleur, border:'2px solid #fff', boxShadow:'0 0 0 2px '+e.kleur }} />
-                        <div style={{ fontSize:11, color:'#8A7E7B', marginBottom:2 }}>{lodFmtDt(e.ts)}</div>
-                        <div style={{ fontSize:13, fontWeight:600, color:e.kleur }}>{e.tekst}</div>
+                      <div key={i} style={{position:'relative',marginBottom:16}}>
+                        <div style={{position:'absolute',left:-20,top:3,width:10,height:10,borderRadius:'50%',background:e.kleur,border:'2px solid #fff',boxShadow:`0 0 0 2px ${e.kleur}`}} />
+                        <div style={{fontSize:11,color:'#8A7E7B',marginBottom:2}}>{lodFmtDt(e.ts)}</div>
+                        <div style={{fontSize:13,fontWeight:600,color:e.kleur}}>{e.tekst}</div>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
             )}
+
+            {/* TAB: Eenmalige bijdrage */}
+            {tabKaart==='eenmalig' && <LodEenmaligTab lod={lod} onUpdate={onUpdate} />}
           </div>
         </div>
       )}
@@ -1929,44 +2030,41 @@ function LodKalender({ lods }) {
   const now = new Date();
   const [jaar, setJaar] = useState(now.getFullYear());
   const maandNamen = ['Januari','Februari','Maart','April','Mei','Juni','Juli','Augustus','September','Oktober','November','December'];
-
-  // Verzamel alle deadlines
   const events = [];
-  lods.filter(l => l.status !== 'afgerond').forEach(l => {
+  lods.filter(l=>l.status!=='afgerond').forEach(l=>{
     if (l.deadlineAlgemeen) {
       const d = new Date(l.deadlineAlgemeen);
-      if (d.getFullYear() === jaar) {
-        events.push({ maand: d.getMonth(), dag: d.getDate(), naam: l.vveNaam||'Naamloos', ref: l.gemeenteReferentie, dagen: lodDagenTot(l.deadlineAlgemeen), status: l.status });
+      if (d.getFullYear()===jaar) {
+        events.push({maand:d.getMonth(),dag:d.getDate(),naam:l.vveNaam||'Naamloos',ref:l.gemeenteReferentie,dagen:lodDagenTot(l.deadlineAlgemeen)});
       }
     }
   });
-
   return (
     <div>
-      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20 }}>
-        <button onClick={()=>setJaar(j=>j-1)} style={{ padding:'6px 12px', border:'1px solid #E5DEDA', borderRadius:7, background:'#fff', cursor:'pointer', fontSize:13 }}>← {jaar-1}</button>
-        <span style={{ fontSize:16, fontWeight:700, color:'#2D2D2D' }}>{jaar}</span>
-        <button onClick={()=>setJaar(j=>j+1)} style={{ padding:'6px 12px', border:'1px solid #E5DEDA', borderRadius:7, background:'#fff', cursor:'pointer', fontSize:13 }}>{jaar+1} →</button>
+      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:20}}>
+        <button onClick={()=>setJaar(j=>j-1)} style={{padding:'6px 14px',border:'1px solid #E5DEDA',borderRadius:7,background:'#fff',cursor:'pointer',fontSize:13}}>← {jaar-1}</button>
+        <span style={{fontSize:16,fontWeight:700,color:'#2D2D2D'}}>{jaar}</span>
+        <button onClick={()=>setJaar(j=>j+1)} style={{padding:'6px 14px',border:'1px solid #E5DEDA',borderRadius:7,background:'#fff',cursor:'pointer',fontSize:13}}>{jaar+1} →</button>
       </div>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
-        {maandNamen.map((naam, mi) => {
-          const maandEvents = events.filter(e => e.maand === mi);
-          const isHuidig = mi === now.getMonth() && jaar === now.getFullYear();
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
+        {maandNamen.map((naam,mi)=>{
+          const me = events.filter(e=>e.maand===mi);
+          const isHuidig = mi===now.getMonth()&&jaar===now.getFullYear();
           return (
-            <div key={mi} style={{ background:'#fff', border:`1.5px solid ${isHuidig?'#92550A':'#E5DEDA'}`, borderRadius:10, overflow:'hidden' }}>
-              <div style={{ padding:'8px 12px', background:isHuidig?'#FEF3E2':'#FAF7F2', borderBottom:'1px solid #E5DEDA', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                <span style={{ fontSize:12, fontWeight:700, color:isHuidig?'#92550A':'#374151' }}>{naam}</span>
-                {maandEvents.length > 0 && <span style={{ fontSize:10, fontWeight:600, background:'#FDEAEB', color:'#991A21', padding:'1px 6px', borderRadius:8 }}>{maandEvents.length}</span>}
+            <div key={mi} style={{background:'#fff',border:`1.5px solid ${isHuidig?LOD_ROOD:'#E5DEDA'}`,borderRadius:10,overflow:'hidden'}}>
+              <div style={{padding:'8px 12px',background:isHuidig?LOD_ROOD_BG:'#FAF7F2',borderBottom:'1px solid #E5DEDA',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span style={{fontSize:12,fontWeight:700,color:isHuidig?LOD_ROOD:'#374151'}}>{naam}</span>
+                {me.length>0&&<span style={{fontSize:10,fontWeight:600,background:LOD_ROOD_BG,color:LOD_ROOD,padding:'1px 6px',borderRadius:8}}>{me.length}</span>}
               </div>
-              <div style={{ padding:'8px 10px', minHeight:60 }}>
-                {maandEvents.length === 0 ? (
-                  <span style={{ fontSize:10, color:'#D1D5DB' }}>Geen deadlines</span>
-                ) : maandEvents.map((e,i)=>(
-                  <div key={i} style={{ marginBottom:5, padding:'4px 7px', background:e.dagen<0?'#FDEAEB':e.dagen<=14?'#FEF3E2':'#EAF1F8', borderRadius:6, borderLeft:`3px solid ${e.dagen<0?'#991A21':e.dagen<=14?'#D97706':'#1A4D7A'}` }}>
-                    <div style={{ fontSize:10, fontWeight:600, color:e.dagen<0?'#991A21':e.dagen<=14?'#92550A':'#1A4D7A' }}>{e.naam}</div>
-                    <div style={{ fontSize:9, color:'#8A7E7B' }}>{e.dag} {naam.toLowerCase()} · {e.dagen<0?Math.abs(e.dagen)+'d over':e.dagen===0?'vandaag':e.dagen+'d'}</div>
-                  </div>
-                ))}
+              <div style={{padding:'8px 10px',minHeight:60}}>
+                {me.length===0?<span style={{fontSize:10,color:'#D1D5DB'}}>Geen deadlines</span>:
+                  me.map((e,i)=>(
+                    <div key={i} style={{marginBottom:5,padding:'4px 7px',background:e.dagen<0?LOD_ROOD_BG:e.dagen<=14?'#FEF3E2':'#EAF1F8',borderRadius:6,borderLeft:`3px solid ${e.dagen<0?LOD_ROOD:e.dagen<=14?'#B45309':'#1A4D7A'}`}}>
+                      <div style={{fontSize:10,fontWeight:600,color:e.dagen<0?LOD_ROOD:e.dagen<=14?'#92400E':'#1A4D7A'}}>{e.naam}</div>
+                      <div style={{fontSize:9,color:'#8A7E7B'}}>{e.dag} {naam.toLowerCase()} · {e.dagen<0?Math.abs(e.dagen)+'d over':e.dagen===0?'vandaag':e.dagen+'d'}</div>
+                    </div>
+                  ))
+                }
               </div>
             </div>
           );
@@ -1977,41 +2075,54 @@ function LodKalender({ lods }) {
 }
 
 // ── LodBeheer ─────────────────────────────────────────────────────
-function LodBeheer({ onTerug }) {
-  const [lods, setLods] = useState(() => lodLoad());
+function LodBeheer({ onTerug, beheerderList }) {
+  const [lods, setLods] = useState(()=>lodLoad());
   const [openId, setOpenId] = useState(null);
   const [zoek, setZoek] = useState('');
   const [filterStatus, setFilterStatus] = useState('alle');
   const [tabHoofd, setTabHoofd] = useState('lods');
 
   const saveAndSet = (nl) => { setLods(nl); lodSave(nl); };
-
   const addLod = () => {
-    const n = { id:lodUid(), vveNaam:'', gemeenteReferentie:'', status:'nieuw',
+    const n = { id:lodUid(), vveNaam:'', gemeenteReferentie:'', status:'nieuw', behandelaar:'',
       ontvangstdatum:new Date().toISOString().slice(0,10), deadlineAlgemeen:'', boeteMax:'',
       notitie:'', contactpersoon:'', contactGemeente:'',
       lodOntvangen:true, vveGenotificeerd:false, vergaderingBelegd:false, gemeenteBevestigd:false,
-      onderdelen:[], offertes:[], tijdlijn:{ ontvangen: lodNow() } };
-    saveAndSet([n, ...lods]);
+      onderdelen:[], offertes:[], tijdlijn:{ ontvangen:lodNow() } };
+    saveAndSet([n,...lods]);
     setOpenId(n.id);
     setTabHoofd('lods');
   };
-
-  const updateLod = (u) => saveAndSet(lods.map(l => l.id===u.id ? u : l));
-  const deleteLod = (id) => saveAndSet(lods.filter(l => l.id!==id));
+  const updateLod = (u) => saveAndSet(lods.map(l=>l.id===u.id?u:l));
+  const deleteLod = (id) => saveAndSet(lods.filter(l=>l.id!==id));
 
   // Stats
-  const actief = lods.filter(l => l.status!=='afgerond');
-  const urgent = lods.filter(l => { const d=lodDagenTot(l.deadlineAlgemeen); return d!==null&&d<=14&&d>=0&&l.status!=='afgerond'; });
-  const overschreden = lods.filter(l => { const d=lodDagenTot(l.deadlineAlgemeen); return d!==null&&d<0&&l.status!=='afgerond'; });
-  const openOffertes = lods.filter(l => l.status!=='afgerond' && (l.offertes||[]).some(o=>o.aangevraagd&&!o.ontvangen));
-  const wachtOpVve = lods.filter(l => l.status!=='afgerond' && (l.offertes||[]).some(o=>o.ontvangen&&!o.vveAkkoord));
-  const totaalBoeteRisico = actief.reduce((s,l)=>s+(parseFloat(l.boeteMax)||0),0);
+  const actief = lods.filter(l=>l.status!=='afgerond');
+  const urgent = lods.filter(l=>{const d=lodDagenTot(l.deadlineAlgemeen);return d!==null&&d<=14&&d>=0&&l.status!=='afgerond';});
+  const overschreden = lods.filter(l=>{const d=lodDagenTot(l.deadlineAlgemeen);return d!==null&&d<0&&l.status!=='afgerond';});
+  const ofwacht = lods.filter(l=>l.status==='offertes_afwacht');
+  const wachtOpVve = lods.filter(l=>l.status!=='afgerond'&&(l.offertes||[]).some(o=>o.ontvangen&&!o.vveAkkoord));
+  const totaalBoete = actief.reduce((s,l)=>s+(parseFloat(l.boeteMax)||0),0);
 
-  let zichtbaar = lods.filter(l => {
+  // Klikbare stats filter
+  const statFilters = [
+    { key:'alle',            label:"Alle LOD's",          val:lods.length,       tc:'#2D2D2D', dc:'#2D2D2D' },
+    { key:'actief',          label:'Actief',              val:actief.length,      tc:'#1A4D7A', dc:'#1A4D7A' },
+    { key:'offertes_afwacht',label:'Offerte in afwachting',val:ofwacht.length,   tc:'#92400E', dc:'#B45309' },
+    { key:'wacht_vve',       label:'Wacht op VvE',        val:wachtOpVve.length,  tc:LOD_ROOD,  dc:LOD_ROOD  },
+    { key:'urgent',          label:'Urgent (≤14d)',        val:urgent.length,     tc:LOD_ROOD,  dc:LOD_ROOD  },
+    { key:'overschreden',    label:'Overschreden',         val:overschreden.length,tc:LOD_ROOD, dc:LOD_ROOD  },
+  ];
+
+  let zichtbaar = lods.filter(l=>{
     const mz = !zoek||(l.vveNaam||'').toLowerCase().includes(zoek.toLowerCase())||(l.gemeenteReferentie||'').toLowerCase().includes(zoek.toLowerCase());
-    const ms = filterStatus==='alle'||l.status===filterStatus;
-    return mz && ms;
+    let ms = true;
+    if (filterStatus==='actief') ms = l.status!=='afgerond';
+    else if (filterStatus==='wacht_vve') ms = (l.offertes||[]).some(o=>o.ontvangen&&!o.vveAkkoord)&&l.status!=='afgerond';
+    else if (filterStatus==='urgent') ms = (()=>{const d=lodDagenTot(l.deadlineAlgemeen);return d!==null&&d<=14&&d>=0&&l.status!=='afgerond';})();
+    else if (filterStatus==='overschreden') ms = (()=>{const d=lodDagenTot(l.deadlineAlgemeen);return d!==null&&d<0&&l.status!=='afgerond';})();
+    else if (filterStatus!=='alle') ms = l.status===filterStatus;
+    return mz&&ms;
   });
 
   return (
@@ -2021,105 +2132,97 @@ function LodBeheer({ onTerug }) {
       <div className="border-b border-gray-200 px-6 h-14 flex items-center justify-between bg-white shadow-sm sticky top-0 z-50">
         <div className="flex items-center gap-3">
           <div className="flex gap-1">
-            <div className="w-7 h-7 bg-[#92550A] rounded-md flex items-center justify-center"><span className="text-white text-xs font-bold">L</span></div>
-            <div className="w-7 h-7 bg-[#2D2D2D] rounded-md flex items-center justify-center"><span className="text-white text-xs font-bold">D</span></div>
+            <div style={{width:28,height:28,background:LOD_ROOD,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{color:'#fff',fontSize:11,fontWeight:700}}>L</span></div>
+            <div style={{width:28,height:28,background:'#2D2D2D',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{color:'#fff',fontSize:11,fontWeight:700}}>D</span></div>
           </div>
           <div className="w-px h-5 bg-gray-200" />
           <span className="text-sm font-bold text-[#2D2D2D]">LOD Beheer</span>
           <span className="text-xs text-gray-400">Last onder Dwangsom module</span>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={addLod} className="text-xs px-3 py-1.5 bg-[#92550A] hover:bg-[#7a4508] text-white rounded-lg transition-colors font-semibold">
+          <button onClick={addLod} style={{fontSize:12,padding:'6px 14px',background:LOD_ROOD,color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
             + Nieuwe LOD
           </button>
-          <button onClick={onTerug} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-gray-600 hover:text-[#92550A] transition-colors">
+          <button onClick={onTerug} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-gray-600 transition-colors">
             ← Terug naar portaal
           </button>
         </div>
       </div>
 
-      {/* Stats balk */}
-      <div className="bg-white border-b border-gray-200 px-6 flex gap-0 flex-wrap">
-        {[
-          [lods.length, "Totaal", "#2D2D2D", "#2D2D2D"],
-          [actief.length, "Actief", "#1A4D7A", "#1A4D7A"],
-          [openOffertes.length, "Offerte loopt", "#5B3FA6", "#7C3AED"],
-          [wachtOpVve.length, "Wacht op VvE", "#92550A", "#D97706"],
-          [urgent.length, "Urgent", "#991A21", "#991A21"],
-          [overschreden.length, "Overschreden", "#7f1d1d", "#991A21"],
-        ].map(([val,lbl,tc,dc])=>(
-          <div key={lbl} className="flex items-center gap-2.5 px-4 py-3 border-r border-gray-100">
-            <div style={{width:8,height:8,borderRadius:'50%',background:dc}} />
-            <div>
-              <div style={{fontSize:18,fontWeight:700,color:tc}}>{val}</div>
-              <div style={{fontSize:10,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.05em',fontWeight:600}}>{lbl}</div>
+      {/* Stats balk — klikbaar */}
+      <div style={{background:'#fff',borderBottom:'1px solid #E5DEDA',display:'flex',flexWrap:'wrap'}}>
+        {statFilters.map(sf=>(
+          <button key={sf.key} onClick={()=>setFilterStatus(sf.key)}
+            style={{display:'flex',alignItems:'center',gap:8,padding:'10px 16px',border:'none',borderBottom:`2px solid ${filterStatus===sf.key?sf.tc:'transparent'}`,background:filterStatus===sf.key?'#FAF7F2':'transparent',cursor:'pointer',transition:'all .15s',borderRight:'1px solid #F3F4F6'}}>
+            <div style={{width:8,height:8,borderRadius:'50%',background:sf.dc}} />
+            <div style={{textAlign:'left'}}>
+              <div style={{fontSize:18,fontWeight:700,color:sf.tc,fontFamily:'DM Sans,sans-serif',lineHeight:1}}>{sf.val}</div>
+              <div style={{fontSize:10,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.05em',fontWeight:600,marginTop:2}}>{sf.label}</div>
             </div>
-          </div>
+          </button>
         ))}
-        {totaalBoeteRisico > 0 && (
-          <div className="flex items-center gap-2.5 px-4 py-3">
-            <div style={{width:8,height:8,borderRadius:'50%',background:'#991A21'}} />
+        {totaalBoete>0&&(
+          <div style={{display:'flex',alignItems:'center',gap:8,padding:'10px 16px',borderRight:'1px solid #F3F4F6'}}>
+            <div style={{width:8,height:8,borderRadius:'50%',background:LOD_ROOD}} />
             <div>
-              <div style={{fontSize:14,fontWeight:700,color:'#991A21',fontFamily:'monospace'}}>{lodFmt(totaalBoeteRisico)}</div>
-              <div style={{fontSize:10,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.05em',fontWeight:600}}>Totaal boeterisico</div>
+              <div style={{fontSize:14,fontWeight:700,color:LOD_ROOD,fontFamily:'monospace',lineHeight:1}}>{lodFmt(totaalBoete)}</div>
+              <div style={{fontSize:10,color:'#9CA3AF',textTransform:'uppercase',letterSpacing:'0.05em',fontWeight:600,marginTop:2}}>Totaal boeterisico</div>
             </div>
           </div>
         )}
       </div>
 
       {/* Tabs hoofd */}
-      <div style={{ background:'#fff', borderBottom:'1px solid #E5DEDA', paddingLeft:20, display:'flex' }}>
+      <div style={{background:'#fff',borderBottom:'1px solid #E5DEDA',paddingLeft:20,display:'flex'}}>
         {[['lods','LOD overzicht'],['kalender','Deadlinekalender']].map(([key,lbl])=>(
           <button key={key} onClick={()=>setTabHoofd(key)}
-            style={{ padding:'10px 18px', border:'none', borderBottom:`2px solid ${tabHoofd===key?'#92550A':'transparent'}`, background:'transparent', fontSize:13, fontWeight:tabHoofd===key?600:400, color:tabHoofd===key?'#92550A':'#6B7280', cursor:'pointer' }}>
+            style={{padding:'10px 18px',border:'none',borderBottom:`2px solid ${tabHoofd===key?LOD_ROOD:'transparent'}`,background:'transparent',fontSize:13,fontWeight:tabHoofd===key?600:400,color:tabHoofd===key?LOD_ROOD:'#6B7280',cursor:'pointer'}}>
             {lbl}
           </button>
         ))}
       </div>
 
-      <div style={{ maxWidth:1100, margin:'0 auto', padding:'24px 20px 80px' }}>
-        {tabHoofd === 'kalender' ? (
-          <LodKalender lods={lods} />
-        ) : (
-          <div style={{ display:'grid', gridTemplateColumns:'260px 1fr', gap:20 }}>
+      <div style={{maxWidth:1100,margin:'0 auto',padding:'24px 20px 80px'}}>
+        {tabHoofd==='kalender' ? <LodKalender lods={lods} /> : (
+          <div style={{display:'grid',gridTemplateColumns:'240px 1fr',gap:20}}>
             {/* Zijbalk */}
             <div>
-              {(overschreden.length>0||urgent.length>0||openOffertes.length>0||wachtOpVve.length>0) && (
-                <div style={{ background:'#fff', border:'1.5px solid #E5DEDA', borderRadius:12, padding:'14px 16px', marginBottom:14 }}>
-                  <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'#991A21', marginBottom:10 }}>Actie vereist</div>
+              {(overschreden.length>0||urgent.length>0||ofwacht.length>0||wachtOpVve.length>0)&&(
+                <div style={{background:'#fff',border:'1.5px solid #E5DEDA',borderRadius:12,padding:'14px 16px',marginBottom:14}}>
+                  <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:LOD_ROOD,marginBottom:10}}>Actie vereist</div>
                   {overschreden.map(l=>(
-                    <div key={l.id} onClick={()=>setOpenId(l.id)} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 8px', background:'#FDEAEB', border:'1px solid #fca5a5', borderRadius:7, marginBottom:5, cursor:'pointer', fontSize:11 }}>
-                      <span style={{fontWeight:600,color:'#991A21'}}>{l.vveNaam||'Naamloos'}</span>
-                      <span style={{color:'#991A21'}}>deadline voorbij</span>
+                    <div key={l.id} onClick={()=>setOpenId(l.id)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 8px',background:LOD_ROOD_BG,border:`1px solid #fca5a5`,borderRadius:7,marginBottom:5,cursor:'pointer',fontSize:11}}>
+                      <span style={{fontWeight:600,color:LOD_ROOD}}>{l.vveNaam||'Naamloos'}</span>
+                      <span style={{color:LOD_ROOD}}>voorbij</span>
                     </div>
                   ))}
                   {urgent.map(l=>(
-                    <div key={l.id} onClick={()=>setOpenId(l.id)} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 8px', background:'#FEF3E2', border:'1px solid #FDE68A', borderRadius:7, marginBottom:5, cursor:'pointer', fontSize:11 }}>
-                      <span style={{fontWeight:600,color:'#92550A'}}>{l.vveNaam||'Naamloos'}</span>
-                      <span style={{color:'#92550A'}}>{lodDagenTot(l.deadlineAlgemeen)}d</span>
+                    <div key={l.id} onClick={()=>setOpenId(l.id)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 8px',background:'#FEF3E2',border:'1px solid #FDE68A',borderRadius:7,marginBottom:5,cursor:'pointer',fontSize:11}}>
+                      <span style={{fontWeight:600,color:'#92400E'}}>{l.vveNaam||'Naamloos'}</span>
+                      <span style={{color:'#92400E'}}>{lodDagenTot(l.deadlineAlgemeen)}d</span>
                     </div>
                   ))}
-                  {openOffertes.filter(l=>!overschreden.includes(l)&&!urgent.includes(l)).map(l=>(
-                    <div key={l.id} onClick={()=>setOpenId(l.id)} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 8px', background:'#F3EFFD', border:'1px solid #C4B5FD', borderRadius:7, marginBottom:5, cursor:'pointer', fontSize:11 }}>
+                  {ofwacht.filter(l=>!overschreden.includes(l)&&!urgent.includes(l)).map(l=>(
+                    <div key={l.id} onClick={()=>setOpenId(l.id)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 8px',background:'#F3EFFD',border:'1px solid #C4B5FD',borderRadius:7,marginBottom:5,cursor:'pointer',fontSize:11}}>
                       <span style={{fontWeight:600,color:'#5B3FA6'}}>{l.vveNaam||'Naamloos'}</span>
                       <span style={{color:'#5B3FA6'}}>offerte open</span>
                     </div>
                   ))}
-                  {wachtOpVve.filter(l=>!overschreden.includes(l)&&!urgent.includes(l)&&!openOffertes.includes(l)).map(l=>(
-                    <div key={l.id} onClick={()=>setOpenId(l.id)} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 8px', background:'#FEF3E2', border:'1px solid #FDE68A', borderRadius:7, marginBottom:5, cursor:'pointer', fontSize:11 }}>
-                      <span style={{fontWeight:600,color:'#92550A'}}>{l.vveNaam||'Naamloos'}</span>
-                      <span style={{color:'#92550A'}}>wacht VvE</span>
+                  {wachtOpVve.filter(l=>!overschreden.includes(l)&&!urgent.includes(l)&&!ofwacht.includes(l)).map(l=>(
+                    <div key={l.id} onClick={()=>setOpenId(l.id)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 8px',background:'#FEF3E2',border:'1px solid #FDE68A',borderRadius:7,marginBottom:5,cursor:'pointer',fontSize:11}}>
+                      <span style={{fontWeight:600,color:'#92400E'}}>{l.vveNaam||'Naamloos'}</span>
+                      <span style={{color:'#92400E'}}>wacht VvE</span>
                     </div>
                   ))}
                 </div>
               )}
-              <div style={{ background:'#fff', border:'1px solid #E5DEDA', borderRadius:12, padding:'14px 16px' }}>
-                <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'#8A7E7B', marginBottom:10 }}>Filter op status</div>
-                {[['alle',"Alle LOD's"], ...Object.entries(LOD_STATUS).map(([k,v])=>[k,v.label])].map(([key,lbl])=>(
+              <div style={{background:'#fff',border:'1px solid #E5DEDA',borderRadius:12,padding:'14px 16px'}}>
+                <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#8A7E7B',marginBottom:10}}>Filter op status</div>
+                {[['alle',"Alle LOD's"],...Object.entries(LOD_STATUS).map(([k,v])=>[k,v.label])].map(([key,lbl])=>(
                   <button key={key} onClick={()=>setFilterStatus(key)}
-                    style={{ display:'block', width:'100%', textAlign:'left', padding:'7px 10px', borderRadius:7, border:'none', background:filterStatus===key?'#FEF3E2':'transparent', color:filterStatus===key?'#92550A':'#374151', fontSize:12, fontWeight:filterStatus===key?600:400, cursor:'pointer', marginBottom:2 }}>
+                    style={{display:'block',width:'100%',textAlign:'left',padding:'7px 10px',borderRadius:7,border:'none',background:filterStatus===key?LOD_ROOD_BG:'transparent',color:filterStatus===key?LOD_ROOD:'#374151',fontSize:12,fontWeight:filterStatus===key?600:400,cursor:'pointer',marginBottom:2}}>
                     {lbl}
-                    <span style={{ float:'right', fontSize:11, color:'#9CA3AF' }}>{key==='alle'?lods.length:lods.filter(l=>l.status===key).length}</span>
+                    <span style={{float:'right',fontSize:11,color:'#9CA3AF'}}>{key==='alle'?lods.length:lods.filter(l=>l.status===key).length}</span>
                   </button>
                 ))}
               </div>
@@ -2127,23 +2230,20 @@ function LodBeheer({ onTerug }) {
 
             {/* Hoofdpanel */}
             <div>
-              <div style={{ display:'flex', gap:10, marginBottom:16, alignItems:'center' }}>
+              <div style={{display:'flex',gap:10,marginBottom:16,alignItems:'center'}}>
                 <input value={zoek} onChange={e=>setZoek(e.target.value)} placeholder="Zoek op VvE naam of referentie..."
                   className="calc-inp" style={{flex:1,fontSize:13}} />
-                {zoek && <button onClick={()=>setZoek('')} style={{padding:'8px 12px',background:'#fff',border:'1px solid #E5DEDA',borderRadius:8,cursor:'pointer',fontSize:12,color:'#8A7E7B'}}>✕</button>}
+                {zoek&&<button onClick={()=>setZoek('')} style={{padding:'8px 12px',background:'#fff',border:'1px solid #E5DEDA',borderRadius:8,cursor:'pointer',fontSize:12,color:'#8A7E7B'}}>✕</button>}
+                {filterStatus!=='alle'&&<button onClick={()=>setFilterStatus('alle')} style={{padding:'6px 12px',background:LOD_ROOD_BG,border:`1px solid #fca5a5`,borderRadius:8,cursor:'pointer',fontSize:11,color:LOD_ROOD,fontWeight:600,whiteSpace:'nowrap'}}>✕ Filter wissen</button>}
               </div>
-              {zichtbaar.length === 0 ? (
-                <div style={{ textAlign:'center', padding:'60px 20px', color:'#9CA3AF' }}>
-                  <div style={{ fontSize:32, marginBottom:12 }}>📋</div>
-                  <div style={{ fontSize:14, fontWeight:600, marginBottom:4 }}>
-                    {lods.length === 0 ? "Nog geen LOD's geregistreerd" : "Geen resultaten"}
-                  </div>
-                  <div style={{ fontSize:12 }}>
-                    {lods.length === 0 ? "Klik op + Nieuwe LOD om te beginnen." : "Probeer een andere zoekterm of filter."}
-                  </div>
+              {zichtbaar.length===0 ? (
+                <div style={{textAlign:'center',padding:'60px 20px',color:'#9CA3AF'}}>
+                  <div style={{fontSize:32,marginBottom:12}}>📋</div>
+                  <div style={{fontSize:14,fontWeight:600,marginBottom:4}}>{lods.length===0?"Nog geen LOD's geregistreerd":"Geen resultaten"}</div>
+                  <div style={{fontSize:12}}>{lods.length===0?"Klik op + Nieuwe LOD om te beginnen.":"Probeer een andere zoekterm of filter."}</div>
                 </div>
               ) : zichtbaar.map(lod=>(
-                <LodKaart key={lod.id} lod={lod} onUpdate={updateLod} onDelete={()=>deleteLod(lod.id)} openId={openId} setOpenId={setOpenId} />
+                <LodKaart key={lod.id} lod={lod} onUpdate={updateLod} onDelete={()=>deleteLod(lod.id)} openId={openId} setOpenId={setOpenId} beheerderList={beheerderList} />
               ))}
             </div>
           </div>
@@ -2884,7 +2984,7 @@ export default function App() {
 
   // ── Screens ──────────────────────────────────────────────────
   if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBack={()=>setScreen("portaal")}/>;
-  if (screen==="lod") return <LodBeheer onTerug={()=>setScreen("portaal")}/>;
+  if (screen==="lod") return <LodBeheer onTerug={()=>setScreen("portaal")} beheerderList={beheerderList}/>;
   if (screen==="calculator") return <VveCalculator onTerug={()=>setScreen("portaal")}/>;
 
   if (screen==="login") return (
