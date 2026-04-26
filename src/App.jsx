@@ -1586,6 +1586,7 @@ function berekenAutoStatus(lod) {
   const s = lod.status;
   if (s==='afgerond'||s==='overschreden') return s;
   const ofs = lod.offertes||[];
+  if (ofs.some(o=>o.opdrachtAfgerond))     return 'opdracht_uit'; // afgerond valt nog onder opdracht_uit status
   if (ofs.some(o=>o.opdracht))             return 'opdracht_uit';
   if (ofs.some(o=>o.vveAkkoord))           return 'vve_akkoord';
   if (ofs.some(o=>o.vveVoorlegd))          return 'vve_afwachting';
@@ -1613,14 +1614,14 @@ function buildTijdlijn(lod) {
   const events = [];
   const add = (ts,tekst,kleur) => { if(ts) events.push({ts,tekst,kleur}); };
   add(lod.tijdlijn?.vveGenotificeerd,          'VvE in kennis gesteld',                '#1A4D7A');
-  add(lod.tijdlijn?.offertesMail,              'Offertes voorgelegd per e-mail',       '#5B3FA6');
   add(lod.tijdlijn?.vergaderingUitgeschreven,  'Vergadering uitgeschreven',            LOD_ROOD);
   (lod.offertes||[]).forEach(o=>{
     add(o.tijdlijn?.aangevraagd,`Offerte aangevraagd bij ${o.partij||'onbekend'}`,    '#1A4D7A');
     add(o.tijdlijn?.ontvangen,  `Offerte ontvangen van ${o.partij||'onbekend'}`,      '#5B3FA6');
     add(o.tijdlijn?.vveVoorlegd,`Offerte voorgelegd aan VvE (${o.partij||'onbekend'})`,'#92400E');
     add(o.tijdlijn?.vveAkkoord, `VvE akkoord op offerte ${o.partij||'onbekend'}`,     '#2D6A4F');
-    add(o.tijdlijn?.opdracht,   `Opdracht verstrekt aan ${o.partij||'onbekend'}`,     '#1E3A5F');
+    add(o.tijdlijn?.opdracht,         `Opdracht verstrekt aan ${o.partij||'onbekend'}`,  '#1E3A5F');
+    add(o.tijdlijn?.opdrachtAfgerond, `Opdracht afgerond door ${o.partij||'onbekend'}`,   '#2D6A4F');
   });
   add(lod.tijdlijn?.gemeenteBevestigd,'Gemeente bevestigd / gereed gemeld',           '#2D6A4F');
   add(lod.tijdlijn?.afgerond,         'LOD afgerond',                                 '#374151');
@@ -1632,13 +1633,15 @@ function lodVoortgang(lod) {
   const ofs = lod.offertes||[];
   const aangevraagd = ofs.filter(o=>o.aangevraagd);
   const allemaalOntvangen = aangevraagd.length > 0 && aangevraagd.every(o=>o.ontvangen);
+  const allemaalAfgerond = ofs.length > 0 && ofs.filter(o=>o.opdracht).every(o=>o.opdrachtAfgerond);
   return [
     { lbl:'VvE in kennis gesteld',        ok: !!lod.vveGenotificeerd },
     { lbl:'Offertes aangevraagd',         ok: ofs.some(o=>o.aangevraagd) },
     { lbl:'Alle offertes ontvangen',      ok: allemaalOntvangen },
-    { lbl:'Aan VvE voorgelegd/vergaderd', ok: ofs.some(o=>o.vveVoorlegd) },
+    { lbl:'Aan VvE voorgelegd/vergaderd', ok: ofs.some(o=>o.vveVoorlegd) || !!lod.vergaderingUitgeschreven },
     { lbl:'VvE akkoord',                  ok: ofs.some(o=>o.vveAkkoord) },
     { lbl:'Opdracht verstrekt',           ok: ofs.some(o=>o.opdracht) },
+    { lbl:'Opdracht afgerond',            ok: ofs.some(o=>o.opdrachtAfgerond) },
     { lbl:'Afronding gemeld gemeente',    ok: !!lod.gemeenteBevestigd },
   ];
 }
@@ -1973,8 +1976,8 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
   const updOnderdeel= (idx,val) => {const o=[...(lod.onderdelen||[])];o[idx]={...o[idx],omschrijving:val};update({onderdelen:o});};
 
   const markeerAfgerond = () => {
-    const tl = {...(lod.tijdlijn||{}),afgerond:lodNow()};
-    onUpdate({...lod,status:'afgerond',tijdlijn:tl});
+    const tl = {...(lod.tijdlijn||{}),afgerond:lodNow(),gemeenteBevestigd:lodNow()};
+    onUpdate({...lod,status:'afgerond',gemeenteBevestigd:true,tijdlijn:tl});
     setOpenId(null);
   };
 
@@ -1992,8 +1995,8 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
             {lod.behandelaar&&<span style={{fontSize:10,color:'#8A7E7B',background:'#F3F4F6',padding:'2px 7px',borderRadius:8}}>{lod.behandelaar}</span>}
 
             {lod.uitstelAangevraagd&&(
-              <span style={{fontSize:10,fontWeight:600,background:'#FEF3E2',color:'#92400E',padding:'2px 7px',borderRadius:10,border:'1px solid #FDE68A'}}>
-                Uitstel{lod.uitstelTot?' t/m '+new Date(lod.uitstelTot).toLocaleDateString('nl-NL'):''}
+              <span style={{fontSize:10,fontWeight:600,background:lod.uitstelGoedgekeurd?'#EAF4EE':'#FEF3E2',color:lod.uitstelGoedgekeurd?'#2D6A4F':'#92400E',padding:'2px 7px',borderRadius:10,border:`1px solid ${lod.uitstelGoedgekeurd?'#6EE7B7':'#FDE68A'}`}}>
+                {lod.uitstelGoedgekeurd?'Uitstel goedgekeurd':'Uitstel aangevraagd'}{lod.uitstelTot&&lod.uitstelGoedgekeurd?' t/m '+new Date(lod.uitstelTot).toLocaleDateString('nl-NL'):''}
               </span>
             )}
             {lod.status!=='afgerond'&&dagen!==null&&dagen<0&&!lod.uitstelAangevraagd&&(
@@ -2069,10 +2072,9 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
 
                 <div style={{marginBottom:14}}>
                   <div style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}}>Voortgang LOD</div>
-                  <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6}}>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6}}>
                     {[
                       ['vveGenotificeerd','vveGenotificeerd','VvE in kennis gesteld'],
-                      ['offertesMail','offertesMail','Offertes voorgelegd per e-mail'],
                       ['vergaderingUitgeschreven','vergaderingUitgeschreven','Vergadering uitgeschreven'],
                       ['gemeenteBevestigd','gemeenteBevestigd','Afronding gemeld gemeente'],
                     ].map(([field,tlKey,lbl])=>(
@@ -2105,18 +2107,31 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
                     )}
                   </label>
                   {lod.uitstelAangevraagd&&(
-                    <div style={{marginTop:10,display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-                      <div>
-                        <label style={{fontSize:10,fontWeight:600,color:'#92400E',textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>Uitstel tot wanneer</label>
-                        <input type="date" value={lod.uitstelTot||''} onChange={e=>update({uitstelTot:e.target.value})}
-                          className="calc-inp" style={{fontSize:13,borderColor:'#FDE68A'}} />
-                      </div>
-                      <div>
-                        <label style={{fontSize:10,fontWeight:600,color:'#92400E',textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>Reden uitstel</label>
-                        <input value={lod.uitstelReden||''} onChange={e=>update({uitstelReden:e.target.value})}
-                          placeholder="bijv. wacht op gemeentelijke goedkeuring"
-                          className="calc-inp" style={{fontSize:12,borderColor:'#FDE68A'}} />
-                      </div>
+                    <div style={{marginTop:10}}>
+                      {/* Uitstel goedgekeurd vinkje */}
+                      <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',padding:'8px 10px',background:lod.uitstelGoedgekeurd?'#EAF4EE':'#fff',border:`1.5px solid ${lod.uitstelGoedgekeurd?'#2D6A4F':'#E5DEDA'}`,borderRadius:8,marginBottom:10,userSelect:'none',transition:'all .15s'}}>
+                        <div style={{width:16,height:16,borderRadius:4,background:lod.uitstelGoedgekeurd?'#2D6A4F':'transparent',border:`2px solid ${lod.uitstelGoedgekeurd?'#2D6A4F':'#9CA3AF'}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                          {lod.uitstelGoedgekeurd&&<span style={{color:'#fff',fontSize:10,fontWeight:700,lineHeight:1}}>✓</span>}
+                        </div>
+                        <input type="checkbox" checked={!!lod.uitstelGoedgekeurd} onChange={e=>update({uitstelGoedgekeurd:e.target.checked})} style={{display:'none'}} />
+                        <span style={{fontSize:12,fontWeight:600,color:lod.uitstelGoedgekeurd?'#2D6A4F':'#374151'}}>Uitstel goedgekeurd door gemeente</span>
+                      </label>
+                      {/* Datum + reden alleen tonen als goedgekeurd */}
+                      {lod.uitstelGoedgekeurd&&(
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                          <div>
+                            <label style={{fontSize:10,fontWeight:600,color:'#2D6A4F',textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>Uitstel tot wanneer</label>
+                            <input type="date" value={lod.uitstelTot||''} onChange={e=>update({uitstelTot:e.target.value})}
+                              className="calc-inp" style={{fontSize:13,borderColor:'#6EE7B7'}} />
+                          </div>
+                          <div>
+                            <label style={{fontSize:10,fontWeight:600,color:'#2D6A4F',textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>Reden uitstel</label>
+                            <input value={lod.uitstelReden||''} onChange={e=>update({uitstelReden:e.target.value})}
+                              placeholder="bijv. gemeentelijke goedkeuring ontvangen"
+                              className="calc-inp" style={{fontSize:12,borderColor:'#6EE7B7'}} />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -2129,9 +2144,17 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
                     <button onClick={()=>lodExportPDF(lod,null)} style={{padding:'7px 14px',background:'#fff',border:`1.5px solid ${LOD_ROOD}`,borderRadius:8,fontSize:12,color:LOD_ROOD,cursor:'pointer',fontFamily:'inherit',fontWeight:500}}>
                       PDF rapport
                     </button>
-                    {lod.status!=='afgerond'&&(
+                    {lod.status!=='afgerond'?(
                       <button onClick={markeerAfgerond} style={{padding:'7px 18px',background:'#2D6A4F',border:'none',borderRadius:8,fontSize:12,color:'#fff',cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
                         LOD afgerond
+                      </button>
+                    ):(
+                      <button onClick={()=>{
+                        const tl = {...(lod.tijdlijn||{})};
+                        delete tl.afgerond;
+                        onUpdate({...lod,status:'opdracht_uit',gemeenteBevestigd:false,tijdlijn:tl});
+                      }} style={{padding:'7px 18px',background:'#fff',border:'1.5px solid #1A4D7A',borderRadius:8,fontSize:12,color:'#1A4D7A',cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
+                        LOD heropenen
                       </button>
                     )}
                   </div>
@@ -2175,13 +2198,14 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
                       </div>
                       <button onClick={()=>delOfferte(i)} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,color:S.muted,padding:'8px'}}>×</button>
                     </div>
-                    <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:6}}>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6}}>
                       {[
                         ['aangevraagd','aangevraagd','Offerte aangevraagd'],
                         ['ontvangen','ontvangen','Offerte ontvangen'],
                         ['vveVoorlegd','vveVoorlegd','Aan VvE voorgelegd'],
                         ['vveAkkoord','vveAkkoord','VvE akkoord'],
                         ['opdracht','opdracht','Opdracht verstrekt'],
+                        ['opdrachtAfgerond','opdrachtAfgerond','Opdracht afgerond'],
                       ].map(([field,tlKey,lbl])=>(
                         <label key={field} style={{display:'flex',alignItems:'center',gap:5,cursor:'pointer',padding:'7px 8px',background:o[field]?'#EAF4EE':'#fff',border:`1.5px solid ${o[field]?'#2D6A4F':'#E5DEDA'}`,borderRadius:7,fontSize:10,fontWeight:600,color:o[field]?'#2D6A4F':'#8A7E7B',userSelect:'none',transition:'all .15s'}}>
                           <input type="checkbox" checked={!!o[field]} onChange={e=>toggleOfferteCheck(i,field,tlKey,e.target.checked)} style={{width:12,height:12,accentColor:'#2D6A4F',cursor:'pointer'}} />
@@ -2379,7 +2403,7 @@ function LodBeheer({ onTerug, beheerderList }) {
     const n = {id:lodUid(),vveNaam:'',gemeenteReferentie:'',status:'nieuw',behandelaar:'',
       ontvangstdatum:new Date().toISOString().slice(0,10),deadlineAlgemeen:'',boeteMax:'',
       notitie:'',contactpersoon:'',contactGemeente:'',
-      vveGenotificeerd:false,offertesMail:false,vergaderingUitgeschreven:false,gemeenteBevestigd:false,
+      vveGenotificeerd:false,vergaderingUitgeschreven:false,gemeenteBevestigd:false,
       onderdelen:[],offertes:[],tijdlijn:{ontvangen:lodNow()}};
     const updated = [n,...lods];
     setLods(updated);
@@ -2417,6 +2441,7 @@ function LodBeheer({ onTerug, beheerderList }) {
 
   // Filterlijst zijbalk: exclusief 'in_behandeling' en 'offertes_lopen'
   const filterLijstStatussen = Object.entries(LOD_STATUS).filter(([k])=>k!=='in_behandeling'&&k!=='offertes_lopen');
+  const uitstelLods = lods.filter(l=>!!l.uitstelAangevraagd);
 
   let zichtbaar = lods.filter(l=>{
     const mz = !zoek||(l.vveNaam||'').toLowerCase().includes(zoek.toLowerCase())||(l.gemeenteReferentie||'').toLowerCase().includes(zoek.toLowerCase());
@@ -2424,6 +2449,7 @@ function LodBeheer({ onTerug, beheerderList }) {
     if (filterStatus==='actief')         ms=l.status!=='afgerond';
     else if (filterStatus==='urgent')    ms=(()=>{const d=lodDagenTot(l.deadlineAlgemeen);return d!==null&&d<=14&&d>=0&&l.status!=='afgerond';})();
     else if (filterStatus==='overschreden') ms=(()=>{const d=lodDagenTot(l.deadlineAlgemeen);return d!==null&&d<0&&l.status!=='afgerond';})();
+    else if (filterStatus==='uitstel')   ms=!!l.uitstelAangevraagd;
     else if (filterStatus!=='alle')      ms=l.status===filterStatus;
     // Verberg afgerond
     if (hideAfgerond && l.status==='afgerond') return false;
@@ -2548,7 +2574,7 @@ function LodBeheer({ onTerug, beheerderList }) {
 
               <div style={{background:'#fff',border:'1px solid #E5DEDA',borderRadius:12,padding:'14px 16px'}}>
                 <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#8A7E7B',marginBottom:10}}>Filter op status</div>
-                {[['alle',"Alle LOD's"],...filterLijstStatussen.map(([k,v])=>[k,v.label])].map(([key,lbl])=>(
+                {[['alle',"Alle LOD's"],...filterLijstStatussen.map(([k,v])=>[k,v.label]),['uitstel','Uitstel aangevraagd']].map(([key,lbl])=>(
                   <button key={key} onClick={()=>setFilterStatus(key)}
                     style={{display:'block',width:'100%',textAlign:'left',padding:'7px 10px',borderRadius:7,border:'none',background:filterStatus===key?LOD_ROOD_BG:'transparent',color:filterStatus===key?LOD_ROOD:'#374151',fontSize:12,fontWeight:filterStatus===key?600:400,cursor:'pointer',marginBottom:2}}>
                     {lbl}
@@ -4026,32 +4052,6 @@ export default function App() {
               </div>
             )}
 
-            {/* LOD Dashboard tegel — alleen voor admin */}
-            {isAdmin && lodActief.length > 0 && (
-              <div
-                onClick={()=>setScreen("lod")}
-                className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-5 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group col-span-1"
-              >
-                <div className="absolute top-0 left-0 right-0 h-1 bg-[#991A21] rounded-t-2xl" />
-                <div className="flex items-start justify-between mb-3">
-                  <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center text-lg">⚠</div>
-                  <span className="text-xs bg-red-50 text-[#991A21] px-2 py-1 rounded-full font-semibold border border-red-100">{lodActief.length} actief</span>
-                </div>
-                <h3 className="text-sm font-bold text-[#2D2D2D] mb-1">LOD Dossiers</h3>
-                <div className="space-y-1">
-                  {lodUrgent > 0 && (
-                    <p className="text-xs text-[#991A21] font-semibold">⚡ {lodUrgent} urgent (≤14 dagen)</p>
-                  )}
-                  {lodDezesMaand > 0 && (
-                    <p className="text-xs text-amber-600">📅 {lodDezesMaand} deadline{lodDezesMaand>1?'s':''} deze maand</p>
-                  )}
-                  {lodUrgent === 0 && lodDezesMaand === 0 && (
-                    <p className="text-xs text-gray-400">Geen urgente deadlines</p>
-                  )}
-                </div>
-              </div>
-            )}
-
             {/* MJOP Analyse — alleen voor admin */}
             {isAdmin && (
               <div
@@ -4135,6 +4135,12 @@ export default function App() {
             className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-[#991A21] hover:border-red-200 hover:bg-red-50 transition-colors">
             ← Portaal
           </button>
+          {beheerder === "Admin" && (
+            <button onClick={()=>setScreen("portaal")}
+              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-[#991A21] hover:border-red-200 hover:bg-red-50 transition-colors">
+              ← Dashboard
+            </button>
+          )}
           <button onClick={async ()=>{ await signOut(); setScreen("login"); setLoginNaam(""); setLoginPw(""); setBeheerder(""); setData(defaultData()); }}
             className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-[#991A21] hover:border-red-200 hover:bg-red-50 transition-colors">
             Uitloggen
