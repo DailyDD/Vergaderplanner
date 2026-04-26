@@ -151,7 +151,7 @@ async function loadAllData(beheerderList) {
 }
 
 // Beheerderlijst komt uit Supabase user_roles
-const BEHEERDER_NAMEN = ["Jeffrey","Daley","Jan-Jaap","Tahir","Diana","Fred","Laura","Isaac","Kelvin","Martijn","Bryan","Alwart","Radjesh","Rob","Jaap","Vinny","Brian","Pascalle","Joerie","Jasper","Frank","Janette","Ton","Matthijs"];
+const BEHEERDER_NAMEN = ["Jeffrey","Daley","Jan-Jaap","Tahir","Diana","Fred","Laura","Isaac","Kelvin","Martijn","Bryan","Alwart","Radjesh","Rob","Jaap","Vinny","Brian","Pascalle","Joerie","Jasper","Frank","Janette"];
 function getBeheerderList() { return BEHEERDER_NAMEN; }
 
 // ── Date helpers ─────────────────────────────────────────────────
@@ -3502,7 +3502,6 @@ function AdminDashboard({ beheerderList, onBack }) {
 export default function App() {
   const [screen, setScreen] = useState("login"); // login | portaal | vergaderingen | calculator | admin
   const [beheerder, setBeheerder] = useState("");
-  const [rol, setRol] = useState("beheerder");
   const [beheerderList] = useState(getBeheerderList());
   const [data, setData] = useState(defaultData());
   const [loading, setLoading] = useState(false);
@@ -3556,20 +3555,10 @@ export default function App() {
       if (!rol) throw new Error("Geen rol gevonden voor dit account.");
       if (rol.rol === "admin") {
         setBeheerder("Admin");
-        setRol("admin");
         setLoading(false);
         setScreen("portaal");
         return;
       }
-      if (rol.rol === "beheerder_plus") {
-        setBeheerder(rol.naam);
-        setRol("beheerder_plus");
-        const d = await loadData(rol.naam);
-        setData(d || defaultData());
-        setScreen("portaal");
-        return;
-      }
-      setRol("beheerder");
       setBeheerder(rol.naam);
       const d = await loadData(rol.naam);
       setData(d || defaultData());
@@ -3994,7 +3983,7 @@ export default function App() {
               <span className="text-white text-xs font-bold">{beheerder.charAt(0)}</span>
             </div>
             <span className="text-sm font-medium text-[#2D2D2D]">{beheerder}</span>
-            <button onClick={async ()=>{ await signOut(); setScreen("login"); setLoginNaam(""); setLoginPw(""); setBeheerder(""); setRol("beheerder"); setData(defaultData()); }}
+            <button onClick={async ()=>{ await signOut(); setScreen("login"); setLoginNaam(""); setLoginPw(""); setBeheerder(""); setData(defaultData()); }}
               className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-[#991A21] hover:border-red-200 hover:bg-red-50 transition-colors">
               Uitloggen
             </button>
@@ -4062,8 +4051,8 @@ export default function App() {
               </div>
             )}
 
-            {/* LOD Beheer — admin en beheerder_plus */}
-            {(isAdmin || rol === "beheerder_plus") && (
+            {/* LOD Beheer — alleen voor admin */}
+            {isAdmin && (
               <div
                 onClick={()=>setScreen("lod")}
                 className="bg-white border-2 border-gray-200 hover:border-[#92550A] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
@@ -4073,7 +4062,7 @@ export default function App() {
                 <h3 className="text-base font-bold text-[#2D2D2D] mb-2">LOD Beheer</h3>
                 <p className="text-xs text-gray-500 mb-4 leading-relaxed">Registreer en monitor LOD's van de gemeente — onderhoudspunten, offertes en deadlines.</p>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs bg-amber-50 text-[#92550A] px-2 py-1 rounded-full font-semibold border border-amber-200">{isAdmin ? "Admin" : "Senior"}</span>
+                  <span className="text-xs bg-amber-50 text-[#92550A] px-2 py-1 rounded-full font-semibold border border-amber-200">Admin only</span>
                   <span className="text-[#92550A] font-bold group-hover:translate-x-1 transition-transform">→</span>
                 </div>
               </div>
