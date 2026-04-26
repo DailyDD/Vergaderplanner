@@ -1623,8 +1623,10 @@ function buildTijdlijn(lod) {
     add(o.tijdlijn?.opdracht,         `Opdracht verstrekt aan ${o.partij||'onbekend'}`,  '#1E3A5F');
     add(o.tijdlijn?.opdrachtAfgerond, `Opdracht afgerond door ${o.partij||'onbekend'}`,   '#2D6A4F');
   });
-  add(lod.tijdlijn?.gemeenteBevestigd,'Gemeente bevestigd / gereed gemeld',           '#2D6A4F');
-  add(lod.tijdlijn?.afgerond,         'LOD afgerond',                                 '#374151');
+  add(lod.tijdlijn?.uitstelAangevraagd,'Uitstel aangevraagd bij gemeente',             '#92400E');
+  add(lod.tijdlijn?.uitstelGoedgekeurd,'Uitstel goedgekeurd door gemeente',             '#2D6A4F');
+  add(lod.tijdlijn?.gemeenteBevestigd,'Gemeente bevestigd / gereed gemeld',            '#2D6A4F');
+  add(lod.tijdlijn?.afgerond,         'LOD afgerond',                                  '#374151');
   return events.sort((a,b)=>new Date(a.ts)-new Date(b.ts));
 }
 
@@ -2007,9 +2009,13 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
             {lod.gemeenteReferentie&&<span style={{fontSize:11,color:'#8A7E7B'}}>Ref: {lod.gemeenteReferentie}</span>}
             {lod.ontvangstdatum&&<span style={{fontSize:11,color:'#8A7E7B'}}>Ontvangen: {new Date(lod.ontvangstdatum).toLocaleDateString('nl-NL')}</span>}
             {lod.deadlineAlgemeen&&(
-              <span style={{fontSize:11}} className={lodDeadlineKleur(dagen)}>
+              <span style={{fontSize:11}} className={lod.status==='afgerond'?'text-gray-400':lodDeadlineKleur(dagen)}>
                 Deadline: {new Date(lod.deadlineAlgemeen).toLocaleDateString('nl-NL')}
-                {dagen!==null&&` (${dagen<0?Math.abs(dagen)+'d over':dagen===0?'vandaag!':dagen+'d'})`}
+                {lod.status==='afgerond'&&lod.tijdlijn?.afgerond&&(
+                  <span style={{marginLeft:8,color:'#2D6A4F',fontWeight:600}}>
+                    Afgerond: {new Date(lod.tijdlijn.afgerond).toLocaleDateString('nl-NL')}
+                  </span>
+                )}
               </span>
             )}
             {lod.boeteMax&&<span style={{fontSize:11,color:LOD_ROOD,fontWeight:600}}>Max. boete: {lodFmt(lod.boeteMax)}</span>}
@@ -2092,13 +2098,18 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
                     style={{width:'100%',minHeight:70,padding:'8px 11px',border:'1.5px solid #E5DEDA',borderRadius:8,fontFamily:'inherit',fontSize:12,color:'#1A1614',background:'#FAF7F2',outline:'none',resize:'vertical'}} />
                 </div>
 
-                {/* Uitstel aangevraagd */}
-                <div style={{marginBottom:14,padding:'12px 14px',background:lod.uitstelAangevraagd?'#FEF3E2':'#FAF7F2',border:`1.5px solid ${lod.uitstelAangevraagd?'#B45309':'#E5DEDA'}`,borderRadius:10,transition:'all .2s'}}>
+                {/* Uitstel aangevraagd — verborgen als afgerond */}
+                {lod.status !== 'afgerond' && <div style={{marginBottom:14,padding:'12px 14px',background:lod.uitstelAangevraagd?'#FEF3E2':'#FAF7F2',border:`1.5px solid ${lod.uitstelAangevraagd?'#B45309':'#E5DEDA'}`,borderRadius:10,transition:'all .2s'}}>
                   <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',userSelect:'none'}}>
                     <div style={{width:18,height:18,borderRadius:5,background:lod.uitstelAangevraagd?'#B45309':'transparent',border:`2px solid ${lod.uitstelAangevraagd?'#B45309':'#9CA3AF'}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all .15s'}}>
                       {lod.uitstelAangevraagd&&<span style={{color:'#fff',fontSize:11,fontWeight:700,lineHeight:1}}>✓</span>}
                     </div>
-                    <input type="checkbox" checked={!!lod.uitstelAangevraagd} onChange={e=>update({uitstelAangevraagd:e.target.checked})} style={{display:'none'}} />
+                    <input type="checkbox" checked={!!lod.uitstelAangevraagd} onChange={e=>{
+                      const tl = {...(lod.tijdlijn||{})};
+                      if (e.target.checked && !tl.uitstelAangevraagd) tl.uitstelAangevraagd = lodNow();
+                      else if (!e.target.checked) { delete tl.uitstelAangevraagd; delete tl.uitstelGoedgekeurd; }
+                      update({uitstelAangevraagd:e.target.checked, uitstelGoedgekeurd: e.target.checked ? lod.uitstelGoedgekeurd : false, tijdlijn:tl});
+                    }} style={{display:'none'}} />
                     <span style={{fontSize:13,fontWeight:600,color:lod.uitstelAangevraagd?'#92400E':'#374151'}}>Uitstel aangevraagd</span>
                     {lod.uitstelAangevraagd&&lod.uitstelTot&&(
                       <span style={{marginLeft:'auto',fontSize:11,fontWeight:600,color:'#92400E',fontFamily:'monospace'}}>
@@ -2113,7 +2124,12 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
                         <div style={{width:16,height:16,borderRadius:4,background:lod.uitstelGoedgekeurd?'#2D6A4F':'transparent',border:`2px solid ${lod.uitstelGoedgekeurd?'#2D6A4F':'#9CA3AF'}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                           {lod.uitstelGoedgekeurd&&<span style={{color:'#fff',fontSize:10,fontWeight:700,lineHeight:1}}>✓</span>}
                         </div>
-                        <input type="checkbox" checked={!!lod.uitstelGoedgekeurd} onChange={e=>update({uitstelGoedgekeurd:e.target.checked})} style={{display:'none'}} />
+                        <input type="checkbox" checked={!!lod.uitstelGoedgekeurd} onChange={e=>{
+                          const tl = {...(lod.tijdlijn||{})};
+                          if (e.target.checked && !tl.uitstelGoedgekeurd) tl.uitstelGoedgekeurd = lodNow();
+                          else if (!e.target.checked) delete tl.uitstelGoedgekeurd;
+                          update({uitstelGoedgekeurd:e.target.checked, tijdlijn:tl});
+                        }} style={{display:'none'}} />
                         <span style={{fontSize:12,fontWeight:600,color:lod.uitstelGoedgekeurd?'#2D6A4F':'#374151'}}>Uitstel goedgekeurd door gemeente</span>
                       </label>
                       {/* Datum + reden alleen tonen als goedgekeurd */}
@@ -2134,7 +2150,7 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
                       )}
                     </div>
                   )}
-                </div>
+                </div>}
 
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:12,borderTop:'1px solid #E5DEDA'}}>
                   <button onClick={()=>{if(window.confirm('LOD verwijderen?'))onDelete()}} style={{padding:'7px 14px',background:'#fff',border:'1.5px solid #fca5a5',borderRadius:8,fontSize:12,color:LOD_ROOD,cursor:'pointer',fontFamily:'inherit'}}>
@@ -2478,8 +2494,8 @@ function LodBeheer({ onTerug, beheerderList }) {
       <div className="border-b border-gray-200 px-6 h-14 flex items-center justify-between bg-white shadow-sm sticky top-0 z-50">
         <div className="flex items-center gap-3">
           <div className="flex gap-1">
-            <div style={{width:28,height:28,background:LOD_ROOD,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{color:'#fff',fontSize:11,fontWeight:700}}>L</span></div>
-            <div style={{width:28,height:28,background:'#2D2D2D',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{color:'#fff',fontSize:11,fontWeight:700}}>D</span></div>
+            <div style={{width:28,height:28,background:LOD_ROOD,borderRadius:6}} />
+            <div style={{width:28,height:28,background:'#2D2D2D',borderRadius:6}} />
           </div>
           <div className="w-px h-5 bg-gray-200" />
           <span className="text-sm font-bold text-[#2D2D2D]">LOD Beheer</span>
