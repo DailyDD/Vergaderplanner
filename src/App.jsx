@@ -1589,9 +1589,13 @@ function berekenAutoStatus(lod) {
   if (ofs.some(o=>o.opdracht))             return 'opdracht_uit';
   if (ofs.some(o=>o.vveAkkoord))           return 'vve_akkoord';
   if (ofs.some(o=>o.vveVoorlegd))          return 'vve_afwachting';
-  if (ofs.some(o=>o.ontvangen))            return 'offertes_lopen';
-  if (ofs.some(o=>o.aangevraagd&&!o.ontvangen)) return 'offertes_afwacht';
-  if (ofs.some(o=>o.aangevraagd))          return 'in_behandeling';
+  // Offertes lopen: alleen als ALLE aangevraagde offertes ontvangen zijn
+  const aangevraagd = ofs.filter(o=>o.aangevraagd);
+  const allemaalOntvangen = aangevraagd.length > 0 && aangevraagd.every(o=>o.ontvangen);
+  if (allemaalOntvangen)                   return 'offertes_lopen';
+  // Offerte in afwachting: minstens 1 aangevraagd maar nog niet allemaal ontvangen
+  if (aangevraagd.some(o=>!o.ontvangen))   return 'offertes_afwacht';
+  if (aangevraagd.length > 0)              return 'in_behandeling';
   return 'nieuw';
 }
 
@@ -1626,10 +1630,12 @@ function buildTijdlijn(lod) {
 // Voortgangsstappen voor de voortgangsbalk
 function lodVoortgang(lod) {
   const ofs = lod.offertes||[];
+  const aangevraagd = ofs.filter(o=>o.aangevraagd);
+  const allemaalOntvangen = aangevraagd.length > 0 && aangevraagd.every(o=>o.ontvangen);
   return [
     { lbl:'VvE in kennis gesteld',        ok: !!lod.vveGenotificeerd },
     { lbl:'Offertes aangevraagd',         ok: ofs.some(o=>o.aangevraagd) },
-    { lbl:'Offerte ontvangen',            ok: ofs.some(o=>o.ontvangen) },
+    { lbl:'Alle offertes ontvangen',      ok: allemaalOntvangen },
     { lbl:'Aan VvE voorgelegd/vergaderd', ok: ofs.some(o=>o.vveVoorlegd) },
     { lbl:'VvE akkoord',                  ok: ofs.some(o=>o.vveAkkoord) },
     { lbl:'Opdracht verstrekt',           ok: ofs.some(o=>o.opdracht) },
@@ -1741,7 +1747,8 @@ function lodExportPDF(lod, eenmaligResult) {
       <div class="info-block"><div class="info-label">Algehele deadline</div><div class="info-val" style="color:${dagen!==null&&dagen<0?'#991A21':'inherit'}">${lod.deadlineAlgemeen?new Date(lod.deadlineAlgemeen).toLocaleDateString('nl-NL'):'-'}${dagen!==null?' ('+Math.abs(dagen)+(dagen<0?' dagen over':' dagen')+')':''}</div></div>
       <div class="info-block"><div class="info-label">Max. boete totaal</div><div class="info-val">${lodFmt(lod.boeteMax)}</div></div>
     </div>
-    ${lod.notitie?`<div style="margin-bottom:16px;padding:10px 14px;background:#FAF7F2;border-radius:6px;font-size:9pt"><strong>Notitie:</strong> ${lod.notitie}</div>`:''}
+    ${lod.notitie?`<div style="margin-bottom:10px;padding:10px 14px;background:#FAF7F2;border-radius:6px;font-size:9pt"><strong>Notitie:</strong> ${lod.notitie}</div>`:''}
+    ${lod.uitstelAangevraagd?`<div style="margin-bottom:16px;padding:10px 14px;background:#FEF3E2;border-left:3px solid #B45309;border-radius:6px;font-size:9pt"><strong style="color:#92400E">Uitstel aangevraagd${lod.uitstelTot?' t/m '+new Date(lod.uitstelTot).toLocaleDateString('nl-NL'):''}</strong>${lod.uitstelReden?' — '+lod.uitstelReden:''}</div>`:''}
     <div class="sec">Voortgang</div>
     <table style="width:auto"><tbody>${voortgangRijen}</tbody></table>
     <div class="sec">Onderhoudspunten</div>
@@ -1972,7 +1979,6 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
   };
 
   const tijdlijn = buildTijdlijn(lod);
-  const aantalAangevraagd = (lod.offertes||[]).filter(o=>o.aangevraagd).length;
   const cardBorder = lod.status==='afgerond'?'#D1D5DB':open?LOD_ROOD:'#E5E0DB';
 
   return (
@@ -1984,12 +1990,13 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
             <span style={{fontWeight:700,fontSize:14,color:'#2D2D2D'}}>{lod.vveNaam||<span style={{color:'#aaa',fontStyle:'italic'}}>VvE naam</span>}</span>
             <LodStatusBadge status={lod.status||'nieuw'} />
             {lod.behandelaar&&<span style={{fontSize:10,color:'#8A7E7B',background:'#F3F4F6',padding:'2px 7px',borderRadius:8}}>{lod.behandelaar}</span>}
-            {aantalAangevraagd>0&&lod.status!=='afgerond'&&(
-              <span style={{fontSize:10,fontWeight:600,background:'#F3EFFD',color:'#5B3FA6',padding:'2px 7px',borderRadius:10}}>
-                {aantalAangevraagd} offerte{aantalAangevraagd>1?'s':''} aangevraagd
+
+            {lod.uitstelAangevraagd&&(
+              <span style={{fontSize:10,fontWeight:600,background:'#FEF3E2',color:'#92400E',padding:'2px 7px',borderRadius:10,border:'1px solid #FDE68A'}}>
+                Uitstel{lod.uitstelTot?' t/m '+new Date(lod.uitstelTot).toLocaleDateString('nl-NL'):''}
               </span>
             )}
-            {lod.status!=='afgerond'&&dagen!==null&&dagen<0&&(
+            {lod.status!=='afgerond'&&dagen!==null&&dagen<0&&!lod.uitstelAangevraagd&&(
               <span style={{fontSize:10,fontWeight:600,background:LOD_ROOD_BG,color:LOD_ROOD,padding:'2px 7px',borderRadius:10}}>Deadline voorbij</span>
             )}
           </div>
@@ -2081,6 +2088,37 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
                   <label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>Interne notitie</label>
                   <textarea value={lod.notitie||''} onChange={e=>update({notitie:e.target.value})} placeholder="Bijzonderheden, afspraken, opmerkingen..."
                     style={{width:'100%',minHeight:70,padding:'8px 11px',border:'1.5px solid #E5DEDA',borderRadius:8,fontFamily:'inherit',fontSize:12,color:'#1A1614',background:'#FAF7F2',outline:'none',resize:'vertical'}} />
+                </div>
+
+                {/* Uitstel aangevraagd */}
+                <div style={{marginBottom:14,padding:'12px 14px',background:lod.uitstelAangevraagd?'#FEF3E2':'#FAF7F2',border:`1.5px solid ${lod.uitstelAangevraagd?'#B45309':'#E5DEDA'}`,borderRadius:10,transition:'all .2s'}}>
+                  <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',userSelect:'none'}}>
+                    <div style={{width:18,height:18,borderRadius:5,background:lod.uitstelAangevraagd?'#B45309':'transparent',border:`2px solid ${lod.uitstelAangevraagd?'#B45309':'#9CA3AF'}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all .15s'}}>
+                      {lod.uitstelAangevraagd&&<span style={{color:'#fff',fontSize:11,fontWeight:700,lineHeight:1}}>✓</span>}
+                    </div>
+                    <input type="checkbox" checked={!!lod.uitstelAangevraagd} onChange={e=>update({uitstelAangevraagd:e.target.checked})} style={{display:'none'}} />
+                    <span style={{fontSize:13,fontWeight:600,color:lod.uitstelAangevraagd?'#92400E':'#374151'}}>Uitstel aangevraagd</span>
+                    {lod.uitstelAangevraagd&&lod.uitstelTot&&(
+                      <span style={{marginLeft:'auto',fontSize:11,fontWeight:600,color:'#92400E',fontFamily:'monospace'}}>
+                        t/m {new Date(lod.uitstelTot).toLocaleDateString('nl-NL')}
+                      </span>
+                    )}
+                  </label>
+                  {lod.uitstelAangevraagd&&(
+                    <div style={{marginTop:10,display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                      <div>
+                        <label style={{fontSize:10,fontWeight:600,color:'#92400E',textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>Uitstel tot wanneer</label>
+                        <input type="date" value={lod.uitstelTot||''} onChange={e=>update({uitstelTot:e.target.value})}
+                          className="calc-inp" style={{fontSize:13,borderColor:'#FDE68A'}} />
+                      </div>
+                      <div>
+                        <label style={{fontSize:10,fontWeight:600,color:'#92400E',textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>Reden uitstel</label>
+                        <input value={lod.uitstelReden||''} onChange={e=>update({uitstelReden:e.target.value})}
+                          placeholder="bijv. wacht op gemeentelijke goedkeuring"
+                          className="calc-inp" style={{fontSize:12,borderColor:'#FDE68A'}} />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:12,borderTop:'1px solid #E5DEDA'}}>
@@ -2319,6 +2357,8 @@ function LodBeheer({ onTerug, beheerderList }) {
   const [filterStatus, setFilterStatus] = useState('alle');
   const [tabHoofd, setTabHoofd] = useState('lods');
   const [loading, setLoading] = useState(true);
+  const [hideAfgerond, setHideAfgerond] = useState(false);
+  const [filterMaand, setFilterMaand] = useState(null); // 0-11 of null
 
   // Laad uit Supabase bij mount
   useState(()=>{
@@ -2385,6 +2425,13 @@ function LodBeheer({ onTerug, beheerderList }) {
     else if (filterStatus==='urgent')    ms=(()=>{const d=lodDagenTot(l.deadlineAlgemeen);return d!==null&&d<=14&&d>=0&&l.status!=='afgerond';})();
     else if (filterStatus==='overschreden') ms=(()=>{const d=lodDagenTot(l.deadlineAlgemeen);return d!==null&&d<0&&l.status!=='afgerond';})();
     else if (filterStatus!=='alle')      ms=l.status===filterStatus;
+    // Verberg afgerond
+    if (hideAfgerond && l.status==='afgerond') return false;
+    // Maandfilter op deadline
+    if (filterMaand!==null && l.deadlineAlgemeen) {
+      const d = new Date(l.deadlineAlgemeen);
+      if (d.getMonth()!==filterMaand) return false;
+    } else if (filterMaand!==null && !l.deadlineAlgemeen) return false;
     return mz&&ms;
   });
 
@@ -2489,6 +2536,16 @@ function LodBeheer({ onTerug, beheerderList }) {
                   ))}
                 </div>
               )}
+              {/* Verberg afgerond knop */}
+              <button onClick={()=>setHideAfgerond(p=>!p)}
+                style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'10px 12px',background:hideAfgerond?'#EAF4EE':'#fff',border:`1.5px solid ${hideAfgerond?'#2D6A4F':'#E5DEDA'}`,borderRadius:10,cursor:'pointer',fontFamily:'inherit',marginBottom:10,transition:'all .15s'}}>
+                <div style={{width:16,height:16,borderRadius:4,background:hideAfgerond?'#2D6A4F':'transparent',border:`1.5px solid ${hideAfgerond?'#2D6A4F':'#9CA3AF'}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                  {hideAfgerond&&<span style={{color:'#fff',fontSize:10,fontWeight:700,lineHeight:1}}>✓</span>}
+                </div>
+                <span style={{fontSize:12,fontWeight:600,color:hideAfgerond?'#2D6A4F':'#374151'}}>Verberg afgerond</span>
+                {hideAfgerond&&<span style={{marginLeft:'auto',fontSize:10,color:'#2D6A4F',fontWeight:600}}>{lods.filter(l=>l.status==='afgerond').length} verborgen</span>}
+              </button>
+
               <div style={{background:'#fff',border:'1px solid #E5DEDA',borderRadius:12,padding:'14px 16px'}}>
                 <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#8A7E7B',marginBottom:10}}>Filter op status</div>
                 {[['alle',"Alle LOD's"],...filterLijstStatussen.map(([k,v])=>[k,v.label])].map(([key,lbl])=>(
@@ -2498,6 +2555,27 @@ function LodBeheer({ onTerug, beheerderList }) {
                     <span style={{float:'right',fontSize:11,color:'#9CA3AF'}}>{key==='alle'?lods.length:lods.filter(l=>l.status===key).length}</span>
                   </button>
                 ))}
+              </div>
+
+              {/* Maandfilter op deadline */}
+              <div style={{background:'#fff',border:'1px solid #E5DEDA',borderRadius:12,padding:'14px 16px',marginTop:10}}>
+                <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#8A7E7B',marginBottom:10}}>Filter op deadline maand</div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:4}}>
+                  {['Jan','Feb','Mrt','Apr','Mei','Jun','Jul','Aug','Sep','Okt','Nov','Dec'].map((m,mi)=>{
+                    const aantalInMaand = lods.filter(l=>{
+                      if (!l.deadlineAlgemeen) return false;
+                      return new Date(l.deadlineAlgemeen).getMonth()===mi && l.status!=='afgerond';
+                    }).length;
+                    return (
+                      <button key={mi} onClick={()=>setFilterMaand(filterMaand===mi?null:mi)}
+                        style={{padding:'5px 4px',borderRadius:6,border:`1.5px solid ${filterMaand===mi?LOD_ROOD:'#E5DEDA'}`,background:filterMaand===mi?LOD_ROOD_BG:'transparent',color:filterMaand===mi?LOD_ROOD:'#374151',fontSize:11,fontWeight:filterMaand===mi?700:400,cursor:'pointer',textAlign:'center',transition:'all .15s',position:'relative'}}>
+                        {m}
+                        {aantalInMaand>0&&<span style={{position:'absolute',top:-4,right:-4,width:14,height:14,borderRadius:'50%',background:LOD_ROOD,color:'#fff',fontSize:8,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center'}}>{aantalInMaand}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                {filterMaand!==null&&<button onClick={()=>setFilterMaand(null)} style={{marginTop:8,width:'100%',padding:'5px',background:'transparent',border:'none',cursor:'pointer',fontSize:11,color:'#9CA3AF',textDecoration:'underline'}}>Maandfilter wissen</button>}
               </div>
             </div>
 
