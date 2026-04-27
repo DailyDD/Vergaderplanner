@@ -2648,7 +2648,6 @@ function LodBeheer({ onTerug, beheerderList }) {
 }
 
 
-
 function exportAdminPDF(allData, beheerderList) {
   const year = new Date().getFullYear();
   let html = `<html><head><meta charset="utf-8"><style>
@@ -3246,6 +3245,245 @@ export default function App() {
     const win = window.open("","_blank"); win.document.write(html); win.document.close(); win.print();
   };
 
+  // ── Screens ──────────────────────────────────────────────────
+  if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBack={()=>setScreen("portaal")}/>;
+  if (screen==="lod") return <LodBeheer onTerug={()=>setScreen("portaal")} beheerderList={beheerderList}/>;
+  if (screen==="calculator") return <VveCalculator onTerug={()=>setScreen("portaal")}/>;
+
+  if (screen==="login") return (
+    <div className="min-h-screen grid grid-cols-2">
+      <style>{CSS_FONT}</style>
+      {/* Links — merkpaneel */}
+      <div className="bg-[#2D2D2D] flex flex-col justify-center items-center p-12 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-[#991A21] rounded-full opacity-10 -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#991A21] rounded-full opacity-8 translate-y-1/2 -translate-x-1/2" />
+        <div className="relative z-10 flex flex-col items-center gap-8">
+          <div className="bg-white rounded-2xl px-8 py-6 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="flex gap-1">
+                <div className="w-10 h-10 bg-[#991A21] rounded-md flex items-center justify-center">
+                  <span className="text-white text-lg">🏠</span>
+                </div>
+                <div className="w-10 h-10 bg-[#2D2D2D] rounded-md flex items-center justify-center">
+                  <span className="text-white text-lg">📋</span>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-[#2D2D2D] leading-tight">Totaal VvE Beheer</p>
+                <p className="text-xs text-gray-500">Den Haag en omstreken B.V.</p>
+              </div>
+            </div>
+          </div>
+          <div className="text-center">
+            <p className="text-white text-xl font-bold mb-2">Vergaderplanner</p>
+            <p className="text-gray-400 text-sm leading-relaxed max-w-xs">Plan, beheer en monitor alle VvE-vergaderingen</p>
+            <div className="w-8 h-px bg-white/20 mx-auto my-4"></div>
+            <p className="text-white text-xl font-bold mb-2">VvE Calculator</p>
+            <p className="text-gray-400 text-sm leading-relaxed max-w-xs">Bereken maandelijkse bijdragen en reservefondsen conform art. 5:126 BW</p>
+          </div>
+        </div>
+      </div>
+      {/* Rechts — loginformulier */}
+      <div className="bg-[#F2EFEC] flex flex-col justify-center px-16 py-12">
+        <div className="max-w-sm w-full mx-auto">
+          <h1 className="text-2xl font-bold text-[#2D2D2D] mb-1">Welkom terug</h1>
+          <p className="text-sm text-gray-500 mb-8">Log in met je account om door te gaan</p>
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide block mb-1.5">E-mailadres</label>
+              <input autoFocus value={loginNaam} onChange={e=>{ setLoginNaam(e.target.value); setLoginError(""); }} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="naam@vveplanner.nl"
+                className={`w-full bg-white border-2 rounded-xl px-4 py-3 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none transition-colors ${loginError?"border-[#991A21]":"border-gray-200 focus:border-[#991A21]"}`}/>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide block mb-1.5">Wachtwoord</label>
+              <input type="password" value={loginPw} onChange={e=>{ setLoginPw(e.target.value); setLoginError(""); }} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="••••••••"
+                className={`w-full bg-white border-2 rounded-xl px-4 py-3 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none transition-colors ${loginError?"border-[#991A21]":"border-gray-200 focus:border-[#991A21]"}`}/>
+            </div>
+            {loginError && <p className="text-xs text-[#991A21] font-medium">{loginError}</p>}
+            <button onClick={handleLogin} disabled={loading}
+              className="w-full py-3 bg-[#991A21] hover:bg-[#7a1419] disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors shadow-lg shadow-red-900/20 mt-2">
+              {loading ? "Laden…" : "Inloggen →"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Portaal screen ──────────────────────────────────────────
+  if (screen==="portaal") {
+  const isAdmin = beheerder === "Admin";
+  // LOD statistieken voor dashboard
+  const lodData = isAdmin ? lodLocalLoad() : [];
+  const lodActief = lodData.filter(l=>l.status!=='afgerond');
+  const now = new Date();
+  const maandEind = new Date(now.getFullYear(), now.getMonth()+1, 0);
+  const lodDezesMaand = lodActief.filter(l=>{
+    if (!l.deadlineAlgemeen) return false;
+    const d = new Date(l.deadlineAlgemeen);
+    return d >= now && d <= maandEind;
+  }).length;
+  const lodUrgent = lodActief.filter(l=>{
+    const d = lodDagenTot(l.deadlineAlgemeen);
+    return d !== null && d <= 14 && d >= 0;
+  }).length;
+  // Recente activiteit: laatste 3 vergaderde VvE's
+  const recenteActiviteit = (data.vves || [])
+    .filter(v => v.vergaderd1 || v.vergaderd2 || v.uitgenodigd1)
+    .slice(-3)
+    .reverse()
+    .map(v => ({
+      naam: v.naam,
+      tekst: v.vergaderd1 ? "vergadering afgerond" : v.uitgenodigd1 ? "uitnodiging verstuurd" : "bijgewerkt",
+      kleur: v.vergaderd1 ? "#1a7a45" : v.uitgenodigd1 ? "#991A21" : "#1a4f7a",
+    }));
+
+  return (
+    <div className="min-h-screen bg-[#F2EFEC]">
+      <style>{CSS_FONT}</style>
+      {/* Topbar */}
+      <div className="border-b border-gray-200 px-6 h-14 flex items-center justify-between bg-white shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1">
+            <div className="w-7 h-7 bg-[#991A21] rounded-md flex items-center justify-center"><span className="text-white text-xs">🏠</span></div>
+            <div className="w-7 h-7 bg-[#2D2D2D] rounded-md flex items-center justify-center"><span className="text-white text-xs">📋</span></div>
+          </div>
+          <div className="w-px h-5 bg-gray-200" />
+          <span className="text-sm font-bold text-[#2D2D2D]">Totaal VvE Beheer</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-[#991A21] rounded-full flex items-center justify-center">
+            <span className="text-white text-xs font-bold">{beheerder.charAt(0)}</span>
+          </div>
+          <span className="text-sm font-medium text-[#2D2D2D]">{beheerder}</span>
+          <button onClick={async ()=>{ await signOut(); setScreen("login"); setLoginNaam(""); setLoginPw(""); setBeheerder(""); setData(defaultData()); }}
+            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-[#991A21] hover:border-red-200 hover:bg-red-50 transition-colors">
+            Uitloggen
+          </button>
+        </div>
+      </div>
+
+      <div className="p-8 max-w-4xl mx-auto">
+        {/* Welkom */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-[#2D2D2D] mb-1">
+            {(() => { const h = new Date().getHours(); return h < 12 ? "Goedemorgen" : h < 18 ? "Goedemiddag" : "Goedenavond"; })()} {beheerder}
+          </h1>
+          <p className="text-sm text-gray-500">{new Date().toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} — kies een tool om te beginnen</p>
+        </div>
+
+        {/* Tool tegels */}
+        <div className="grid grid-cols-3 gap-5 mb-8">
+          {/* Vergaderplanner */}
+          <div
+            onClick={()=>setScreen("vergaderingen")}
+            className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
+          >
+            <div className="absolute top-0 left-0 right-0 h-1 bg-[#991A21] rounded-t-2xl" />
+            <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-2xl mb-4">📅</div>
+            <h3 className="text-base font-bold text-[#2D2D2D] mb-2">Vergaderplanner</h3>
+            <p className="text-xs text-gray-500 mb-4 leading-relaxed">Plan en beheer alle VvE-vergaderingen, uitnodigingen en voortgang.</p>
+            <div className="flex items-center justify-between">
+              {data.vves.length > 0
+                ? <span className="text-xs bg-red-50 text-[#991A21] px-2 py-1 rounded-full font-semibold border border-red-100">{data.vves.length} VvE's actief</span>
+                : <span className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full font-semibold border border-gray-200">Openen</span>
+              }
+              <span className="text-[#991A21] font-bold group-hover:translate-x-1 transition-transform">→</span>
+            </div>
+          </div>
+
+          {/* VvE Calculator */}
+          <div
+            onClick={()=>setScreen("calculator")}
+            className="bg-white border-2 border-gray-200 hover:border-[#2D2D2D] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
+          >
+            <div className="absolute top-0 left-0 right-0 h-1 bg-[#2D2D2D] rounded-t-2xl" />
+            <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center text-2xl mb-4">🧮</div>
+            <h3 className="text-base font-bold text-[#2D2D2D] mb-2">VvE Calculator</h3>
+            <p className="text-xs text-gray-500 mb-4 leading-relaxed">Bereken bijdragen, reservefondsen en financiële overzichten.</p>
+            <div className="flex items-center justify-between">
+              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full font-semibold border border-gray-200">Beschikbaar</span>
+              <span className="text-[#2D2D2D] font-bold group-hover:translate-x-1 transition-transform">→</span>
+            </div>
+          </div>
+
+          {/* Admin dashboard — alleen voor admin */}
+          {isAdmin && (
+            <div
+              onClick={()=>setScreen("admin")}
+              className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
+            >
+              <div className="absolute top-0 left-0 right-0 h-1 bg-[#991A21] rounded-t-2xl" />
+              <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-2xl mb-4">🛡️</div>
+              <h3 className="text-base font-bold text-[#2D2D2D] mb-2">Admin Dashboard</h3>
+              <p className="text-xs text-gray-500 mb-4 leading-relaxed">Overzicht alle beheerders, voortgang en leaderboard.</p>
+              <div className="flex items-center justify-between">
+                <span className="text-xs bg-red-50 text-[#991A21] px-2 py-1 rounded-full font-semibold border border-red-100">Beheerder</span>
+                <span className="text-[#991A21] font-bold group-hover:translate-x-1 transition-transform">→</span>
+              </div>
+            </div>
+          )}
+
+          {/* LOD Beheer — alleen voor admin */}
+          {isAdmin && (
+            <div
+              onClick={()=>setScreen("lod")}
+              className="bg-white border-2 border-gray-200 hover:border-[#92550A] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
+            >
+              <div className="absolute top-0 left-0 right-0 h-1 bg-[#92550A] rounded-t-2xl" />
+              <div className="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center text-2xl mb-4">⚠️</div>
+              <h3 className="text-base font-bold text-[#2D2D2D] mb-2">LOD Beheer</h3>
+              <p className="text-xs text-gray-500 mb-4 leading-relaxed">Registreer en monitor LOD's van de gemeente — onderhoudspunten, offertes en deadlines.</p>
+              <div className="flex items-center justify-between">
+                <span className="text-xs bg-amber-50 text-[#92550A] px-2 py-1 rounded-full font-semibold border border-amber-200">Admin only</span>
+                <span className="text-[#92550A] font-bold group-hover:translate-x-1 transition-transform">→</span>
+              </div>
+            </div>
+          )}
+
+          {/* Toekomstige tool placeholder */}
+          {!isAdmin && (
+            <div className="bg-white border-2 border-dashed border-gray-200 rounded-2xl p-6 opacity-50 relative overflow-hidden">
+              <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center text-2xl mb-4">＋</div>
+              <h3 className="text-base font-bold text-gray-400 mb-2">Nieuwe tool</h3>
+              <p className="text-xs text-gray-400 leading-relaxed">Toekomstige tools verschijnen hier automatisch.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Recente activiteit */}
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Recente activiteit</p>
+          {recenteActiviteit.length === 0 ? (
+            <p className="text-sm text-gray-400">Nog geen activiteit. Open de vergaderplanner om te beginnen.</p>
+          ) : (
+            <div className="space-y-3">
+              {recenteActiviteit.map((item, i) => (
+                <div key={i} className="flex items-center gap-3 text-sm">
+                  <div className="w-2 h-2 rounded-full shrink-0" style={{background: item.kleur}} />
+                  <span className="font-medium text-[#2D2D2D]">{item.naam}</span>
+                  <span className="text-gray-400">— {item.tekst}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  }
+
+  // LOD koppeling: laad actieve LODs voor vergaderplanner notitie
+  const activeLods = lodLocalLoad().filter(l=>l.status!=='afgerond');
+  const vveHeeftLod = (vveNaam) => activeLods.some(l =>
+    l.vveNaam && vveNaam && l.vveNaam.toLowerCase().includes(vveNaam.toLowerCase().trim().substring(0,8))
+  );
+  const getVveLodInfo = (vveNaam) => activeLods.filter(l =>
+    l.vveNaam && vveNaam && l.vveNaam.toLowerCase().includes(vveNaam.toLowerCase().trim().substring(0,8))
+  );
+
+
   const werkdagen = data.werkdagen || WORK_DAYS_DEFAULT;
   const counts = spreadScore(planningPreview || data.vves);
   const ongepland = data.vves.filter(v=>!v.datum1).length;
@@ -3378,258 +3616,7 @@ export default function App() {
     return { key, label: m, count };
   }).filter(m => m.count > 0);
 
-  // ── Screens ──────────────────────────────────────────────────
-  if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBack={()=>setScreen("portaal")}/>;
-  if (screen==="lod") return <LodBeheer onTerug={()=>setScreen("portaal")} beheerderList={beheerderList}/>;
-
-  if (screen==="calculator") return <VveCalculator onTerug={()=>setScreen("portaal")}/>;
-
-  if (screen==="login") return (
-    <div className="min-h-screen grid grid-cols-2">
-      <style>{CSS_FONT}</style>
-      {/* Links — merkpaneel */}
-      <div className="bg-[#2D2D2D] flex flex-col justify-center items-center p-12 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-[#991A21] rounded-full opacity-10 -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#991A21] rounded-full opacity-8 translate-y-1/2 -translate-x-1/2" />
-        <div className="relative z-10 flex flex-col items-center gap-8">
-          <div className="bg-white rounded-2xl px-8 py-6 shadow-2xl">
-            <div className="flex items-center gap-3">
-              <div className="flex gap-1">
-                <div className="w-10 h-10 bg-[#991A21] rounded-md flex items-center justify-center">
-                  <span className="text-white text-lg">🏠</span>
-                </div>
-                <div className="w-10 h-10 bg-[#2D2D2D] rounded-md flex items-center justify-center">
-                  <span className="text-white text-lg">📋</span>
-                </div>
-              </div>
-              <div>
-                <p className="text-sm font-bold text-[#2D2D2D] leading-tight">Totaal VvE Beheer</p>
-                <p className="text-xs text-gray-500">Den Haag en omstreken B.V.</p>
-              </div>
-            </div>
-          </div>
-          <div className="text-center">
-            <p className="text-white text-xl font-bold mb-2">Vergaderplanner</p>
-            <p className="text-gray-400 text-sm leading-relaxed max-w-xs">Plan, beheer en monitor alle VvE-vergaderingen</p>
-            <div className="w-8 h-px bg-white/20 mx-auto my-4"></div>
-            <p className="text-white text-xl font-bold mb-2">VvE Calculator</p>
-            <p className="text-gray-400 text-sm leading-relaxed max-w-xs">Bereken maandelijkse bijdragen en reservefondsen conform art. 5:126 BW</p>
-          </div>
-        </div>
-      </div>
-      {/* Rechts — loginformulier */}
-      <div className="bg-[#F2EFEC] flex flex-col justify-center px-16 py-12">
-        <div className="max-w-sm w-full mx-auto">
-          <h1 className="text-2xl font-bold text-[#2D2D2D] mb-1">Welkom terug</h1>
-          <p className="text-sm text-gray-500 mb-8">Log in met je account om door te gaan</p>
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide block mb-1.5">E-mailadres</label>
-              <input autoFocus value={loginNaam} onChange={e=>{ setLoginNaam(e.target.value); setLoginError(""); }} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="naam@vveplanner.nl"
-                className={`w-full bg-white border-2 rounded-xl px-4 py-3 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none transition-colors ${loginError?"border-[#991A21]":"border-gray-200 focus:border-[#991A21]"}`}/>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide block mb-1.5">Wachtwoord</label>
-              <input type="password" value={loginPw} onChange={e=>{ setLoginPw(e.target.value); setLoginError(""); }} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="••••••••"
-                className={`w-full bg-white border-2 rounded-xl px-4 py-3 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none transition-colors ${loginError?"border-[#991A21]":"border-gray-200 focus:border-[#991A21]"}`}/>
-            </div>
-            {loginError && <p className="text-xs text-[#991A21] font-medium">{loginError}</p>}
-            <button onClick={handleLogin} disabled={loading}
-              className="w-full py-3 bg-[#991A21] hover:bg-[#7a1419] disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors shadow-lg shadow-red-900/20 mt-2">
-              {loading ? "Laden…" : "Inloggen →"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  // ── Portaal screen ──────────────────────────────────────────
-  if (screen==="portaal") {
-    const isAdmin = beheerder === "Admin";
-    // LOD statistieken voor dashboard
-    const lodData = isAdmin ? lodLocalLoad() : [];
-    const lodActief = lodData.filter(l=>l.status!=='afgerond');
-    const now = new Date();
-    const maandEind = new Date(now.getFullYear(), now.getMonth()+1, 0);
-    const lodDezesMaand = lodActief.filter(l=>{
-      if (!l.deadlineAlgemeen) return false;
-      const d = new Date(l.deadlineAlgemeen);
-      return d >= now && d <= maandEind;
-    }).length;
-    const lodUrgent = lodActief.filter(l=>{
-      const d = lodDagenTot(l.deadlineAlgemeen);
-      return d !== null && d <= 14 && d >= 0;
-    }).length;
-    // Recente activiteit: laatste 3 vergaderde VvE's
-    const recenteActiviteit = (data.vves || [])
-      .filter(v => v.vergaderd1 || v.vergaderd2 || v.uitgenodigd1)
-      .slice(-3)
-      .reverse()
-      .map(v => ({
-        naam: v.naam,
-        tekst: v.vergaderd1 ? "vergadering afgerond" : v.uitgenodigd1 ? "uitnodiging verstuurd" : "bijgewerkt",
-        kleur: v.vergaderd1 ? "#1a7a45" : v.uitgenodigd1 ? "#991A21" : "#1a4f7a",
-      }));
-
-    return (
-      <div className="min-h-screen bg-[#F2EFEC]">
-        <style>{CSS_FONT}</style>
-        {/* Topbar */}
-        <div className="border-b border-gray-200 px-6 h-14 flex items-center justify-between bg-white shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex gap-1">
-              <div className="w-7 h-7 bg-[#991A21] rounded-md flex items-center justify-center"><span className="text-white text-xs">🏠</span></div>
-              <div className="w-7 h-7 bg-[#2D2D2D] rounded-md flex items-center justify-center"><span className="text-white text-xs">📋</span></div>
-            </div>
-            <div className="w-px h-5 bg-gray-200" />
-            <span className="text-sm font-bold text-[#2D2D2D]">Totaal VvE Beheer</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-[#991A21] rounded-full flex items-center justify-center">
-              <span className="text-white text-xs font-bold">{beheerder.charAt(0)}</span>
-            </div>
-            <span className="text-sm font-medium text-[#2D2D2D]">{beheerder}</span>
-            <button onClick={async ()=>{ await signOut(); setScreen("login"); setLoginNaam(""); setLoginPw(""); setBeheerder(""); setData(defaultData()); }}
-              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-[#991A21] hover:border-red-200 hover:bg-red-50 transition-colors">
-              Uitloggen
-            </button>
-          </div>
-        </div>
-
-        <div className="p-8 max-w-4xl mx-auto">
-          {/* Welkom */}
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-[#2D2D2D] mb-1">
-              {(() => { const h = new Date().getHours(); return h < 12 ? "Goedemorgen" : h < 18 ? "Goedemiddag" : "Goedenavond"; })()} {beheerder}
-            </h1>
-            <p className="text-sm text-gray-500">{new Date().toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} — kies een tool om te beginnen</p>
-          </div>
-
-          {/* Tool tegels */}
-          <div className="grid grid-cols-3 gap-5 mb-8">
-            {/* Vergaderplanner */}
-            <div
-              onClick={()=>setScreen("vergaderingen")}
-              className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
-            >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-[#991A21] rounded-t-2xl" />
-              <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-2xl mb-4">📅</div>
-              <h3 className="text-base font-bold text-[#2D2D2D] mb-2">Vergaderplanner</h3>
-              <p className="text-xs text-gray-500 mb-4 leading-relaxed">Plan en beheer alle VvE-vergaderingen, uitnodigingen en voortgang.</p>
-              <div className="flex items-center justify-between">
-                {data.vves.length > 0
-                  ? <span className="text-xs bg-red-50 text-[#991A21] px-2 py-1 rounded-full font-semibold border border-red-100">{data.vves.length} VvE's actief</span>
-                  : <span className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full font-semibold border border-gray-200">Openen</span>
-                }
-                <span className="text-[#991A21] font-bold group-hover:translate-x-1 transition-transform">→</span>
-              </div>
-            </div>
-
-            {/* VvE Calculator */}
-            <div
-              onClick={()=>setScreen("calculator")}
-              className="bg-white border-2 border-gray-200 hover:border-[#2D2D2D] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
-            >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-[#2D2D2D] rounded-t-2xl" />
-              <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center text-2xl mb-4">🧮</div>
-              <h3 className="text-base font-bold text-[#2D2D2D] mb-2">VvE Calculator</h3>
-              <p className="text-xs text-gray-500 mb-4 leading-relaxed">Bereken bijdragen, reservefondsen en financiële overzichten.</p>
-              <div className="flex items-center justify-between">
-                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full font-semibold border border-gray-200">Beschikbaar</span>
-                <span className="text-[#2D2D2D] font-bold group-hover:translate-x-1 transition-transform">→</span>
-              </div>
-            </div>
-
-            {/* Admin dashboard — alleen voor admin */}
-            {isAdmin && (
-              <div
-                onClick={()=>setScreen("admin")}
-                className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
-              >
-                <div className="absolute top-0 left-0 right-0 h-1 bg-[#991A21] rounded-t-2xl" />
-                <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-2xl mb-4">🛡️</div>
-                <h3 className="text-base font-bold text-[#2D2D2D] mb-2">Admin Dashboard</h3>
-                <p className="text-xs text-gray-500 mb-4 leading-relaxed">Overzicht alle beheerders, voortgang en leaderboard.</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs bg-red-50 text-[#991A21] px-2 py-1 rounded-full font-semibold border border-red-100">Beheerder</span>
-                  <span className="text-[#991A21] font-bold group-hover:translate-x-1 transition-transform">→</span>
-                </div>
-              </div>
-            )}
-
-            {/* LOD Beheer — alleen voor admin */}
-            {isAdmin && (
-              <div
-                onClick={()=>setScreen("lod")}
-                className="bg-white border-2 border-gray-200 hover:border-[#92550A] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
-              >
-                <div className="absolute top-0 left-0 right-0 h-1 bg-[#92550A] rounded-t-2xl" />
-                <div className="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center text-2xl mb-4">⚠️</div>
-                <h3 className="text-base font-bold text-[#2D2D2D] mb-2">LOD Beheer</h3>
-                <p className="text-xs text-gray-500 mb-4 leading-relaxed">Registreer en monitor LOD's van de gemeente — onderhoudspunten, offertes en deadlines.</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs bg-amber-50 text-[#92550A] px-2 py-1 rounded-full font-semibold border border-amber-200">Admin only</span>
-                  <span className="text-[#92550A] font-bold group-hover:translate-x-1 transition-transform">→</span>
-                </div>
-              </div>
-            )}
-
-            {/* Toekomstige tool placeholder */}
-            {!isAdmin && (
-              <div className="bg-white border-2 border-dashed border-gray-200 rounded-2xl p-6 opacity-50 relative overflow-hidden">
-                <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center text-2xl mb-4">＋</div>
-                <h3 className="text-base font-bold text-gray-400 mb-2">Nieuwe tool</h3>
-                <p className="text-xs text-gray-400 leading-relaxed">Toekomstige tools verschijnen hier automatisch.</p>
-              </div>
-            )}
-          </div>
-
-          {/* Recente activiteit */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Recente activiteit</p>
-            {recenteActiviteit.length === 0 ? (
-              <p className="text-sm text-gray-400">Nog geen activiteit. Open de vergaderplanner om te beginnen.</p>
-            ) : (
-              <div className="space-y-3">
-                {recenteActiviteit.map((item, i) => (
-                  <div key={i} className="flex items-center gap-3 text-sm">
-                    <div className="w-2 h-2 rounded-full shrink-0" style={{background: item.kleur}} />
-                    <span className="font-medium text-[#2D2D2D]">{item.naam}</span>
-                    <span className="text-gray-400">— {item.tekst}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // LOD koppeling: laad actieve LODs voor vergaderplanner notitie
-  const activeLods = lodLocalLoad().filter(l=>l.status!=='afgerond');
-  const vveHeeftLod = (vveNaam) => activeLods.some(l =>
-    l.vveNaam && vveNaam && l.vveNaam.toLowerCase().includes(vveNaam.toLowerCase().trim().substring(0,8))
-  );
-  const getVveLodInfo = (vveNaam) => activeLods.filter(l =>
-    l.vveNaam && vveNaam && l.vveNaam.toLowerCase().includes(vveNaam.toLowerCase().trim().substring(0,8))
-  );
-
-  // Onbekend screen — stuur terug naar portaal
-  if (screen !== "vergaderingen") {
-    return (
-      <div className="min-h-screen bg-[#F2EFEC] flex items-center justify-center">
-        <style>{CSS_FONT}</style>
-        <div style={{textAlign:'center', color:'#8A7E7B'}}>
-          <div style={{fontSize:24, marginBottom:8}}>⏳</div>
-          <div style={{fontSize:14}}>Laden…</div>
-        </div>
-      </div>
-    );
-  }
-
-  // Main screen — Vergaderplanner
+  // Main screen
   return (
     <div className={`min-h-screen ${t.bg} ${t.text}`}>
       <style>{CSS_FONT}</style>
