@@ -3005,8 +3005,9 @@ function AdminDashboard({ beheerderList, onBack }) {
 
 // ── Main App ─────────────────────────────────────────────────────
 export default function App() {
-  const [screen, setScreen] = useState("login"); // login | portaal | vergaderingen | calculator | admin
+  const [screen, setScreen] = useState("login"); // login | portaal | vergaderingen | calculator | admin | lod
   const [beheerder, setBeheerder] = useState("");
+  const [userRol, setUserRol] = useState("beheerder"); // beheerder | beheerder_plus | admin
   const [beheerderList] = useState(getBeheerderList());
   const [data, setData] = useState(defaultData());
   const [loading, setLoading] = useState(false);
@@ -3060,11 +3061,13 @@ export default function App() {
       if (!rol) throw new Error("Geen rol gevonden voor dit account.");
       if (rol.rol === "admin") {
         setBeheerder("Admin");
+        setUserRol("admin");
         setLoading(false);
         setScreen("portaal");
         return;
       }
       setBeheerder(rol.naam);
+      setUserRol(rol.rol || "beheerder");
       const d = await loadData(rol.naam);
       setData(d || defaultData());
       setScreen("portaal");
@@ -3443,7 +3446,9 @@ export default function App() {
 
   // ── Portaal screen ──────────────────────────────────────────
   if (screen==="portaal") {
-    const isAdmin = beheerder === "Admin";
+    const isAdmin = userRol === "admin";
+    const isLodBeheerder = userRol === "beheerder_plus";
+    const heeftLodToegang = isAdmin || isLodBeheerder;
     // LOD statistieken voor dashboard
     const lodData = isAdmin ? lodLocalLoad() : [];
     const lodActief = lodData.filter(l=>l.status!=='afgerond');
@@ -3487,7 +3492,7 @@ export default function App() {
               <span className="text-white text-xs font-bold">{beheerder.charAt(0)}</span>
             </div>
             <span className="text-sm font-medium text-[#2D2D2D]">{beheerder}</span>
-            <button onClick={async ()=>{ await signOut(); setScreen("login"); setLoginNaam(""); setLoginPw(""); setBeheerder(""); setData(defaultData()); }}
+            <button onClick={async ()=>{ await signOut(); setScreen("login"); setLoginNaam(""); setLoginPw(""); setBeheerder(""); setUserRol("beheerder"); setData(defaultData()); }}
               className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-[#991A21] hover:border-red-200 hover:bg-red-50 transition-colors">
               Uitloggen
             </button>
@@ -3555,8 +3560,8 @@ export default function App() {
               </div>
             )}
 
-            {/* LOD Beheer — alleen voor admin */}
-            {isAdmin && (
+            {/* LOD Beheer — voor admin en beheerder_plus */}
+            {heeftLodToegang && (
               <div
                 onClick={()=>setScreen("lod")}
                 className="bg-white border-2 border-gray-200 hover:border-[#92550A] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
@@ -3566,14 +3571,14 @@ export default function App() {
                 <h3 className="text-base font-bold text-[#2D2D2D] mb-2">LOD Beheer</h3>
                 <p className="text-xs text-gray-500 mb-4 leading-relaxed">Registreer en monitor LOD's van de gemeente — onderhoudspunten, offertes en deadlines.</p>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs bg-amber-50 text-[#92550A] px-2 py-1 rounded-full font-semibold border border-amber-200">Admin only</span>
+                  <span className="text-xs bg-amber-50 text-[#92550A] px-2 py-1 rounded-full font-semibold border border-amber-200">{isAdmin ? "Admin" : "LOD Beheerder"}</span>
                   <span className="text-[#92550A] font-bold group-hover:translate-x-1 transition-transform">→</span>
                 </div>
               </div>
             )}
 
             {/* Toekomstige tool placeholder */}
-            {!isAdmin && (
+            {!isAdmin && !isLodBeheerder && (
               <div className="bg-white border-2 border-dashed border-gray-200 rounded-2xl p-6 opacity-50 relative overflow-hidden">
                 <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center text-2xl mb-4">＋</div>
                 <h3 className="text-base font-bold text-gray-400 mb-2">Nieuwe tool</h3>
@@ -3647,7 +3652,7 @@ export default function App() {
               ← Dashboard
             </button>
           )}
-          <button onClick={async ()=>{ await signOut(); setScreen("login"); setLoginNaam(""); setLoginPw(""); setBeheerder(""); setData(defaultData()); }}
+          <button onClick={async ()=>{ await signOut(); setScreen("login"); setLoginNaam(""); setLoginPw(""); setBeheerder(""); setUserRol("beheerder"); setData(defaultData()); }}
             className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-[#991A21] hover:border-red-200 hover:bg-red-50 transition-colors">
             Uitloggen
           </button>
