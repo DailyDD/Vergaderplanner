@@ -894,54 +894,68 @@ function VveCalculator({ onTerug }) {
 
   const parseBulk = () => {
     setBulkFout('')
-    const skipPatterns = [/^Presentielijst/i, /^Locatie\s*:/i, /^Datum en tijd/i, /^Eigenaar\s+Adres/i, /^Powered by/i]
+    // Skip kop- en voettekst regels van de presentielijst PDF
+    const skipPatterns = [
+      /^Presentielijst/i, /^Locatie\s*:/i, /^Datum en tijd/i,
+      /^Eigenaar\s+Adres/i, /^Powered by/i,
+      /^Totaal VvE/i, /^Bezoekadres/i, /^Postadres/i,
+      /^Volmerlaan/i, /^Postbus/i, /^info@totaal/i, /^KvK/i,
+    ]
     const regels = bulkTekst.trim().split('\n').map(r => r.trim()).filter(r => r && !skipPatterns.some(p => p.test(r)))
+
+    const isPostcode = (s) => /^\d{4}\s*[A-Z]{2}/.test(s)
+    const isTelefoon = (s) => /^(0\d[\-\s]?\d{6,}|06[\-\s]?\d{6,})/.test(s)
+    const isEmail = (s) => /@/.test(s)
+
     const gevonden = []
     const seen = new Set()
+
     for (let i = 0; i < regels.length; i++) {
-      const regel = regels[i]
-      const volgende = i + 1 < regels.length ? regels[i + 1] : ''
-      const combined = regel + ' ' + volgende
-      const pcMatch = combined.match(/,?\s*(\d{4})\s*[A-Z]{2}/)
-      if (!pcMatch) continue
-      const voorPc = combined.slice(0, combined.indexOf(pcMatch[0])).trim().replace(/,$/, '')
-      const hnrMatch = voorPc.match(/\s+(A-\d+|\d+[A-Za-z]*)\s*$/)
-      if (!hnrMatch) continue
-      const hnrStr = hnrMatch[1].trim()
-      const voorHnr = voorPc.slice(0, voorPc.lastIndexOf(hnrMatch[0])).trim()
-      const straatMatch = voorHnr.match(/([A-Z][a-zA-Z\u00C0-\u024F]+(?:weg|straat|laan|plein|kade|dijk|gracht|singel|dreef|pad|steeg|hoek|markt)?(?:\s+[a-z][a-zA-Z\u00C0-\u024F]+)*)\s*$/)
-      if (!straatMatch) continue
-      const straat = straatMatch[1].trim()
-      const straatPos = voorHnr.lastIndexOf(straat)
-      let naam = voorHnr.slice(0, straatPos).trim()
-      if (!naam) {
-        const prev = []
-        let j = i - 1
-        while (j >= 0 && !/\d{4}\s*[A-Z]{2}/.test(regels[j]) && !/^0\d/.test(regels[j])) {
-          const pr = regels[j].trim()
-          if (pr && !/^D[A-Z]{1,2}$/.test(pr)) prev.unshift(pr)
-          j--
-        }
-        naam = prev.join(' ') || straat
-      }
+      if (!isPostcode(regels[i])) continue
+
+      // Adresregel staat altijd direct vóór de postcoderegel
+      const adresRegel = i > 0 ? regels[i - 1] : ''
+      // Haal straat + huisnummer op — strip eventuele achternaam vooraan
+      const adresMatch = adresRegel.match(/([A-Z][a-zA-Z\u00C0-\u024F]+(?:straat|weg|laan|plein|kade|dijk|gracht|singel|dreef|pad|steeg|hoek|markt|hof)?(?:\s+[a-z][a-zA-Z\u00C0-\u024F]+)*)\s+(\d+[A-Za-z]?(?:\s*[-\/]\s*\d+[A-Za-z]?)?),?$/)
+      if (!adresMatch) continue
+
+      const adres = adresMatch[1] + ' ' + adresMatch[2].replace(/,$/, '').trim()
+      if (seen.has(adres)) continue
+      seen.add(adres)
+
+      // Zoek breukdeel in de komende regels (tot volgende postcode)
       let breukdeel = null
-      for (let k = i; k < Math.min(i + 5, regels.length); k++) {
-        if (/@/.test(regels[k]) || /^0\d[\-\d]/.test(regels[k])) {
-          const nums = [...regels[k].matchAll(/\b(\d+)\b/g)].map(m => parseInt(m[1]))
-          if (nums.length) breukdeel = nums[nums.length - 1]
+      for (let k = i + 1; k < Math.min(i + 10, regels.length); k++) {
+        const rk = regels[k].trim()
+        if (isPostcode(rk)) break
+
+        if (isTelefoon(rk) || isEmail(rk)) {
+          // Pak losse kleine getallen achteraan de regel (breukdeel + stemmen)
+          const getallen = [...rk.matchAll(/(?<![0-9\-])(\d{1,3})(?![0-9\-])/g)].map(m => parseInt(m[1]))
+          if (getallen.length >= 2) {
+            // Voorlaatste = breukdeel, laatste = stemmen
+            breukdeel = getallen[getallen.length - 2]
+            break
+          }
+          // Telefoon/email zonder getallen → breukdeel staat op aparte regel (pagina-overgang)
+          continue
+        }
+
+        // Standalone klein getal op eigen regel = breukdeel
+        if (/^\d{1,3}$/.test(rk)) {
+          breukdeel = parseInt(rk)
           break
         }
       }
+
       if (!breukdeel) continue
-      const adresKort = straat + ' ' + hnrStr
-      const naamDisplay = naam + ' - ' + adresKort
-      if (seen.has(naamDisplay)) continue
-      seen.add(naamDisplay)
-      const hnrNum = parseInt((hnrStr.match(/\d+/) || ['0'])[0])
-      const hnrLetter = hnrStr.replace(/[\d\-]/g, '').toUpperCase()
-      gevonden.push({ naam: naamDisplay, breukdeel, hnrNum, hnrLetter })
+
+      const hnrNum = parseInt(adres.match(/(\d+)/)?.[1] || '0')
+      const hnrLetter = (adres.match(/\d+([A-Za-z])/) || [])[1]?.toUpperCase() || ''
+      gevonden.push({ naam: adres, breukdeel, hnrNum, hnrLetter })
     }
-    if (!gevonden.length) { setBulkFout('Geen eigenaren herkend. Controleer het formaat.'); return }
+
+    if (!gevonden.length) { setBulkFout('Geen eigenaren herkend. Controleer het formaat — zorg dat je de volledige tekst van de presentielijst plakt.'); return }
     gevonden.sort((a, b) => a.hnrNum - b.hnrNum || a.hnrLetter.localeCompare(b.hnrLetter))
     setRows(gevonden.map(e => ({ id: uid(), naam: e.naam, teller: String(e.breukdeel), huidig: '' })))
     setBulkOpen(false)
