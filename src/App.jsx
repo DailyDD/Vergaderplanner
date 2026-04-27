@@ -348,7 +348,7 @@ function Checkbox({ checked, disabled, onChange, label }) {
 }
 
 // ── VvE Row ──────────────────────────────────────────────────────
-function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onForceOpenHandled }) {
+function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onForceOpenHandled, vveHeeftLod }) {
   const [expanded, setExpanded] = useState(false);
 
   // FIX 3: wanneer forceOpen=true, klap open en scroll
