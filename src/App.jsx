@@ -3510,7 +3510,7 @@ export default function App() {
           <div className="grid grid-cols-3 gap-5 mb-8">
             {/* Vergaderplanner */}
             <div
-
+              onClick={()=>setScreen("vergaderingen")}
               className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
             >
               <div className="absolute top-0 left-0 right-0 h-1 bg-[#991A21] rounded-t-2xl" />
