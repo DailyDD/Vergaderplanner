@@ -3087,7 +3087,7 @@ export default function App() {
 
   // Jaarwisseling detectie: controleer of opgeslagen data nog van vorig jaar is
   useEffect(() => {
-    if (screen !== "main" || !data.vves || data.vves.length === 0) return;
+    if (screen !== "vergaderingen" || !data.vves || data.vves.length === 0) return;
     const huidigJaar = new Date().getFullYear();
     const opslaanJaar = (() => {
       // Kijk naar het jaar van de meeste vergaderdatums
@@ -3510,7 +3510,7 @@ export default function App() {
           <div className="grid grid-cols-3 gap-5 mb-8">
             {/* Vergaderplanner */}
             <div
-              onClick={()=>setScreen("main")}
+
               className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
             >
               <div className="absolute top-0 left-0 right-0 h-1 bg-[#991A21] rounded-t-2xl" />
@@ -3616,7 +3616,20 @@ export default function App() {
     l.vveNaam && vveNaam && l.vveNaam.toLowerCase().includes(vveNaam.toLowerCase().trim().substring(0,8))
   );
 
-  // Main screen
+  // Onbekend screen — stuur terug naar portaal
+  if (screen !== "vergaderingen") {
+    return (
+      <div className="min-h-screen bg-[#F2EFEC] flex items-center justify-center">
+        <style>{CSS_FONT}</style>
+        <div style={{textAlign:'center', color:'#8A7E7B'}}>
+          <div style={{fontSize:24, marginBottom:8}}>⏳</div>
+          <div style={{fontSize:14}}>Laden…</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Main screen — Vergaderplanner
   return (
     <div className={`min-h-screen ${t.bg} ${t.text}`}>
       <style>{CSS_FONT}</style>
