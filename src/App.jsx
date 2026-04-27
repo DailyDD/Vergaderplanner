@@ -894,60 +894,52 @@ function VveCalculator({ onTerug }) {
 
   const parseBulk = () => {
     setBulkFout('')
-    // Skip kop- en voettekst regels van de presentielijst PDF
     const skipPatterns = [
       /^Presentielijst/i, /^Locatie\s*:/i, /^Datum en tijd/i,
       /^Eigenaar\s+Adres/i, /^Powered by/i,
       /^Totaal VvE/i, /^Bezoekadres/i, /^Postadres/i,
       /^Volmerlaan/i, /^Postbus/i, /^info@totaal/i, /^KvK/i,
     ]
+    const isPostcode = (s) => /^\d{4}\s*[A-Z]{2}/.test(s)
     const regels = bulkTekst.trim().split('\n').map(r => r.trim()).filter(r => r && !skipPatterns.some(p => p.test(r)))
 
-    const isPostcode = (s) => /^\d{4}\s*[A-Z]{2}/.test(s)
-    const isTelefoon = (s) => /^(0\d[\-\s]?\d{6,}|06[\-\s]?\d{6,})/.test(s)
-    const isEmail = (s) => /@/.test(s)
+    // Haal straat + huisnummer op — strip naam die er eventueel voor staat
+    const SUFFIXEN = 'straat|laan|weg|plein|kade|dijk|gracht|singel|dreef|pad|steeg|hoek|markt|hof|allee|boulevard|park|ring'
+    const extractAdres = (r) => {
+      const s = r.replace(/,\s*$/, '').trim()
+      const m = s.match(new RegExp(`([A-Z][a-zA-Z\\u00C0-\\u024F]*(?:${SUFFIXEN}))\\s+(\\d+[A-Za-z]?)$`, 'i'))
+      if (m) return m[1] + ' ' + m[2]
+      const fb = s.match(/([A-Z][a-zA-Z\u00C0-\u024F]+)\s+(\d+[A-Za-z]?)$/)
+      return fb ? fb[1] + ' ' + fb[2] : null
+    }
+
+    // Breukdeel staat altijd NA het emailadres op de contactregel
+    const extractBreukdeel = (rk) => {
+      if (/@/.test(rk)) {
+        const naEmail = rk.replace(/^.*@\S+\s*/, '')
+        const getallen = [...naEmail.matchAll(/\b(\d{1,3})\b/g)].map(m => parseInt(m[1]))
+        if (getallen.length >= 2) return getallen[getallen.length - 2]
+        if (getallen.length === 1) return getallen[0]
+      }
+      if (/^\d{1,3}$/.test(rk.trim())) return parseInt(rk.trim())
+      return null
+    }
 
     const gevonden = []
     const seen = new Set()
 
     for (let i = 0; i < regels.length; i++) {
       if (!isPostcode(regels[i])) continue
-
-      // Adresregel staat altijd direct vóór de postcoderegel
-      const adresRegel = i > 0 ? regels[i - 1] : ''
-      // Haal straat + huisnummer op — strip eventuele achternaam vooraan
-      const adresMatch = adresRegel.match(/([A-Z][a-zA-Z\u00C0-\u024F]+(?:straat|weg|laan|plein|kade|dijk|gracht|singel|dreef|pad|steeg|hoek|markt|hof)?(?:\s+[a-z][a-zA-Z\u00C0-\u024F]+)*)\s+(\d+[A-Za-z]?(?:\s*[-\/]\s*\d+[A-Za-z]?)?),?$/)
-      if (!adresMatch) continue
-
-      const adres = adresMatch[1] + ' ' + adresMatch[2].replace(/,$/, '').trim()
-      if (seen.has(adres)) continue
+      const adres = extractAdres(i > 0 ? regels[i - 1] : '')
+      if (!adres || seen.has(adres)) continue
       seen.add(adres)
 
-      // Zoek breukdeel in de komende regels (tot volgende postcode)
       let breukdeel = null
       for (let k = i + 1; k < Math.min(i + 10, regels.length); k++) {
-        const rk = regels[k].trim()
-        if (isPostcode(rk)) break
-
-        if (isTelefoon(rk) || isEmail(rk)) {
-          // Pak losse kleine getallen achteraan de regel (breukdeel + stemmen)
-          const getallen = [...rk.matchAll(/(?<![0-9\-])(\d{1,3})(?![0-9\-])/g)].map(m => parseInt(m[1]))
-          if (getallen.length >= 2) {
-            // Voorlaatste = breukdeel, laatste = stemmen
-            breukdeel = getallen[getallen.length - 2]
-            break
-          }
-          // Telefoon/email zonder getallen → breukdeel staat op aparte regel (pagina-overgang)
-          continue
-        }
-
-        // Standalone klein getal op eigen regel = breukdeel
-        if (/^\d{1,3}$/.test(rk)) {
-          breukdeel = parseInt(rk)
-          break
-        }
+        if (isPostcode(regels[k])) break
+        breukdeel = extractBreukdeel(regels[k].trim())
+        if (breukdeel) break
       }
-
       if (!breukdeel) continue
 
       const hnrNum = parseInt(adres.match(/(\d+)/)?.[1] || '0')
@@ -955,7 +947,7 @@ function VveCalculator({ onTerug }) {
       gevonden.push({ naam: adres, breukdeel, hnrNum, hnrLetter })
     }
 
-    if (!gevonden.length) { setBulkFout('Geen eigenaren herkend. Controleer het formaat — zorg dat je de volledige tekst van de presentielijst plakt.'); return }
+    if (!gevonden.length) { setBulkFout('Geen eigenaren herkend. Zorg dat je de volledige presentielijst plakt inclusief postcodes.'); return }
     gevonden.sort((a, b) => a.hnrNum - b.hnrNum || a.hnrLetter.localeCompare(b.hnrLetter))
     setRows(gevonden.map(e => ({ id: uid(), naam: e.naam, teller: String(e.breukdeel), huidig: '' })))
     setBulkOpen(false)
