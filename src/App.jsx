@@ -133,7 +133,7 @@ async function saveData(beheerder, data) {
       vakanties: data.vakanties||[],
       werkdagen: data.werkdagen||WORK_DAYS_DEFAULT
     };
-    await sbFetch(`beheerder_data`, {
+    await sbFetch(`beheerder_data?on_conflict=beheerder`, {
       method: "POST",
       headers: { "Prefer": "resolution=merge-duplicates" },
       body: JSON.stringify(payload),
