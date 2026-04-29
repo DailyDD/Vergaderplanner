@@ -16,8 +16,8 @@ const WORK_DAYS_DEFAULT = [false, true, true, true, true, true, false];
 
 
 // ── Supabase client ──────────────────────────────────────────────
-const SUPABASE_URL = "https://nuipelnbbhvnotxpyxdj.supabase.co";
-const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51aXBlbG5iYmh2bm90eHB5eGRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzMjk3MjcsImV4cCI6MjA5MDkwNTcyN30.Y9CoxrTN3X49miiRjp3ieZmamcbKp_y9YK9RLKIc68s";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // Houdt het huidige access token bij na inloggen
 let _accessToken = null;
