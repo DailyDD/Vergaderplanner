@@ -97,6 +97,12 @@ async function sbFetch(path, options = {}) {
       ...(options.headers || {}),
     },
   });
+  if (res.status === 401) {
+    setToken(null);
+    window._vveSessionVerlopen = true;
+    window.location.reload();
+    return null;
+  }
   if (!res.ok) { const err = await res.text(); throw new Error(`Supabase fout: ${err}`); }
   const text = await res.text();
   return text ? JSON.parse(text) : null;
@@ -3069,6 +3075,13 @@ export default function App() {
 // Herstel sessie bij page refresh
 useEffect(() => {
   const token = sessionStorage.getItem(TOKEN_KEY);
+  // Toon melding als sessie verlopen was
+useEffect(() => {
+  if (window._vveSessionVerlopen) {
+    window._vveSessionVerlopen = false;
+    setLoginError("Je sessie is verlopen. Log opnieuw in.");
+  }
+}, []);
   if (!token) return;
   _accessToken = token;
   getUserRole().then(rol => {
