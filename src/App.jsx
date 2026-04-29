@@ -34,7 +34,6 @@ function getAuthHeaders() {
     "apikey": SUPABASE_ANON,
     "Authorization": `Bearer ${_accessToken || SUPABASE_ANON}`,
     "Content-Type": "application/json",
-    "Prefer": "return=representation",
   };
 }
 
@@ -136,7 +135,7 @@ async function saveData(beheerder, data) {
     };
     await sbFetch(`beheerder_data`, {
       method: "POST",
-      headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
+      headers: { "Prefer": "resolution=merge-duplicates" },
       body: JSON.stringify(payload),
     });
   } catch(e) { console.error("saveData", e); showToast("Opslaan mislukt — controleer je verbinding."); }
