@@ -142,7 +142,7 @@ async function saveData(beheerder, data) {
       method: "POST",
       body: JSON.stringify(payload),
     });
-  } catch(e) { console.error("saveData", e); }
+  } catch(e) { console.error("saveData", e); showToast("Opslaan mislukt — controleer je verbinding."); }
 }
 
 async function loadAllData(beheerderList) {
@@ -281,7 +281,34 @@ function generatePlanning(vves, vakanties, werkdagen) {
     return match ? { ...v, datum1: match.datum } : v;
   });
 }
+// ── Toast notificaties ───────────────────────────────────────────
+let _toastTimeout = null;
+let _setToastFn = null;
 
+function showToast(bericht, type = "fout") {
+  if (_setToastFn) {
+    _setToastFn({ bericht, type });
+    clearTimeout(_toastTimeout);
+    _toastTimeout = setTimeout(() => _setToastFn(null), 4000);
+  }
+}
+
+function Toast() {
+  const [toast, setToast] = useState(null);
+  _setToastFn = setToast;
+  if (!toast) return null;
+  const bg = toast.type === "succes" ? "#EAF4EE" : "#FDEAEB";
+  const border = toast.type === "succes" ? "#2D6A4F" : "#991A21";
+  const color = toast.type === "succes" ? "#2D6A4F" : "#991A21";
+  const icon = toast.type === "succes" ? "✓" : "⚠";
+  return (
+    <div style={{position:"fixed",top:20,right:20,zIndex:9999,background:bg,border:`1.5px solid ${border}`,borderRadius:10,padding:"12px 18px",fontSize:13,fontWeight:600,color,boxShadow:"0 4px 16px rgba(0,0,0,0.12)",display:"flex",alignItems:"center",gap:8,maxWidth:340}}>
+      <span>{icon}</span>
+      <span>{toast.bericht}</span>
+      <button onClick={()=>_setToastFn(null)} style={{marginLeft:8,background:"none",border:"none",cursor:"pointer",fontSize:16,color,lineHeight:1}}>×</button>
+    </div>
+  );
+}
 // ── Shared UI ────────────────────────────────────────────────────
 function Badge({ color, children }) {
   const c = {
@@ -1515,6 +1542,7 @@ async function lodSupaLoad() {
     if (!rows || !rows.length) return [];
     return rows.map(r => ({ id: r.id, ...r.data }));
   } catch {
+    showToast("LOD opslaan mislukt — lokaal opgeslagen als backup.");
     // Fallback naar localStorage als tabel nog niet bestaat
     try { const r = localStorage.getItem('lod_data_v3'); return r ? JSON.parse(r) : []; } catch { return []; }
   }
@@ -3657,6 +3685,7 @@ useEffect(() => {
   // Main screen
   return (
     <div className={`min-h-screen ${t.bg} ${t.text}`}>
+      <Toast />
       <style>{CSS_FONT}</style>
       <div className={`border-b ${t.border} px-6 h-14 flex items-center justify-between bg-white shadow-sm sticky top-0 z-50`}>
         <div className="flex items-center gap-3">
