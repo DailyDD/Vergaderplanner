@@ -2443,14 +2443,12 @@ function LodBeheer({ onTerug, beheerderList }) {
   const [filterMaand, setFilterMaand] = useState(null); // 0-11 of null
 
   // Laad uit Supabase bij mount
-  useState(()=>{
-    setTimeout(()=>{
-      lodSupaLoad().then(data=>{
-        if (data && data.length) setLods(data);
-        setLoading(false);
-      }).catch(()=>setLoading(false));
-    },0);
-  });
+  useEffect(()=>{
+    lodSupaLoad().then(data=>{
+      if (data && data.length) setLods(data);
+      setLoading(false);
+    }).catch(()=>setLoading(false));
+  }, []);
 
   const saveAndSet = async (nl) => {
     setLods(nl);
