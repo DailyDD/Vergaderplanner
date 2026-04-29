@@ -134,12 +134,9 @@ async function saveData(beheerder, data) {
       vakanties: data.vakanties||[],
       werkdagen: data.werkdagen||WORK_DAYS_DEFAULT
     };
-    await sbFetch(`beheerder_data?beheerder=eq.${encodeURIComponent(beheerder)}`, {
-      method: "DELETE",
-      headers: { "Prefer": "" }
-    });
     await sbFetch(`beheerder_data`, {
       method: "POST",
+      headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
       body: JSON.stringify(payload),
     });
   } catch(e) { console.error("saveData", e); showToast("Opslaan mislukt — controleer je verbinding."); }
