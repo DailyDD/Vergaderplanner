@@ -19,8 +19,15 @@ const WORK_DAYS_DEFAULT = [false, true, true, true, true, true, false];
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Houdt het huidige access token bij na inloggen
-let _accessToken = null;
+// Token opslag — overleeft page refresh via sessionStorage
+const TOKEN_KEY = "vve_access_token";
+let _accessToken = sessionStorage.getItem(TOKEN_KEY) || null;
+
+function setToken(token) {
+  _accessToken = token;
+  if (token) sessionStorage.setItem(TOKEN_KEY, token);
+  else sessionStorage.removeItem(TOKEN_KEY);
+}
 
 function getAuthHeaders() {
   return {
@@ -40,7 +47,7 @@ async function signIn(email, wachtwoord) {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error_description || data.msg || "Inloggen mislukt");
-  _accessToken = data.access_token;
+  setToken(data.access_token);
   return data;
 }
 
@@ -51,7 +58,7 @@ async function signOut() {
       headers: { "apikey": SUPABASE_ANON, "Authorization": `Bearer ${_accessToken}` },
     });
   } catch(e) { console.error("signOut", e); }
-  _accessToken = null;
+  setToken(null);
 }
 
 async function getUserRole() {
