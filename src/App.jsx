@@ -3044,7 +3044,27 @@ export default function App() {
   const [filterJaar2027, setFilterJaar2027] = useState(false);
   const [statFilter, setStatFilter] = useState(null); // afgerond | uitgenodigd | niet-uitgenodigd | uitnodiging | vakantie
   const [geselecteerdeFilterMaanden, setGeselecteerdeFilterMaanden] = useState(new Set());
-
+// Herstel sessie bij page refresh
+useEffect(() => {
+  const token = sessionStorage.getItem(TOKEN_KEY);
+  if (!token) return;
+  _accessToken = token;
+  getUserRole().then(rol => {
+    if (!rol) { setToken(null); return; }
+    if (rol.rol === "admin") {
+      setBeheerder("Admin");
+      setUserRol("admin");
+      setScreen("portaal");
+      return;
+    }
+    setBeheerder(rol.naam);
+    setUserRol(rol.rol || "beheerder");
+    loadData(rol.naam).then(d => {
+      setData(d || defaultData());
+      setScreen("portaal");
+    });
+  }).catch(() => setToken(null));
+}, []);
   const t = {
     bg:        "bg-[#F2EFEC]",
     bgCard:    "bg-white",
