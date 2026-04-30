@@ -300,7 +300,7 @@ function Toast() {
     return () => _toastListeners.delete(setToast);
   }, []);
   if (!toast) return null;
-  const bg = toast.type === "succes" ? "#EAF4EE" : "#FDEAEB";
+const bg = toast.type === "succes" ? "#EAF4EE" : "#FDEAEB";
   const border = toast.type === "succes" ? "#2D6A4F" : "#991A21";
   const color = toast.type === "succes" ? "#2D6A4F" : "#991A21";
   const icon = toast.type === "succes" ? "✓" : "⚠";
@@ -309,18 +309,6 @@ function Toast() {
       <span>{icon}</span>
       <span>{toast.bericht}</span>
       <button onClick={()=>setToast(null)} style={{marginLeft:8,background:"none",border:"none",cursor:"pointer",fontSize:16,color,lineHeight:1}}>×</button>
-    </div>
-  );
-}
-  const bg = toast.type === "succes" ? "#EAF4EE" : "#FDEAEB";
-  const border = toast.type === "succes" ? "#2D6A4F" : "#991A21";
-  const color = toast.type === "succes" ? "#2D6A4F" : "#991A21";
-  const icon = toast.type === "succes" ? "✓" : "⚠";
-  return (
-    <div style={{position:"fixed",top:20,right:20,zIndex:9999,background:bg,border:`1.5px solid ${border}`,borderRadius:10,padding:"12px 18px",fontSize:13,fontWeight:600,color,boxShadow:"0 4px 16px rgba(0,0,0,0.12)",display:"flex",alignItems:"center",gap:8,maxWidth:340}}>
-      <span>{icon}</span>
-      <span>{toast.bericht}</span>
-      <button onClick={()=>_setToastFn(null)} style={{marginLeft:8,background:"none",border:"none",cursor:"pointer",fontSize:16,color,lineHeight:1}}>×</button>
     </div>
   );
 }
