@@ -285,20 +285,33 @@ function generatePlanning(vves, vakanties, werkdagen) {
 }
 // ── Toast notificaties ───────────────────────────────────────────
 let _toastTimeout = null;
-let _setToastFn = null;
+const _toastListeners = new Set();
 
 function showToast(bericht, type = "fout") {
-  if (_setToastFn) {
-    _setToastFn({ bericht, type });
-    clearTimeout(_toastTimeout);
-    _toastTimeout = setTimeout(() => _setToastFn(null), 4000);
-  }
+  _toastListeners.forEach(fn => fn({ bericht, type }));
+  clearTimeout(_toastTimeout);
+  _toastTimeout = setTimeout(() => _toastListeners.forEach(fn => fn(null)), 4000);
 }
 
 function Toast() {
   const [toast, setToast] = useState(null);
-  _setToastFn = setToast;
+  useEffect(() => {
+    _toastListeners.add(setToast);
+    return () => _toastListeners.delete(setToast);
+  }, []);
   if (!toast) return null;
+  const bg = toast.type === "succes" ? "#EAF4EE" : "#FDEAEB";
+  const border = toast.type === "succes" ? "#2D6A4F" : "#991A21";
+  const color = toast.type === "succes" ? "#2D6A4F" : "#991A21";
+  const icon = toast.type === "succes" ? "✓" : "⚠";
+  return (
+    <div style={{position:"fixed",top:20,right:20,zIndex:9999,background:bg,border:`1.5px solid ${border}`,borderRadius:10,padding:"12px 18px",fontSize:13,fontWeight:600,color,boxShadow:"0 4px 16px rgba(0,0,0,0.12)",display:"flex",alignItems:"center",gap:8,maxWidth:340}}>
+      <span>{icon}</span>
+      <span>{toast.bericht}</span>
+      <button onClick={()=>setToast(null)} style={{marginLeft:8,background:"none",border:"none",cursor:"pointer",fontSize:16,color,lineHeight:1}}>×</button>
+    </div>
+  );
+}
   const bg = toast.type === "succes" ? "#EAF4EE" : "#FDEAEB";
   const border = toast.type === "succes" ? "#2D6A4F" : "#991A21";
   const color = toast.type === "succes" ? "#2D6A4F" : "#991A21";
