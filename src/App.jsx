@@ -3082,13 +3082,6 @@ export default function App() {
 // Herstel sessie bij page refresh
 useEffect(() => {
   const token = sessionStorage.getItem(TOKEN_KEY);
-  // Toon melding als sessie verlopen was
-useEffect(() => {
-  if (window._vveSessionVerlopen) {
-    window._vveSessionVerlopen = false;
-    setLoginError("Je sessie is verlopen. Log opnieuw in.");
-  }
-}, []);
   if (!token) return;
   _accessToken = token;
   getUserRole().then(rol => {
