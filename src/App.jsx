@@ -3612,7 +3612,9 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
                 <span className="text-[#2D2D2D] font-bold group-hover:translate-x-1 transition-transform">→</span>
               </div>
             </div>
-<div
+            {/* E-mail Configurator — alleen voor admin */}
+            {isAdmin && (
+            <div
               onClick={()=>setScreen("mail")}
               className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
             >
@@ -3625,6 +3627,7 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
                 <span className="text-[#991A21] font-bold group-hover:translate-x-1 transition-transform">→</span>
               </div>
             </div>
+            )}
             {/* Admin dashboard — alleen voor admin */}
             {isAdmin && (
               <div
