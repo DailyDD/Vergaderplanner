@@ -149,7 +149,7 @@ export default function MailConfigurator({ onTerug, beheerder }) {
                 value={correspondentie}
                 onChange={(e) => setCorrespondentie(e.target.value)}
                 placeholder="Plak hier de inkomende e-mail of brief…"
-                rows={7}
+                rows={14}
                 className="w-full bg-[#FAF7F2] border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none focus:border-[#991A21] transition-colors resize-none"
               />
             </div>
