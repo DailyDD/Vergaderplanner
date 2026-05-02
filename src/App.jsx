@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import MailConfigurator from './MailConfigurator';
+import VerduurzamingBeheer from './VerduurzamingBeheer';
 
 // ── Huisstijl Totaal VvE Beheer ──────────────────────────────────
 // Primair: #991A21 (donkerrood), Antraciet: #2D2D2D, Achtergrond: #F2EFEC
@@ -3450,6 +3451,8 @@ useEffect(() => {
 
   // ── Screens ──────────────────────────────────────────────────
   if (screen==="mail") return <MailConfigurator onTerug={()=>setScreen("portaal")} beheerder={beheerder}/>;
+  if (screen==="verduurzaming") return <VerduurzamingBeheer onTerug={()=>setScreen("portaal")} beheerder={beheerder} beheerderList={beheerderList}/>;
+
 if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBack={()=>setScreen("portaal")}/>;
   if (screen==="lod") return <LodBeheer onTerug={()=>setScreen("portaal")} beheerderList={beheerderList}/>;
   if (screen==="calculator") return <VveCalculator onTerug={()=>setScreen("portaal")}/>;
@@ -3628,6 +3631,24 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
               </div>
             </div>
             )}
+
+            {/* Verduurzaming & Subsidies — alleen voor admin */}
+            {isAdmin && (
+            <div
+              onClick={()=>setScreen("verduurzaming")}
+              className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
+            >
+              <div className="absolute top-0 left-0 right-0 h-1 bg-[#991A21] rounded-t-2xl" />
+              <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-2xl mb-4">🌿</div>
+              <h3 className="text-base font-bold text-[#2D2D2D] mb-2">Verduurzaming & Subsidies</h3>
+              <p className="text-xs text-gray-500 mb-4 leading-relaxed">Beheer verduurzamingstrajecten, subsidieaanvragen en isolatieacties per VvE.</p>
+              <div className="flex items-center justify-between">
+                <span className="text-xs bg-red-50 text-[#991A21] px-2 py-1 rounded-full font-semibold border border-red-100">Beschikbaar</span>
+                <span className="text-[#991A21] font-bold group-hover:translate-x-1 transition-transform">→</span>
+              </div>
+            </div>
+            )}
+
             {/* Admin dashboard — alleen voor admin */}
             {isAdmin && (
               <div
