@@ -3617,7 +3617,7 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
               </div>
             </div>
             {/* E-mail Configurator — alleen voor admin */}
-            {(isAdmin || isHoofdAdmin) && (
+            {isHoofdAdmin && (
             <div
               onClick={()=>setScreen("mail")}
               className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
@@ -3633,8 +3633,8 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
             </div>
             )}
 
-            {/* Verduurzaming & Subsidies — alleen voor admin */}
-            {(isAdmin || isHoofdAdmin) && (
+            {/* Verduurzaming & Subsidies — alleen voor hoofd_admin */}
+            {isHoofdAdmin && (
             <div
               onClick={()=>setScreen("verduurzaming")}
               className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
@@ -3650,7 +3650,7 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
             </div>
             )}
 
-            {/* Admin dashboard — alleen voor admin */}
+            {/* Admin dashboard — voor admin en hoofd_admin */}
             {(isAdmin || isHoofdAdmin) && (
               <div
                 onClick={()=>setScreen("admin")}
