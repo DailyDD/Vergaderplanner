@@ -60,20 +60,21 @@ function dagenActief(iso) { if (!iso) return null; return Math.round((new Date()
 function euro(n) { return `€ ${(n||0).toLocaleString("nl-NL", { minimumFractionDigits: 0 })}`; }
 
 const DOSSIER_STATUS = {
-  nieuw:          { label: "Nieuw",              color: "#1A4D7A", bg: "#EAF1F8" },
-  in_behandeling: { label: "In behandeling",      color: VD_ROOD,  bg: VD_ROOD_BG },
-  wacht_vve:      { label: "Wacht op VvE",        color: "#065F46", bg: "#D1FAE5" },
-  wacht_gemeente: { label: "Wacht op gemeente",   color: "#92400E", bg: "#FEF3E2" },
-  wacht_subsidie: { label: "Wacht op subsidie",   color: "#5B3FA6", bg: "#F3EFFD" },
-  afgerond:       { label: "Afgerond",            color: "#374151", bg: "#F3F4F6" },
+  nieuw:           { label: "Nieuw",                   color: "#1A4D7A", bg: "#EAF1F8" },
+  in_behandeling:  { label: "In behandeling",           color: VD_ROOD,  bg: VD_ROOD_BG },
+  wacht_vve:       { label: "Wacht op VvE",             color: "#065F46", bg: "#D1FAE5" },
+  wacht_offertes:  { label: "In afwachting offertes",   color: "#0E7490", bg: "#ECFEFF" },
+  wacht_gemeente:  { label: "Wacht op gemeente",        color: "#92400E", bg: "#FEF3E2" },
+  wacht_subsidie:  { label: "Wacht op subsidie",        color: "#5B3FA6", bg: "#F3EFFD" },
+  afgerond:        { label: "Afgerond",                 color: "#374151", bg: "#F3F4F6" },
 };
 const TRAJECTEN = { procesbegeleiding: "Procesbegeleiding leningaanvragen", subsidie: "Subsidieaanvragen", isolatie: "Gemeentelijke isolatieactie Den Haag" };
 const TYPE_EIGENDOM = { volledig_bewoond: "Volledig eigenaar bewoond", gedeeltelijk_verhuurd: "Gedeeltelijk verhuurd", volledig_verhuurd: "Volledig verhuurd" };
 const FONDS_OPTIES = [{ value: "warmtefonds", label: "Warmtefonds" }, { value: "duurzaamheidsfonds", label: "Duurzaamheidsfonds" }, { value: "onbekend", label: "Nog niet bekend" }];
 const KANAAL_OPTIES = ["mail", "telefoon", "vergadering", "app", "anders"];
-const ACTIETYPE_LABELS = { offerte_aanvragen: "Offerte aanvragen", offerte_doorsturen: "Offerte doorsturen naar gemeente", akkoord_ophalen: "Akkoord ophalen bij VvE", document_opvragen: "Document opvragen", factuur_versturen: "Factuur versturen", inkooporder_opvolgen: "Inkooporder opvolgen", traject_afronden: "Traject afronden" };
+const ACTIETYPE_LABELS = { opvolgen: "Opvolgen dossier", offerte_aanvragen: "Offerte aanvragen", offerte_doorsturen: "Offerte doorsturen naar gemeente", akkoord_ophalen: "Akkoord ophalen bij VvE", document_opvragen: "Document opvragen", factuur_versturen: "Factuur versturen", inkooporder_opvolgen: "Inkooporder opvolgen", traject_afronden: "Traject afronden" };
 
-function leegVve() { return { id: uid(), naam: "", adres: "", beheerder: "", typeEigendom: "volledig_bewoond", alvBesluit: false, alvDatum: "", status: "nieuw", aangemaakt: nu(), trajecten: [], offertes: [], communicatielog: [], audittrail: [], tijdlijn: {} }; }
+function leegVve() { return { id: uid(), naam: "", adres: "", beheerder: "", typeEigendom: "volledig_bewoond", alvBesluit: false, alvDatum: "", status: "nieuw", aangemaakt: nu(), opvolgenOp: "", trajecten: [], offertes: [], communicatielog: [], audittrail: [], tijdlijn: {} }; }
 function leegTraject(type) {
   const base = { id: uid(), type, aangemaakt: nu() };
   if (type === "procesbegeleiding") return { ...base, fonds: "onbekend", bedrag: "", overeenkomstGetekend: false, overeenkomstDatum: "", status: "lopend", gefactureerd: false };
@@ -171,6 +172,7 @@ function StatSidebar({ vves }) {
   const aantalTrajecten = vves.reduce((acc, v) => acc + (v.trajecten || []).length, 0);
   const aantalLog = vves.reduce((acc, v) => acc + (v.communicatielog || []).length, 0);
   const aantalDl = vves.filter(v => (v.trajecten || []).some(t => t.type === "subsidie" && t.einddatum && (() => { const g = dagenTot(t.einddatum); return g !== null && g <= 14 && g >= 0; })())).length;
+  const aantalOfferteAfwachting = vves.filter(v => v.status === "wacht_offertes").length;
   const openActies = vves.reduce((acc, v) => {
     let n = 0;
     (v.trajecten || []).forEach(t => {
@@ -239,6 +241,10 @@ function StatSidebar({ vves }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 11, color: "#8A7E7B" }}>Openstaande acties</span>
           <span style={{ fontSize: 13, fontWeight: 700, color: openActies > 0 ? "#92400E" : "#2D6A4F" }}>{openActies}</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 11, color: "#8A7E7B" }}>Offertes in afwachting</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: aantalOfferteAfwachting > 0 ? "#0E7490" : "#2D6A4F" }}>{aantalOfferteAfwachting}</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 11, color: "#8A7E7B" }}>Deadlines &lt; 14d</span>
@@ -467,6 +473,10 @@ function VveKaart({ vve, onUpdate, onDelete, openId, setOpenId, beheerderList })
   const urgDl = deadlines.some(d => { const g = dagenTot(d.datum); return g !== null && g <= 14 && g >= 0; });
   const ovrDl = deadlines.some(d => { const g = dagenTot(d.datum); return g !== null && g < 0; });
 
+  // opvolgen datum check
+  const opvolgenVervallen = vve.opvolgenOp && dagenTot(vve.opvolgenOp) !== null && dagenTot(vve.opvolgenOp) < 0;
+  const opvolgenVandaag = vve.opvolgenOp && dagenTot(vve.opvolgenOp) !== null && dagenTot(vve.opvolgenOp) === 0;
+
   // FIX punt 6: actief-dagen
   const actDagen = dagenActief(vve.aangemaakt);
 
@@ -482,6 +492,7 @@ function VveKaart({ vve, onUpdate, onDelete, openId, setOpenId, beheerderList })
             {/* FIX punt 5: alleen subsidie deadline badges, niet ALV */}
             {ovrDl && <span style={{ fontSize: 10, fontWeight: 600, background: VD_ROOD_BG, color: VD_ROOD, padding: "1px 6px", borderRadius: 8 }}>Deadline voorbij</span>}
             {urgDl && !ovrDl && <span style={{ fontSize: 10, fontWeight: 600, background: "#FEF3E2", color: "#92400E", padding: "1px 6px", borderRadius: 8 }}>Deadline nadert</span>}
+            {(opvolgenVervallen || opvolgenVandaag) && <span style={{ fontSize: 10, fontWeight: 600, background: "#F3EFFD", color: "#5B3FA6", padding: "1px 6px", borderRadius: 8 }}>⏰ Opvolgen{opvolgenVandaag ? " vandaag" : ""}</span>}
           </div>
           {/* FIX punt 6: tweede rij toont actief-dagen ipv naam herhaling */}
           <div style={{ display: "flex", gap: 10, marginTop: 4, flexWrap: "wrap", alignItems: "center" }}>
@@ -521,6 +532,27 @@ function VveKaart({ vve, onUpdate, onDelete, openId, setOpenId, beheerderList })
                 <div className="flex items-center gap-6">
                   <Chk checked={vve.alvBesluit} onChange={v => u("alvBesluit", v)} label="ALV-besluit genomen" />
                   {vve.alvBesluit && <Veld label="Datum ALV-besluit"><Inp type="date" value={vve.alvDatum} onChange={v => u("alvDatum", v)} /></Veld>}
+                </div>
+                {/* Opvolgen herinnering */}
+                <div className="bg-[#F8F5FF] border border-purple-100 rounded-xl p-4">
+                  <div className="flex items-center gap-3">
+                    <span style={{ fontSize: 16 }}>⏰</span>
+                    <div className="flex-1">
+                      <p className="text-[10px] font-bold text-purple-600 uppercase tracking-wide mb-1">Opvolgen op</p>
+                      <Inp type="date" value={vve.opvolgenOp || ""} onChange={v => u("opvolgenOp", v)} />
+                    </div>
+                    {vve.opvolgenOp && (
+                      <div className="text-right">
+                        {dagenTot(vve.opvolgenOp) < 0
+                          ? <span className="text-xs font-bold text-[#991A21]">{Math.abs(dagenTot(vve.opvolgenOp))}d vervallen</span>
+                          : dagenTot(vve.opvolgenOp) === 0
+                          ? <span className="text-xs font-bold text-purple-700">Vandaag</span>
+                          : <span className="text-xs font-semibold text-gray-500">Over {dagenTot(vve.opvolgenOp)}d</span>
+                        }
+                        <button onClick={() => u("opvolgenOp", "")} className="block text-[10px] text-gray-400 hover:text-red-500 mt-0.5">wissen</button>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 {/* FIX punt 5: deadlines blok toont ALLEEN subsidie-einddatums */}
                 {deadlines.length > 0 && (
@@ -662,6 +694,93 @@ function VveKaart({ vve, onUpdate, onDelete, openId, setOpenId, beheerderList })
   );
 }
 
+function exportActiesCSV(acties) {
+  const header = ["VvE", "Beheerder", "Traject", "Actie", "Detail"];
+  const rows = acties.map(a => [
+    a.vve || "", a.beh || "", a.traj || "",
+    ACTIETYPE_LABELS[a.type] || a.type,
+    a.detail || ""
+  ]);
+  const csv = [header, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = "actielijst.csv"; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function ActielijstTab({ acties }) {
+  const [fBeh, setFBeh] = useState("alle");
+  const zichtbaar = fBeh === "alle" ? acties : acties.filter(a => a.beh === fBeh);
+  const uniekeBeheerders = [...new Set(acties.map(a => a.beh).filter(Boolean))];
+
+  return (
+    <div className="space-y-3">
+      {/* Toolbar: filter + export */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Beheerder</span>
+          <select
+            value={fBeh}
+            onChange={e => setFBeh(e.target.value)}
+            className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-[#991A21]"
+          >
+            <option value="alle">Alle ({acties.length})</option>
+            {uniekeBeheerders.map(n => (
+              <option key={n} value={n}>{n} ({acties.filter(a => a.beh === n).length})</option>
+            ))}
+          </select>
+        </div>
+        <button
+          onClick={() => exportActiesCSV(zichtbaar)}
+          disabled={zichtbaar.length === 0}
+          className="text-xs px-3 py-1.5 bg-white border border-gray-200 hover:border-[#991A21] hover:text-[#991A21] rounded-lg font-semibold text-gray-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+        >
+          <span>↓</span> Exporteren als CSV
+        </button>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+        {zichtbaar.length === 0 ? (
+          <div className="p-12 text-center">
+            <p className="text-4xl mb-3">✅</p>
+            <p className="text-sm font-semibold text-[#2D2D2D]">{acties.length === 0 ? "Geen openstaande acties" : "Geen acties voor deze beheerder"}</p>
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50">
+                {["VvE", "Beheerder", "Traject", "Actie"].map(h => (
+                  <th key={h} className="text-left px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {zichtbaar.map((a, i) => (
+                <tr key={i} className={`border-b border-gray-50 hover:bg-[#FAF7F2] ${a.prioriteit === "hoog" ? "bg-purple-50/40" : ""}`}>
+                  <td className="px-5 py-3 font-semibold text-[#2D2D2D]">{a.vve || "—"}</td>
+                  <td className="px-5 py-3 text-gray-600">{a.beh || "—"}</td>
+                  <td className="px-5 py-3">
+                    <Bdg kleur={a.traj === "Isolatie" ? "oranje" : a.traj === "Subsidie" ? "groen" : a.traj === "Dossier" ? "grijs" : "blauw"} label={a.traj} />
+                  </td>
+                  <td className="px-5 py-3">
+                    <div className="flex items-start gap-2">
+                      {a.prioriteit === "hoog" && <span style={{ fontSize: 13 }}>⏰</span>}
+                      <div>
+                        <span className="font-medium text-[#2D2D2D]">{ACTIETYPE_LABELS[a.type] || a.type}</span>
+                        {a.detail && <p className="text-xs text-gray-500 mt-0.5 truncate max-w-xs">{a.detail}</p>}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function VerduurzamingBeheer({ onTerug, beheerder, beheerderList }) {
   const [vves, setVves] = useState(() => vdLocalLoad());
   const [openId, setOpenId] = useState(null);
@@ -692,6 +811,10 @@ export default function VerduurzamingBeheer({ onTerug, beheerder, beheerderList 
 
   const acties = [];
   vves.forEach(v => {
+    // Opvolgen herinnering — datum vervallen of vandaag
+    if (v.opvolgenOp && dagenTot(v.opvolgenOp) !== null && dagenTot(v.opvolgenOp) <= 0 && v.status !== "afgerond") {
+      acties.push({ vve: v.naam, beh: v.beheerder, type: "opvolgen", traj: "Dossier", detail: `Opvolgen gepland op ${datumNL(v.opvolgenOp)}`, prioriteit: "hoog" });
+    }
     (v.trajecten || []).forEach(t => {
       if (t.type === "isolatie") {
         if (!(v.offertes || []).some(o => o.aangevraagd)) acties.push({ vve: v.naam, beh: v.beheerder, type: "offerte_aanvragen", traj: "Isolatie" });
@@ -770,21 +893,7 @@ export default function VerduurzamingBeheer({ onTerug, beheerder, beheerderList 
         )}
 
         {hoofdTab === "acties" && (
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-            {acties.length === 0 ? <div className="p-12 text-center"><p className="text-4xl mb-3">✅</p><p className="text-sm font-semibold text-[#2D2D2D]">Geen openstaande acties</p></div> : (
-              <table className="w-full text-sm">
-                <thead><tr className="border-b border-gray-100 bg-gray-50">{["VvE","Beheerder","Traject","Actie"].map(h => <th key={h} className="text-left px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">{h}</th>)}</tr></thead>
-                <tbody>{acties.map((a, i) => (
-                  <tr key={i} className="border-b border-gray-50 hover:bg-[#FAF7F2]">
-                    <td className="px-5 py-3 font-semibold text-[#2D2D2D]">{a.vve||"—"}</td>
-                    <td className="px-5 py-3 text-gray-600">{a.beh||"—"}</td>
-                    <td className="px-5 py-3"><Bdg kleur={a.traj==="Isolatie"?"oranje":a.traj==="Subsidie"?"groen":"blauw"} label={a.traj} /></td>
-                    <td className="px-5 py-3"><span className="font-medium text-[#2D2D2D]">{ACTIETYPE_LABELS[a.type]||a.type}</span>{a.detail&&<p className="text-xs text-gray-500 mt-0.5 truncate max-w-xs">{a.detail}</p>}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            )}
-          </div>
+          <ActielijstTab acties={acties} />
         )}
 
         {hoofdTab === "financieel" && (
