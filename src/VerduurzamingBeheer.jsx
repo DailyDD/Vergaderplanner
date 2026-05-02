@@ -694,6 +694,119 @@ function VveKaart({ vve, onUpdate, onDelete, openId, setOpenId, beheerderList })
   );
 }
 
+// ── CONFETTI ────────────────────────────────────────────────────────────────
+const CONFETTI_COLORS = ["#991A21","#2D2D2D","#F59E0B","#10B981","#3B82F6","#8B5CF6","#F472B6","#FBBF24"];
+const MIJLPAAL_KEY = "vd_omzet_mijlpaal";
+const MIJLPAAL_STAP = 1000;
+
+function getMijlpaalDrempel() {
+  try { return parseInt(localStorage.getItem(MIJLPAAL_KEY) || "0", 10) || 0; } catch { return 0; }
+}
+function setMijlpaalDrempel(v) {
+  try { localStorage.setItem(MIJLPAAL_KEY, String(v)); } catch {}
+}
+
+function ConfettiOverlay({ omzet, onDone }) {
+  const canvasRef = React.useRef(null);
+  const drempelBereikt = Math.floor(omzet / MIJLPAAL_STAP) * MIJLPAAL_STAP;
+
+  React.useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const deeltjes = Array.from({ length: 140 }, () => ({
+      x: Math.random() * canvas.width,
+      y: -20 - Math.random() * 200,
+      r: 5 + Math.random() * 7,
+      d: 3 + Math.random() * 5,
+      kleur: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+      kanteling: Math.random() * Math.PI * 2,
+      kantelSnelheid: 0.05 + Math.random() * 0.1,
+      zijwaarts: (Math.random() - 0.5) * 2,
+    }));
+
+    let frame;
+    let tick = 0;
+    const teken = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      deeltjes.forEach(p => {
+        p.y += p.d;
+        p.x += p.zijwaarts;
+        p.kanteling += p.kantelSnelheid;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.kanteling);
+        ctx.fillStyle = p.kleur;
+        ctx.globalAlpha = Math.max(0, 1 - tick / 180);
+        ctx.fillRect(-p.r / 2, -p.r / 2, p.r, p.r * 0.6);
+        ctx.restore();
+      });
+      tick++;
+      if (tick < 220) frame = requestAnimationFrame(teken);
+      else onDone();
+    };
+    frame = requestAnimationFrame(teken);
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 9999, pointerEvents: "none" }}>
+      <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
+      <div style={{
+        position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+        background: "#fff", border: "2px solid #991A21", borderRadius: 20,
+        padding: "28px 40px", textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,.18)",
+        pointerEvents: "auto", minWidth: 300,
+        animation: "vd-pop .35s cubic-bezier(.34,1.56,.64,1) both"
+      }}>
+        <style>{`@keyframes vd-pop { from { opacity:0; transform: translate(-50%,-50%) scale(.7); } to { opacity:1; transform: translate(-50%,-50%) scale(1); } }`}</style>
+        <div style={{ fontSize: 40, marginBottom: 8 }}>🎉</div>
+        <p style={{ fontSize: 13, fontWeight: 700, color: "#2D2D2D", marginBottom: 6 }}>Goed gedaan!</p>
+        <p style={{ fontSize: 12, color: "#6B7280", marginBottom: 14, lineHeight: 1.5 }}>
+          Jullie hebben nu totaal<br />
+          <span style={{ fontSize: 22, fontWeight: 800, color: "#991A21" }}>{euro(omzet)}</span><br />
+          aan omzet gerealiseerd!
+        </p>
+        <button
+          onClick={onDone}
+          style={{ fontSize: 12, fontWeight: 600, padding: "8px 24px", background: "#991A21", color: "#fff", border: "none", borderRadius: 10, cursor: "pointer" }}
+        >
+          Top! 💪
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function gebruikConfettiMijlpaal(totaalOmzet) {
+  const [toon, setToon] = React.useState(false);
+  const vorigeOmzetRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (totaalOmzet <= 0) return;
+    const huidigeDrempel = Math.floor(totaalOmzet / MIJLPAAL_STAP) * MIJLPAAL_STAP;
+    const opgeslagenDrempel = getMijlpaalDrempel();
+
+    if (huidigeDrempel > opgeslagenDrempel) {
+      // Alleen triggeren als omzet ook echt gestegen is in deze sessie (niet bij eerste load)
+      if (vorigeOmzetRef.current !== null && totaalOmzet > vorigeOmzetRef.current) {
+        setMijlpaalDrempel(huidigeDrempel);
+        setToon(true);
+      } else if (vorigeOmzetRef.current === null) {
+        // Eerste render: drempel bijwerken zonder confetti
+        setMijlpaalDrempel(huidigeDrempel);
+      }
+    }
+    vorigeOmzetRef.current = totaalOmzet;
+  }, [totaalOmzet]);
+
+  return [toon, () => setToon(false)];
+}
+// ── EINDE CONFETTI ───────────────────────────────────────────────────────────
+
 function exportActiesCSV(acties) {
   const header = ["VvE", "Beheerder", "Traject", "Actie", "Detail"];
   const rows = acties.map(a => [
@@ -840,11 +953,14 @@ export default function VerduurzamingBeheer({ onTerug, beheerder, beheerderList 
     });
   });
 
+  const [toonConfetti, sluitConfetti] = gebruikConfettiMijlpaal(fin.totaal);
+
   if (loading) return <div className="min-h-screen bg-[#F2EFEC] flex items-center justify-center"><style>{CSS_FONT}</style><div className="text-center"><div className="w-8 h-8 border-4 border-[#991A21] border-t-transparent rounded-full animate-spin mx-auto mb-3" /><p className="text-sm text-gray-500">Gegevens laden…</p></div></div>;
 
   return (
     <div className="min-h-screen bg-[#F2EFEC]">
       <style>{CSS_FONT}</style>
+      {toonConfetti && <ConfettiOverlay omzet={fin.totaal} onDone={sluitConfetti} />}
       <div className="border-b border-gray-200 px-6 h-14 flex items-center justify-between bg-white shadow-sm sticky top-0 z-50">
         <div className="flex items-center gap-3">
           <div className="flex gap-1"><div className="w-7 h-7 bg-[#991A21] rounded-md flex items-center justify-center"><span className="text-white text-xs">🌿</span></div><div className="w-7 h-7 bg-[#2D2D2D] rounded-md flex items-center justify-center"><span className="text-white text-xs">📋</span></div></div>
