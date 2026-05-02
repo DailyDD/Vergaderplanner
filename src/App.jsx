@@ -3520,10 +3520,11 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
   // ── Portaal screen ──────────────────────────────────────────
   if (screen==="portaal") {
     const isAdmin = userRol === "admin";
+    const isHoofdAdmin = userRol === "hoofd_admin";
     const isLodBeheerder = userRol === "beheerder_plus";
-    const heeftLodToegang = isAdmin || isLodBeheerder;
+    const heeftLodToegang = isAdmin || isHoofdAdmin || isLodBeheerder;
     // LOD statistieken voor dashboard
-    const lodData = isAdmin ? lodLocalLoad() : [];
+    const lodData = isAdmin || isHoofdAdmin ? lodLocalLoad() : [];
     const lodActief = lodData.filter(l=>l.status!=='afgerond');
     const now = new Date();
     const maandEind = new Date(now.getFullYear(), now.getMonth()+1, 0);
@@ -3616,7 +3617,7 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
               </div>
             </div>
             {/* E-mail Configurator — alleen voor admin */}
-            {isAdmin && (
+            {(isAdmin || isHoofdAdmin) && (
             <div
               onClick={()=>setScreen("mail")}
               className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
@@ -3633,7 +3634,7 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
             )}
 
             {/* Verduurzaming & Subsidies — alleen voor admin */}
-            {isAdmin && (
+            {(isAdmin || isHoofdAdmin) && (
             <div
               onClick={()=>setScreen("verduurzaming")}
               className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
@@ -3650,7 +3651,7 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
             )}
 
             {/* Admin dashboard — alleen voor admin */}
-            {isAdmin && (
+            {(isAdmin || isHoofdAdmin) && (
               <div
                 onClick={()=>setScreen("admin")}
                 className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
@@ -3677,14 +3678,14 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
                 <h3 className="text-base font-bold text-[#2D2D2D] mb-2">LOD Beheer</h3>
                 <p className="text-xs text-gray-500 mb-4 leading-relaxed">Registreer en monitor LOD's van de gemeente — onderhoudspunten, offertes en deadlines.</p>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs bg-amber-50 text-[#92550A] px-2 py-1 rounded-full font-semibold border border-amber-200">{isAdmin ? "Admin" : "LOD Beheerder"}</span>
+                  <span className="text-xs bg-amber-50 text-[#92550A] px-2 py-1 rounded-full font-semibold border border-amber-200">{(isAdmin || isHoofdAdmin) ? "Admin" : "LOD Beheerder"}</span>
                   <span className="text-[#92550A] font-bold group-hover:translate-x-1 transition-transform">→</span>
                 </div>
               </div>
             )}
 
             {/* Toekomstige tool placeholder */}
-            {!isAdmin && !isLodBeheerder && (
+            {!isAdmin && !isHoofdAdmin && !isLodBeheerder && (
               <div className="bg-white border-2 border-dashed border-gray-200 rounded-2xl p-6 opacity-50 relative overflow-hidden">
                 <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center text-2xl mb-4">＋</div>
                 <h3 className="text-base font-bold text-gray-400 mb-2">Nieuwe tool</h3>
