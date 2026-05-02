@@ -10,6 +10,9 @@ const VD_TABLE = "verduurzaming_data";
 const VD_ROOD = "#991A21";
 const VD_ROOD_BG = "#FEF2F2";
 
+// FIX punt 2: alleen Brian en Jeffrey in log
+const LOG_BEHEERDERS = ["Brian", "Jeffrey"];
+
 function getAuthHeaders() {
   const token = sessionStorage.getItem(TOKEN_KEY);
   return { apikey: SUPABASE_ANON, Authorization: `Bearer ${token || SUPABASE_ANON}`, "Content-Type": "application/json" };
@@ -52,6 +55,8 @@ function nu() { return new Date().toISOString(); }
 function datumNL(iso) { if (!iso) return "—"; return new Date(iso).toLocaleDateString("nl-NL", { day: "2-digit", month: "2-digit", year: "numeric" }); }
 function datumTijdNL(iso) { if (!iso) return "—"; return new Date(iso).toLocaleString("nl-NL", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }); }
 function dagenTot(iso) { if (!iso) return null; return Math.round((new Date(iso).setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 86400000); }
+// FIX punt 6: dagen actief berekenen vanaf aanmaakdatum
+function dagenActief(iso) { if (!iso) return null; return Math.round((new Date().setHours(0,0,0,0) - new Date(iso).setHours(0,0,0,0)) / 86400000); }
 function euro(n) { return `€ ${(n||0).toLocaleString("nl-NL", { minimumFractionDigits: 0 })}`; }
 
 const DOSSIER_STATUS = {
@@ -126,7 +131,127 @@ function Inp({ value, onChange, placeholder = "", type = "text" }) { return <inp
 function Sel({ value, onChange, children }) { return <select value={value} onChange={e => onChange(e.target.value)} className="w-full bg-[#FAF7F2] border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] focus:outline-none focus:border-[#991A21] transition-colors">{children}</select>; }
 function Txa({ value, onChange, placeholder = "", rows = 3 }) { return <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows} className="w-full bg-[#FAF7F2] border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none focus:border-[#991A21] transition-colors resize-none" />; }
 function Chk({ checked, onChange, label }) { return <label className="flex items-center gap-2 cursor-pointer select-none"><div onClick={() => onChange(!checked)} className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0 ${checked ? "bg-[#991A21] border-[#991A21]" : "bg-white border-gray-300"}`}>{checked && <span className="text-white text-[10px] font-bold">✓</span>}</div><span className="text-sm text-[#2D2D2D]">{label}</span></label>; }
+// FIX punt 5: DlBdg alleen voor subsidie-einddatums, niet ALV
 function DlBdg({ iso }) { const d = dagenTot(iso); if (d === null) return null; if (d < 0) return <Bdg kleur="rood" label={`${Math.abs(d)}d over`} />; if (d <= 7) return <Bdg kleur="rood" label={`${d}d`} />; if (d <= 21) return <Bdg kleur="oranje" label={`${d}d`} />; return <Bdg kleur="groen" label={`${d}d`} />; }
+
+// Punt 1: Rondetaart voortgangsgrafiek
+function RondeVoortgang({ totaal, afgerond }) {
+  const pct = totaal > 0 ? Math.round((afgerond / totaal) * 100) : 0;
+  const r = 28;
+  const omtrek = 2 * Math.PI * r;
+  const gevuld = (pct / 100) * omtrek;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+      <svg width="72" height="72" viewBox="0 0 72 72">
+        <circle cx="36" cy="36" r={r} fill="none" stroke="#F3F4F6" strokeWidth="7" />
+        <circle
+          cx="36" cy="36" r={r} fill="none"
+          stroke={pct === 100 ? "#2D6A4F" : VD_ROOD}
+          strokeWidth="7"
+          strokeDasharray={`${gevuld} ${omtrek - gevuld}`}
+          strokeDashoffset={omtrek / 4}
+          strokeLinecap="round"
+          style={{ transition: "stroke-dasharray .4s" }}
+        />
+        <text x="36" y="40" textAnchor="middle" fontSize="13" fontWeight="700" fill={pct === 100 ? "#2D6A4F" : VD_ROOD}>{pct}%</text>
+      </svg>
+      <div style={{ textAlign: "center" }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: "#2D2D2D" }}>{afgerond} / {totaal}</p>
+        <p style={{ fontSize: 9, color: "#8A7E7B", textTransform: "uppercase", letterSpacing: "0.05em" }}>Afgerond</p>
+      </div>
+    </div>
+  );
+}
+
+// Punt 1: Zwevend statistiekenpaneel
+function StatSidebar({ vves }) {
+  const totaal = vves.length;
+  const afgerond = vves.filter(v => v.status === "afgerond").length;
+  const actief = vves.filter(v => v.status !== "afgerond").length;
+  const aantalTrajecten = vves.reduce((acc, v) => acc + (v.trajecten || []).length, 0);
+  const aantalLog = vves.reduce((acc, v) => acc + (v.communicatielog || []).length, 0);
+  const aantalDl = vves.filter(v => (v.trajecten || []).some(t => t.type === "subsidie" && t.einddatum && (() => { const g = dagenTot(t.einddatum); return g !== null && g <= 14 && g >= 0; })())).length;
+  const openActies = vves.reduce((acc, v) => {
+    let n = 0;
+    (v.trajecten || []).forEach(t => {
+      if (t.type === "isolatie") {
+        if (!(v.offertes || []).some(o => o.aangevraagd)) n++;
+        if ((v.offertes || []).some(o => o.aangevraagd) && !t.doorgestuurdGemeente) n++;
+        if (!(v.offertes || []).some(o => o.vveAkkoord) && (v.offertes || []).some(o => o.ontvangen)) n++;
+        if (!t.inkooporderOntvangen && t.doorgestuurdGemeente) n++;
+      }
+      if (t.type === "subsidie") {
+        if (t.ontbrekendeDocs?.trim()) n++;
+        if (!t.gefactureerd && t.status === "afgerond") n++;
+      }
+      if (t.type === "procesbegeleiding" && !t.gefactureerd && t.status === "afgerond") n++;
+    });
+    return acc + n;
+  }, 0);
+
+  // Per traject type
+  const perType = { procesbegeleiding: 0, subsidie: 0, isolatie: 0 };
+  vves.forEach(v => (v.trajecten || []).forEach(t => { if (perType[t.type] !== undefined) perType[t.type]++; }));
+
+  return (
+    <div style={{
+      position: "sticky", top: 80, width: 200, flexShrink: 0,
+      background: "#fff", border: "1.5px solid #E5E0DB", borderRadius: 14,
+      padding: 16, boxShadow: "0 2px 12px rgba(0,0,0,.06)", display: "flex", flexDirection: "column", gap: 16
+    }}>
+      {/* Rondetaart */}
+      <div style={{ display: "flex", justifyContent: "center", paddingTop: 4 }}>
+        <RondeVoortgang totaal={totaal} afgerond={afgerond} />
+      </div>
+
+      <div style={{ borderTop: "1px solid #F3F4F6", paddingTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+        {[
+          { label: "Totaal VvE's", val: totaal, k: "#2D2D2D" },
+          { label: "Actief", val: actief, k: VD_ROOD },
+          { label: "Afgerond", val: afgerond, k: "#2D6A4F" },
+        ].map(s => (
+          <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: "#8A7E7B" }}>{s.label}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: s.k }}>{s.val}</span>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ borderTop: "1px solid #F3F4F6", paddingTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+        <p style={{ fontSize: 9, fontWeight: 700, color: "#8A7E7B", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>Trajecten</p>
+        {[
+          { label: "Lening", val: perType.procesbegeleiding, k: "#1A4D7A", bg: "#EAF1F8" },
+          { label: "Subsidie", val: perType.subsidie, k: "#065F46", bg: "#D1FAE5" },
+          { label: "Isolatie", val: perType.isolatie, k: "#92400E", bg: "#FEF3E2" },
+        ].map(s => (
+          <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 7px", borderRadius: 8, background: s.bg, color: s.k }}>{s.label}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: s.k }}>{s.val}</span>
+          </div>
+        ))}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 2 }}>
+          <span style={{ fontSize: 11, color: "#8A7E7B" }}>Totaal</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#2D2D2D" }}>{aantalTrajecten}</span>
+        </div>
+      </div>
+
+      <div style={{ borderTop: "1px solid #F3F4F6", paddingTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 11, color: "#8A7E7B" }}>Openstaande acties</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: openActies > 0 ? "#92400E" : "#2D6A4F" }}>{openActies}</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 11, color: "#8A7E7B" }}>Deadlines &lt; 14d</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: aantalDl > 0 ? VD_ROOD : "#2D6A4F" }}>{aantalDl}</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 11, color: "#8A7E7B" }}>Logitems totaal</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#2D2D2D" }}>{aantalLog}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function VoortgangsBalk({ vve }) {
   const st = berekenVoortgang(vve);
@@ -291,12 +416,16 @@ function TrajectIsolatie({ t, onChange }) {
     </div>
   );
 }
+// ── DEEL 2 — plak direct onder deel 1, vervang de sluitende } van TrajectIsolatie niet ──
 
 function VveKaart({ vve, onUpdate, onDelete, openId, setOpenId, beheerderList }) {
   const open = openId === vve.id;
   const [tab, setTab] = useState("info");
   const [nieuweLog, setNieuweLog] = useState(leegLog());
   const [logForm, setLogForm] = useState(false);
+  // FIX punt 3: staat voor bewerken log
+  const [bewerkLogId, setBewerkLogId] = useState(null);
+  const [bewerkLogData, setBewerkLogData] = useState(null);
 
   const u = (k, v) => {
     const entry = { tijdstip: nu(), veld: k, oud: vve[k], nieuw: v };
@@ -315,27 +444,53 @@ function VveKaart({ vve, onUpdate, onDelete, openId, setOpenId, beheerderList })
     setNieuweLog(leegLog()); setLogForm(false);
   };
 
+  // FIX punt 3: log bewerken opslaan
+  const slaLogBewerkingOp = () => {
+    if (!bewerkLogData?.omschrijving?.trim()) return;
+    const bijgewerkt = (vve.communicatielog || []).map(l => l.id === bewerkLogId ? { ...bewerkLogData } : l);
+    onUpdate({ ...vve, communicatielog: bijgewerkt });
+    setBewerkLogId(null);
+    setBewerkLogData(null);
+  };
+
+  // FIX punt 3: log verwijderen
+  const verwijderLog = (lid) => {
+    if (!confirm("Logitem verwijderen?")) return;
+    onUpdate({ ...vve, communicatielog: (vve.communicatielog || []).filter(l => l.id !== lid) });
+  };
+
   const afgerond = () => { onUpdate({ ...vve, status: "afgerond", tijdlijn: { ...(vve.tijdlijn || {}), afgerond: nu() } }); setOpenId(null); };
 
+  // FIX punt 5: ALV uit deadlines gehaald — alleen subsidie einddatums
   const deadlines = [];
-  if (vve.alvDatum) deadlines.push({ label: "ALV besluit", datum: vve.alvDatum });
   (vve.trajecten || []).forEach(t => { if (t.type === "subsidie" && t.einddatum) deadlines.push({ label: "Subsidie deadline", datum: t.einddatum }); });
   const urgDl = deadlines.some(d => { const g = dagenTot(d.datum); return g !== null && g <= 14 && g >= 0; });
   const ovrDl = deadlines.some(d => { const g = dagenTot(d.datum); return g !== null && g < 0; });
+
+  // FIX punt 6: actief-dagen
+  const actDagen = dagenActief(vve.aangemaakt);
 
   return (
     <div style={{ background: vve.status === "afgerond" ? "#FAFAFA" : "#fff", border: `1.5px solid ${open ? VD_ROOD : ovrDl ? "#FCA5A5" : urgDl ? "#FCD34D" : "#E5E0DB"}`, borderRadius: 12, overflow: "hidden", marginBottom: 10, boxShadow: open ? "0 2px 12px rgba(153,26,33,.08)" : "none", transition: "all .2s", opacity: vve.status === "afgerond" ? 0.75 : 1 }}>
       <div onClick={() => setOpenId(open ? null : vve.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", cursor: "pointer", userSelect: "none" }}>
         <div style={{ flex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {/* FIX punt 6: naam maar 1x, geen "Deadline voorbij" voor ALV */}
             <span style={{ fontWeight: 700, fontSize: 14, color: "#2D2D2D" }}>{vve.naam || <span style={{ color: "#aaa", fontStyle: "italic" }}>Naamloos</span>}</span>
             <SB status={vve.status} />
             {vve.beheerder && <span style={{ fontSize: 10, color: "#8A7E7B", background: "#F3F4F6", padding: "2px 7px", borderRadius: 8 }}>{vve.beheerder}</span>}
+            {/* FIX punt 5: alleen subsidie deadline badges, niet ALV */}
             {ovrDl && <span style={{ fontSize: 10, fontWeight: 600, background: VD_ROOD_BG, color: VD_ROOD, padding: "1px 6px", borderRadius: 8 }}>Deadline voorbij</span>}
             {urgDl && !ovrDl && <span style={{ fontSize: 10, fontWeight: 600, background: "#FEF3E2", color: "#92400E", padding: "1px 6px", borderRadius: 8 }}>Deadline nadert</span>}
           </div>
-          <div style={{ display: "flex", gap: 10, marginTop: 4, flexWrap: "wrap" }}>
+          {/* FIX punt 6: tweede rij toont actief-dagen ipv naam herhaling */}
+          <div style={{ display: "flex", gap: 10, marginTop: 4, flexWrap: "wrap", alignItems: "center" }}>
             {vve.adres && <span style={{ fontSize: 11, color: "#8A7E7B" }}>{vve.adres}</span>}
+            {actDagen !== null && (
+              <span style={{ fontSize: 10, color: "#8A7E7B" }}>
+                Actief: <strong style={{ color: "#2D2D2D" }}>{actDagen} dag{actDagen !== 1 ? "en" : ""}</strong>
+              </span>
+            )}
             {(vve.trajecten || []).map(t => <span key={t.id} style={{ fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 8, background: t.type === "isolatie" ? "#FEF3E2" : t.type === "subsidie" ? "#D1FAE5" : "#EAF1F8", color: t.type === "isolatie" ? "#92400E" : t.type === "subsidie" ? "#065F46" : "#1A4D7A" }}>{t.type === "procesbegeleiding" ? "Lening" : t.type === "subsidie" ? "Subsidie" : "Isolatie"}</span>)}
           </div>
         </div>
@@ -367,6 +522,7 @@ function VveKaart({ vve, onUpdate, onDelete, openId, setOpenId, beheerderList })
                   <Chk checked={vve.alvBesluit} onChange={v => u("alvBesluit", v)} label="ALV-besluit genomen" />
                   {vve.alvBesluit && <Veld label="Datum ALV-besluit"><Inp type="date" value={vve.alvDatum} onChange={v => u("alvDatum", v)} /></Veld>}
                 </div>
+                {/* FIX punt 5: deadlines blok toont ALLEEN subsidie-einddatums */}
                 {deadlines.length > 0 && (
                   <div className="bg-[#FAF7F2] border border-gray-200 rounded-xl p-4">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-3">Deadlines</p>
@@ -407,12 +563,19 @@ function VveKaart({ vve, onUpdate, onDelete, openId, setOpenId, beheerderList })
 
             {tab === "log" && (
               <div className="space-y-4">
+                {/* Nieuw logitem formulier */}
                 {logForm ? (
                   <div className="bg-[#FAF7F2] border border-gray-200 rounded-xl p-4 space-y-3">
                     <p className="text-xs font-bold text-[#2D2D2D]">Nieuw logitem</p>
                     <div className="grid grid-cols-2 gap-3">
                       <Veld label="Datum"><Inp type="date" value={nieuweLog.datum} onChange={v => setNieuweLog({ ...nieuweLog, datum: v })} /></Veld>
-                      <Veld label="Beheerder"><Sel value={nieuweLog.beheerder} onChange={v => setNieuweLog({ ...nieuweLog, beheerder: v })}><option value="">— kies —</option>{(beheerderList || []).map(n => <option key={n} value={n}>{n}</option>)}</Sel></Veld>
+                      {/* FIX punt 2: alleen Brian en Jeffrey */}
+                      <Veld label="Beheerder">
+                        <Sel value={nieuweLog.beheerder} onChange={v => setNieuweLog({ ...nieuweLog, beheerder: v })}>
+                          <option value="">— kies —</option>
+                          {LOG_BEHEERDERS.map(n => <option key={n} value={n}>{n}</option>)}
+                        </Sel>
+                      </Veld>
                       <Veld label="Partij"><Inp value={nieuweLog.partij} onChange={v => setNieuweLog({ ...nieuweLog, partij: v })} placeholder="eigenaar, aannemer, gemeente…" /></Veld>
                       <Veld label="Kanaal"><Sel value={nieuweLog.kanaal} onChange={v => setNieuweLog({ ...nieuweLog, kanaal: v })}>{KANAAL_OPTIES.map(k => <option key={k} value={k}>{k}</option>)}</Sel></Veld>
                     </div>
@@ -423,12 +586,56 @@ function VveKaart({ vve, onUpdate, onDelete, openId, setOpenId, beheerderList })
                     </div>
                   </div>
                 ) : <button onClick={() => setLogForm(true)} className="text-xs px-3 py-1.5 bg-white border border-gray-200 hover:border-[#991A21] hover:text-[#991A21] rounded-lg font-medium">+ Logitem toevoegen</button>}
+
                 {(vve.communicatielog || []).length === 0 && !logForm && <p className="text-xs text-gray-400 italic">Nog geen communicatie geregistreerd.</p>}
+
+                {/* Log overzicht */}
                 <div className="space-y-2">
                   {[...(vve.communicatielog || [])].reverse().map(l => (
-                    <div key={l.id} className="flex gap-3 text-xs border-l-2 border-gray-200 pl-3 py-1">
-                      <div className="flex-shrink-0 text-gray-400 w-20">{datumNL(l.datum)}</div>
-                      <div><span className="font-semibold text-[#2D2D2D]">{l.beheerder}</span>{" · "}<span className="text-gray-500">{l.partij}</span>{" · "}<span className="italic text-gray-400">{l.kanaal}</span><p className="text-gray-600 mt-0.5">{l.omschrijving}</p></div>
+                    <div key={l.id}>
+                      {/* FIX punt 3: bewerkmodus per logitem */}
+                      {bewerkLogId === l.id ? (
+                        <div className="bg-[#FAF7F2] border border-[#991A21] border-opacity-30 rounded-xl p-4 space-y-3">
+                          <p className="text-xs font-bold text-[#2D2D2D]">Logitem bewerken</p>
+                          <div className="grid grid-cols-2 gap-3">
+                            <Veld label="Datum"><Inp type="date" value={bewerkLogData.datum} onChange={v => setBewerkLogData({ ...bewerkLogData, datum: v })} /></Veld>
+                            <Veld label="Beheerder">
+                              <Sel value={bewerkLogData.beheerder} onChange={v => setBewerkLogData({ ...bewerkLogData, beheerder: v })}>
+                                <option value="">— kies —</option>
+                                {LOG_BEHEERDERS.map(n => <option key={n} value={n}>{n}</option>)}
+                              </Sel>
+                            </Veld>
+                            <Veld label="Partij"><Inp value={bewerkLogData.partij} onChange={v => setBewerkLogData({ ...bewerkLogData, partij: v })} placeholder="eigenaar, aannemer, gemeente…" /></Veld>
+                            <Veld label="Kanaal"><Sel value={bewerkLogData.kanaal} onChange={v => setBewerkLogData({ ...bewerkLogData, kanaal: v })}>{KANAAL_OPTIES.map(k => <option key={k} value={k}>{k}</option>)}</Sel></Veld>
+                          </div>
+                          <Veld label="Omschrijving"><Txa value={bewerkLogData.omschrijving} onChange={v => setBewerkLogData({ ...bewerkLogData, omschrijving: v })} /></Veld>
+                          <div className="flex gap-2">
+                            <button onClick={slaLogBewerkingOp} className="text-xs px-4 py-2 bg-[#991A21] text-white rounded-lg font-semibold hover:bg-[#7a1419]">Opslaan</button>
+                            <button onClick={() => { setBewerkLogId(null); setBewerkLogData(null); }} className="text-xs px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg font-semibold">Annuleren</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex gap-3 text-xs border-l-2 border-gray-200 pl-3 py-1 group">
+                          <div className="flex-shrink-0 text-gray-400 w-20">{datumNL(l.datum)}</div>
+                          <div className="flex-1">
+                            <span className="font-semibold text-[#2D2D2D]">{l.beheerder}</span>{" · "}
+                            <span className="text-gray-500">{l.partij}</span>{" · "}
+                            <span className="italic text-gray-400">{l.kanaal}</span>
+                            <p className="text-gray-600 mt-0.5">{l.omschrijving}</p>
+                          </div>
+                          {/* Bewerk + verwijder knoppen */}
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                            <button
+                              onClick={() => { setBewerkLogId(l.id); setBewerkLogData({ ...l }); }}
+                              className="text-[10px] px-2 py-1 bg-white border border-gray-200 hover:border-[#991A21] hover:text-[#991A21] rounded-md font-medium text-gray-500 transition-colors"
+                            >✎</button>
+                            <button
+                              onClick={() => verwijderLog(l.id)}
+                              className="text-[10px] px-2 py-1 bg-white border border-gray-200 hover:border-red-300 hover:text-red-500 rounded-md font-medium text-gray-400 transition-colors"
+                            >✕</button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -480,6 +687,7 @@ export default function VerduurzamingBeheer({ onTerug, beheerder, beheerderList 
   });
 
   const aantalActief = vves.filter(v => v.status !== "afgerond").length;
+  // FIX punt 5: aantalDl telt alleen subsidie-einddatums
   const aantalDl = vves.filter(v => (v.trajecten || []).some(t => t.type === "subsidie" && t.einddatum && (() => { const g = dagenTot(t.einddatum); return g !== null && g <= 14 && g >= 0; })())).length;
 
   const acties = [];
@@ -546,11 +754,18 @@ export default function VerduurzamingBeheer({ onTerug, beheerder, beheerderList 
               <select value={fBeh} onChange={e => setFBeh(e.target.value)} className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#991A21]"><option value="alle">Alle beheerders</option>{(beheerderList||[]).map(n => <option key={n} value={n}>{n}</option>)}</select>
               <button onClick={addVve} className="px-4 py-2 bg-[#991A21] hover:bg-[#7a1419] text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">+ VvE toevoegen</button>
             </div>
-            {zichtbaar.length === 0 ? (
-              <div className="bg-white border border-gray-200 rounded-xl p-12 text-center shadow-sm"><p className="text-4xl mb-3">🌿</p><p className="text-sm font-semibold text-[#2D2D2D] mb-1">{vves.length === 0 ? "Nog geen VvE's toegevoegd" : "Geen resultaten gevonden"}</p><p className="text-xs text-gray-500">{vves.length === 0 ? "Klik op '+ VvE toevoegen' om te beginnen." : "Pas de filters aan."}</p></div>
-            ) : (
-              <div>{zichtbaar.map(v => <VveKaart key={v.id} vve={v} onUpdate={updVve} onDelete={delVve} openId={openId} setOpenId={setOpenId} beheerderList={beheerderList} />)}</div>
-            )}
+
+            {/* Punt 1: sidebar + lijst layout */}
+            <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+              <StatSidebar vves={vves} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {zichtbaar.length === 0 ? (
+                  <div className="bg-white border border-gray-200 rounded-xl p-12 text-center shadow-sm"><p className="text-4xl mb-3">🌿</p><p className="text-sm font-semibold text-[#2D2D2D] mb-1">{vves.length === 0 ? "Nog geen VvE's toegevoegd" : "Geen resultaten gevonden"}</p><p className="text-xs text-gray-500">{vves.length === 0 ? "Klik op '+ VvE toevoegen' om te beginnen." : "Pas de filters aan."}</p></div>
+                ) : (
+                  <div>{zichtbaar.map(v => <VveKaart key={v.id} vve={v} onUpdate={updVve} onDelete={delVve} openId={openId} setOpenId={setOpenId} beheerderList={beheerderList} />)}</div>
+                )}
+              </div>
+            </div>
           </>
         )}
 
