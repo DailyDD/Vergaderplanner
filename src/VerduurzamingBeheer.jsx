@@ -786,20 +786,28 @@ function gebruikConfettiMijlpaal(totaalOmzet) {
   const vorigeOmzetRef = React.useRef(null);
 
   React.useEffect(() => {
-    if (totaalOmzet <= 0) return;
+    if (totaalOmzet <= 0) {
+      // Omzet helemaal weg: reset drempel volledig
+      setMijlpaalDrempel(0);
+      vorigeOmzetRef.current = 0;
+      return;
+    }
+
     const huidigeDrempel = Math.floor(totaalOmzet / MIJLPAAL_STAP) * MIJLPAAL_STAP;
     const opgeslagenDrempel = getMijlpaalDrempel();
 
-    if (huidigeDrempel > opgeslagenDrempel) {
-      // Alleen triggeren als omzet ook echt gestegen is in deze sessie (niet bij eerste load)
-      if (vorigeOmzetRef.current !== null && totaalOmzet > vorigeOmzetRef.current) {
-        setMijlpaalDrempel(huidigeDrempel);
-        setToon(true);
-      } else if (vorigeOmzetRef.current === null) {
-        // Eerste render: drempel bijwerken zonder confetti
-        setMijlpaalDrempel(huidigeDrempel);
-      }
+    if (vorigeOmzetRef.current === null) {
+      // Eerste render: sla huidige drempel op zonder confetti
+      setMijlpaalDrempel(huidigeDrempel);
+    } else if (totaalOmzet > vorigeOmzetRef.current && huidigeDrempel > opgeslagenDrempel) {
+      // Omzet gestegen én nieuwe mijlpaal bereikt: confetti
+      setMijlpaalDrempel(huidigeDrempel);
+      setToon(true);
+    } else if (huidigeDrempel < opgeslagenDrempel) {
+      // Omzet gedaald onder eerder bereikte drempel: reset zodat volgende stijging opnieuw triggert
+      setMijlpaalDrempel(huidigeDrempel);
     }
+
     vorigeOmzetRef.current = totaalOmzet;
   }, [totaalOmzet]);
 
