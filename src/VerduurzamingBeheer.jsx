@@ -1,834 +1,449 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 
 const CSS_FONT = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
 * { font-family: 'DM Sans', sans-serif !important; }`;
 
-// ── Supabase config (zelfde patroon als App.jsx) ──────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const TOKEN_KEY = "vve_access_token";
+const VD_TABLE = "verduurzaming_data";
+const VD_ROOD = "#991A21";
+const VD_ROOD_BG = "#FEF2F2";
 
 function getAuthHeaders() {
   const token = sessionStorage.getItem(TOKEN_KEY);
-  return {
-    apikey: SUPABASE_ANON,
-    Authorization: `Bearer ${token || SUPABASE_ANON}`,
-    "Content-Type": "application/json",
-  };
+  return { apikey: SUPABASE_ANON, Authorization: `Bearer ${token || SUPABASE_ANON}`, "Content-Type": "application/json" };
 }
 
 async function vdFetch(path, options = {}) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    ...options,
-    headers: { ...getAuthHeaders(), ...(options.headers || {}) },
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Supabase fout: ${err}`);
-  }
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { ...options, headers: { ...getAuthHeaders(), ...(options.headers || {}) } });
+  if (!res.ok) { const err = await res.text(); throw new Error(err); }
   const text = await res.text();
   return text ? JSON.parse(text) : null;
 }
-
-// ── Data helpers ──────────────────────────────────────────────────
-const VD_TABLE = "verduurzaming_data";
 
 async function vdLoad() {
   try {
     const rows = await vdFetch(`${VD_TABLE}?select=id,data&order=created_at.desc`);
     if (!rows || !rows.length) return [];
-    return rows.map((r) => ({ id: r.id, ...r.data }));
-  } catch {
-    try {
-      const r = localStorage.getItem("vd_data_v1");
-      return r ? JSON.parse(r) : [];
-    } catch {
-      return [];
-    }
-  }
+    return rows.map(r => ({ id: r.id, ...r.data }));
+  } catch { try { const r = localStorage.getItem("vd_data_v1"); return r ? JSON.parse(r) : []; } catch { return []; } }
 }
 
 async function vdSave(record) {
+  const backup = () => { try { const all = JSON.parse(localStorage.getItem("vd_data_v1") || "[]"); const idx = all.findIndex(r => r.id === record.id); if (idx >= 0) all[idx] = record; else all.unshift(record); localStorage.setItem("vd_data_v1", JSON.stringify(all)); } catch {} };
   try {
     const existing = await vdFetch(`${VD_TABLE}?id=eq.${record.id}&select=id`);
-    if (existing && existing.length) {
-      await vdFetch(`${VD_TABLE}?id=eq.${record.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: record }),
-      });
-    } else {
-      await vdFetch(VD_TABLE, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Prefer: "return=minimal" },
-        body: JSON.stringify({ id: record.id, data: record }),
-      });
-    }
-    try {
-      const all = JSON.parse(localStorage.getItem("vd_data_v1") || "[]");
-      const idx = all.findIndex((r) => r.id === record.id);
-      if (idx >= 0) all[idx] = record;
-      else all.unshift(record);
-      localStorage.setItem("vd_data_v1", JSON.stringify(all));
-    } catch {}
-  } catch {
-    try {
-      const all = JSON.parse(localStorage.getItem("vd_data_v1") || "[]");
-      const idx = all.findIndex((r) => r.id === record.id);
-      if (idx >= 0) all[idx] = record;
-      else all.unshift(record);
-      localStorage.setItem("vd_data_v1", JSON.stringify(all));
-    } catch {}
-  }
+    if (existing && existing.length) { await vdFetch(`${VD_TABLE}?id=eq.${record.id}`, { method: "PATCH", body: JSON.stringify({ data: record }) }); }
+    else { await vdFetch(VD_TABLE, { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ id: record.id, data: record }) }); }
+    backup();
+  } catch { backup(); }
 }
 
 async function vdDelete(id) {
-  try {
-    await vdFetch(`${VD_TABLE}?id=eq.${id}`, { method: "DELETE" });
-  } catch {}
-  try {
-    const all = JSON.parse(localStorage.getItem("vd_data_v1") || "[]");
-    localStorage.setItem("vd_data_v1", JSON.stringify(all.filter((r) => r.id !== id)));
-  } catch {}
+  try { await vdFetch(`${VD_TABLE}?id=eq.${id}`, { method: "DELETE" }); } catch {}
+  try { const all = JSON.parse(localStorage.getItem("vd_data_v1") || "[]"); localStorage.setItem("vd_data_v1", JSON.stringify(all.filter(r => r.id !== id))); } catch {}
 }
 
-function vdLocalLoad() {
-  try {
-    const r = localStorage.getItem("vd_data_v1");
-    return r ? JSON.parse(r) : [];
-  } catch {
-    return [];
-  }
-}
+function vdLocalLoad() { try { const r = localStorage.getItem("vd_data_v1"); return r ? JSON.parse(r) : []; } catch { return []; } }
 
-function uid() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-}
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function nu() { return new Date().toISOString(); }
+function datumNL(iso) { if (!iso) return "—"; return new Date(iso).toLocaleDateString("nl-NL", { day: "2-digit", month: "2-digit", year: "numeric" }); }
+function datumTijdNL(iso) { if (!iso) return "—"; return new Date(iso).toLocaleString("nl-NL", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }); }
+function dagenTot(iso) { if (!iso) return null; return Math.round((new Date(iso).setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 86400000); }
+function euro(n) { return `€ ${(n||0).toLocaleString("nl-NL", { minimumFractionDigits: 0 })}`; }
 
-function nu() {
-  return new Date().toISOString();
-}
+const DOSSIER_STATUS = {
+  nieuw:          { label: "Nieuw",              color: "#1A4D7A", bg: "#EAF1F8" },
+  in_behandeling: { label: "In behandeling",      color: VD_ROOD,  bg: VD_ROOD_BG },
+  wacht_vve:      { label: "Wacht op VvE",        color: "#065F46", bg: "#D1FAE5" },
+  wacht_gemeente: { label: "Wacht op gemeente",   color: "#92400E", bg: "#FEF3E2" },
+  wacht_subsidie: { label: "Wacht op subsidie",   color: "#5B3FA6", bg: "#F3EFFD" },
+  afgerond:       { label: "Afgerond",            color: "#374151", bg: "#F3F4F6" },
+};
+const TRAJECTEN = { procesbegeleiding: "Procesbegeleiding leningaanvragen", subsidie: "Subsidieaanvragen", isolatie: "Gemeentelijke isolatieactie Den Haag" };
+const TYPE_EIGENDOM = { volledig_bewoond: "Volledig eigenaar bewoond", gedeeltelijk_verhuurd: "Gedeeltelijk verhuurd", volledig_verhuurd: "Volledig verhuurd" };
+const FONDS_OPTIES = [{ value: "warmtefonds", label: "Warmtefonds" }, { value: "duurzaamheidsfonds", label: "Duurzaamheidsfonds" }, { value: "onbekend", label: "Nog niet bekend" }];
+const KANAAL_OPTIES = ["mail", "telefoon", "vergadering", "app", "anders"];
+const ACTIETYPE_LABELS = { offerte_aanvragen: "Offerte aanvragen", offerte_doorsturen: "Offerte doorsturen naar gemeente", akkoord_ophalen: "Akkoord ophalen bij VvE", document_opvragen: "Document opvragen", factuur_versturen: "Factuur versturen", inkooporder_opvolgen: "Inkooporder opvolgen", traject_afronden: "Traject afronden" };
 
-function datumNL(iso) {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return d.toLocaleDateString("nl-NL", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
-function dagenTot(iso) {
-  if (!iso) return null;
-  const diff = new Date(iso).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0);
-  return Math.round(diff / 86400000);
-}
-
-function leegVve() {
-  return {
-    id: uid(),
-    naam: "",
-    adres: "",
-    beheerder: "",
-    typeEigendom: "volledig_bewoond",
-    alvBesluit: false,
-    alvDatum: "",
-    aangemaakt: nu(),
-    trajecten: [],
-    communicatielog: [],
-    audittrail: [],
-  };
-}
-
+function leegVve() { return { id: uid(), naam: "", adres: "", beheerder: "", typeEigendom: "volledig_bewoond", alvBesluit: false, alvDatum: "", status: "nieuw", aangemaakt: nu(), trajecten: [], offertes: [], communicatielog: [], audittrail: [], tijdlijn: {} }; }
 function leegTraject(type) {
   const base = { id: uid(), type, aangemaakt: nu() };
-  if (type === "procesbegeleiding") {
-    return {
-      ...base,
-      fonds: "onbekend",
-      bedrag: "",
-      overeenkomstGetekend: false,
-      overeenkomstDatum: "",
-      status: "lopend",
-      gefactureerd: false,
-    };
-  }
-  if (type === "subsidie") {
-    return {
-      ...base,
-      begindatum: "",
-      einddatum: "",
-      voortgang: 0,
-      status: "lopend",
-      teFactureren: "",
-      gefactureerd: false,
-      factuurdatum: "",
-      ontbrekendeDocs: "",
-      instantie: "",
-      opmerkingen: "",
-    };
-  }
-  if (type === "isolatie") {
-    return {
-      ...base,
-      aannemers: [{ id: uid(), naam: "", contactpersoon: "" }],
-      werkzaamheden: "",
-      offertes: [],
-      geselecteerdeOfferte: "",
-      vveAkkoord: false,
-      vveAkkoordDatum: "",
-      doorgestuurdGemeente: false,
-      doorgestuurdDatum: "",
-      inkooporderOntvangen: false,
-      begeleidingsvergoeding: "",
-      mailNodig: false,
-      actiepunten: "",
-    };
-  }
-  return base;
+  if (type === "procesbegeleiding") return { ...base, fonds: "onbekend", bedrag: "", overeenkomstGetekend: false, overeenkomstDatum: "", status: "lopend", gefactureerd: false };
+  if (type === "subsidie") return { ...base, begindatum: "", einddatum: "", voortgang: 0, status: "lopend", teFactureren: "", gefactureerd: false, factuurdatum: "", ontbrekendeDocs: "", instantie: "", opmerkingen: "" };
+  return { ...base, aannemers: [{ id: uid(), naam: "", contactpersoon: "" }], werkzaamheden: "", vveAkkoord: false, vveAkkoordDatum: "", doorgestuurdGemeente: false, doorgestuurdDatum: "", inkooporderOntvangen: false, begeleidingsvergoeding: "", mailNodig: false, actiepunten: "" };
+}
+function leegOfferte() { return { id: uid(), partij: "", bedrag: "", aangevraagd: false, ontvangen: false, vveVoorlegd: false, vveAkkoord: false, opdracht: false, opdrachtAfgerond: false, tijdlijn: {} }; }
+function leegLog() { return { id: uid(), datum: new Date().toISOString().slice(0, 10), beheerder: "", partij: "", kanaal: "mail", omschrijving: "" }; }
+
+function berekenVoortgang(vve) {
+  const ofs = vve.offertes || [];
+  const allOntvangen = ofs.filter(o => o.aangevraagd).length > 0 && ofs.filter(o => o.aangevraagd).every(o => o.ontvangen);
+  return [
+    { lbl: "Dossier aangemaakt",       ok: true },
+    { lbl: "ALV-besluit genomen",      ok: !!vve.alvBesluit },
+    { lbl: "Offertes aangevraagd",     ok: ofs.some(o => o.aangevraagd) },
+    { lbl: "Offertes ontvangen",       ok: allOntvangen },
+    { lbl: "Voorgelegd vergadering",   ok: ofs.some(o => o.vveVoorlegd) },
+    { lbl: "VvE akkoord",              ok: ofs.some(o => o.vveAkkoord) },
+    { lbl: "Opdracht verstrekt",       ok: ofs.some(o => o.opdracht) },
+    { lbl: "Opdracht afgerond",        ok: ofs.some(o => o.opdrachtAfgerond) },
+    { lbl: "Dossier afgerond",         ok: vve.status === "afgerond" },
+  ];
 }
 
-function leegOfferte() {
-  return {
-    id: uid(),
-    aanvraagdatum: "",
-    ontvangstdatum: "",
-    offertenummer: "",
-    bedrag: "",
-    geldigTot: "",
-  };
+function buildTijdlijn(vve) {
+  const ev = [];
+  const add = (ts, tekst, kleur) => { if (ts) ev.push({ ts, tekst, kleur }); };
+  add(vve.aangemaakt, "Dossier aangemaakt", "#1A4D7A");
+  add(vve.tijdlijn?.alvBesluit, "ALV-besluit genomen", "#065F46");
+  (vve.offertes || []).forEach(o => {
+    add(o.tijdlijn?.aangevraagd, `Offerte aangevraagd — ${o.partij || "onbekend"}`, "#1A4D7A");
+    add(o.tijdlijn?.ontvangen, `Offerte ontvangen — ${o.partij || "onbekend"}`, "#5B3FA6");
+    add(o.tijdlijn?.vveVoorlegd, `Voorgelegd aan VvE — ${o.partij || "onbekend"}`, "#92400E");
+    add(o.tijdlijn?.vveAkkoord, `VvE akkoord — ${o.partij || "onbekend"}`, "#065F46");
+    add(o.tijdlijn?.opdracht, `Opdracht verstrekt — ${o.partij || "onbekend"}`, "#1E3A5F");
+    add(o.tijdlijn?.opdrachtAfgerond, `Opdracht afgerond — ${o.partij || "onbekend"}`, "#2D6A4F");
+  });
+  (vve.trajecten || []).forEach(t => {
+    if (t.type === "subsidie" && t.begindatum) add(t.begindatum + "T00:00:00Z", `Subsidieaanvraag gestart (${t.instantie || "?"})`, "#5B3FA6");
+    if (t.type === "procesbegeleiding" && t.overeenkomstDatum) add(t.overeenkomstDatum + "T00:00:00Z", "Overeenkomst procesbegeleiding getekend", "#065F46");
+    if (t.type === "isolatie" && t.doorgestuurdDatum) add(t.doorgestuurdDatum + "T00:00:00Z", "Offerte doorgestuurd gemeente", "#92400E");
+    if (t.type === "isolatie" && t.vveAkkoordDatum) add(t.vveAkkoordDatum + "T00:00:00Z", "VvE akkoord (isolatietraject)", "#065F46");
+  });
+  (vve.communicatielog || []).forEach(l => { if (l.datum) add(l.datum + "T00:00:00Z", `${l.kanaal} met ${l.partij || "?"} — ${(l.omschrijving || "").slice(0, 55)}`, "#6B7280"); });
+  add(vve.tijdlijn?.afgerond, "Dossier afgerond", "#374151");
+  return ev.sort((a, b) => new Date(a.ts) - new Date(b.ts));
 }
 
-function leegLogRegel() {
-  return {
-    id: uid(),
-    datum: new Date().toISOString().slice(0, 10),
-    beheerder: "",
-    partij: "",
-    kanaal: "mail",
-    omschrijving: "",
-  };
-}
+// UI bouwstenen
+function SB({ status }) { const s = DOSSIER_STATUS[status] || DOSSIER_STATUS.nieuw; return <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 10, background: s.bg, color: s.color }}>{s.label}</span>; }
+function Bdg({ kleur, label }) { const m = { rood: "bg-red-50 text-[#991A21] border-red-100", groen: "bg-emerald-50 text-emerald-700 border-emerald-200", blauw: "bg-blue-50 text-blue-700 border-blue-200", oranje: "bg-amber-50 text-amber-700 border-amber-100", grijs: "bg-gray-100 text-gray-600 border-gray-200" }; return <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${m[kleur] || m.grijs}`}>{label}</span>; }
+function Veld({ label, children }) { return <div><label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">{label}</label>{children}</div>; }
+function Inp({ value, onChange, placeholder = "", type = "text" }) { return <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className="w-full bg-[#FAF7F2] border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none focus:border-[#991A21] transition-colors" />; }
+function Sel({ value, onChange, children }) { return <select value={value} onChange={e => onChange(e.target.value)} className="w-full bg-[#FAF7F2] border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] focus:outline-none focus:border-[#991A21] transition-colors">{children}</select>; }
+function Txa({ value, onChange, placeholder = "", rows = 3 }) { return <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows} className="w-full bg-[#FAF7F2] border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none focus:border-[#991A21] transition-colors resize-none" />; }
+function Chk({ checked, onChange, label }) { return <label className="flex items-center gap-2 cursor-pointer select-none"><div onClick={() => onChange(!checked)} className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0 ${checked ? "bg-[#991A21] border-[#991A21]" : "bg-white border-gray-300"}`}>{checked && <span className="text-white text-[10px] font-bold">✓</span>}</div><span className="text-sm text-[#2D2D2D]">{label}</span></label>; }
+function DlBdg({ iso }) { const d = dagenTot(iso); if (d === null) return null; if (d < 0) return <Bdg kleur="rood" label={`${Math.abs(d)}d over`} />; if (d <= 7) return <Bdg kleur="rood" label={`${d}d`} />; if (d <= 21) return <Bdg kleur="oranje" label={`${d}d`} />; return <Bdg kleur="groen" label={`${d}d`} />; }
 
-// ── Constanten ────────────────────────────────────────────────────
-const TRAJECTEN = {
-  procesbegeleiding: "Procesbegeleiding leningaanvragen",
-  subsidie: "Subsidieaanvragen",
-  isolatie: "Gemeentelijke isolatieactie Den Haag",
-};
-
-const TYPE_EIGENDOM = {
-  volledig_bewoond: "Volledig eigenaar bewoond",
-  gedeeltelijk_verhuurd: "Gedeeltelijk verhuurd",
-  volledig_verhuurd: "Volledig verhuurd",
-};
-
-const FONDS_OPTIES = [
-  { value: "warmtefonds", label: "Warmtefonds" },
-  { value: "duurzaamheidsfonds", label: "Duurzaamheidsfonds" },
-  { value: "onbekend", label: "Nog niet bekend" },
-];
-
-const KANAAL_OPTIES = ["mail", "telefoon", "vergadering", "app", "anders"];
-
-const ACTIETYPE_LABELS = {
-  offerte_aanvragen: "Offerte aanvragen",
-  offerte_doorsturen: "Offerte doorsturen naar gemeente",
-  akkoord_ophalen: "Akkoord ophalen bij VvE",
-  document_opvragen: "Document opvragen",
-  factuur_versturen: "Factuur versturen",
-  inkooporder_opvolgen: "Inkooporder opvolgen",
-  traject_afronden: "Traject afronden",
-};
-
-// ── Kleine hulpcomponenten ────────────────────────────────────────
-function Badge({ kleur, label }) {
-  const kleuren = {
-    rood: "bg-red-50 text-[#991A21] border-red-100",
-    groen: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    blauw: "bg-blue-50 text-blue-700 border-blue-200",
-    oranje: "bg-amber-50 text-amber-700 border-amber-100",
-    grijs: "bg-gray-100 text-gray-600 border-gray-200",
-  };
+function VoortgangsBalk({ vve }) {
+  const st = berekenVoortgang(vve);
+  const ok = st.filter(s => s.ok).length;
+  const pct = Math.round(ok / st.length * 100);
   return (
-    <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${kleuren[kleur] || kleuren.grijs}`}>
-      {label}
-    </span>
-  );
-}
-
-function Veld({ label, children }) {
-  return (
-    <div>
-      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">{label}</label>
-      {children}
-    </div>
-  );
-}
-
-function Inp({ value, onChange, placeholder = "", type = "text", className = "" }) {
-  return (
-    <input
-      type={type}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className={`w-full bg-[#FAF7F2] border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none focus:border-[#991A21] transition-colors ${className}`}
-    />
-  );
-}
-
-function Sel({ value, onChange, children, className = "" }) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={`w-full bg-[#FAF7F2] border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] focus:outline-none focus:border-[#991A21] transition-colors ${className}`}
-    >
-      {children}
-    </select>
-  );
-}
-
-function Txa({ value, onChange, placeholder = "", rows = 3 }) {
-  return (
-    <textarea
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      rows={rows}
-      className="w-full bg-[#FAF7F2] border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none focus:border-[#991A21] transition-colors resize-none"
-    />
-  );
-}
-
-function Check({ checked, onChange, label }) {
-  return (
-    <label className="flex items-center gap-2 cursor-pointer select-none">
-      <div
-        onClick={() => onChange(!checked)}
-        className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
-          checked ? "bg-[#991A21] border-[#991A21]" : "bg-white border-gray-300"
-        }`}
-      >
-        {checked && <span className="text-white text-[10px] font-bold">✓</span>}
+    <div style={{ minWidth: 160, maxWidth: 200 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+        <span style={{ fontSize: 10, fontWeight: 600, color: "#8A7E7B", textTransform: "uppercase", letterSpacing: "0.05em" }}>Voortgang</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: pct === 100 ? "#2D6A4F" : VD_ROOD }}>{pct}%</span>
       </div>
-      <span className="text-sm text-[#2D2D2D]">{label}</span>
-    </label>
-  );
-}
-
-function DeadlineBadge({ iso }) {
-  const d = dagenTot(iso);
-  if (d === null) return null;
-  if (d < 0) return <Badge kleur="rood" label={`${Math.abs(d)}d overschreden`} />;
-  if (d <= 7) return <Badge kleur="rood" label={`${d}d`} />;
-  if (d <= 21) return <Badge kleur="oranje" label={`${d}d`} />;
-  return <Badge kleur="groen" label={`${d}d`} />;
-}
-
-// ── Traject: Procesbegeleiding ────────────────────────────────────
-function TrajectProcesbegeleiding({ traject, onChange }) {
-  const u = (k, v) => onChange({ ...traject, [k]: v });
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <Veld label="Fonds">
-          <Sel value={traject.fonds} onChange={(v) => u("fonds", v)}>
-            {FONDS_OPTIES.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
-          </Sel>
-        </Veld>
-        <Veld label="Bedrag procesbegeleiding (€)">
-          <Inp value={traject.bedrag} onChange={(v) => u("bedrag", v)} placeholder="bijv. 1500" />
-        </Veld>
+      <div style={{ height: 6, background: "#F3F4F6", borderRadius: 3, overflow: "hidden", marginBottom: 5 }}>
+        <div style={{ height: "100%", width: pct + "%", background: pct === 100 ? "#2D6A4F" : VD_ROOD, borderRadius: 3, transition: "width .3s" }} />
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <Veld label="Status">
-          <Sel value={traject.status} onChange={(v) => u("status", v)}>
-            <option value="lopend">Lopend</option>
-            <option value="afgerond">Afgerond</option>
-          </Sel>
-        </Veld>
-        <Veld label="Datum overeenkomst getekend">
-          <Inp type="date" value={traject.overeenkomstDatum} onChange={(v) => u("overeenkomstDatum", v)} />
-        </Veld>
-      </div>
-      <div className="flex gap-6 flex-wrap">
-        <Check checked={traject.overeenkomstGetekend} onChange={(v) => u("overeenkomstGetekend", v)} label="Overeenkomst getekend door VvE" />
-        <Check checked={traject.gefactureerd} onChange={(v) => u("gefactureerd", v)} label="Gefactureerd" />
-      </div>
-    </div>
-  );
-}
-
-// ── Traject: Subsidie ─────────────────────────────────────────────
-function TrajectSubsidie({ traject, onChange }) {
-  const u = (k, v) => onChange({ ...traject, [k]: v });
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-4">
-        <Veld label="Begindatum">
-          <Inp type="date" value={traject.begindatum} onChange={(v) => u("begindatum", v)} />
-        </Veld>
-        <Veld label="Einddatum / deadline">
-          <Inp type="date" value={traject.einddatum} onChange={(v) => u("einddatum", v)} />
-        </Veld>
-        <Veld label="Instantie (bijv. RVO)">
-          <Inp value={traject.instantie} onChange={(v) => u("instantie", v)} placeholder="RVO, gemeente..." />
-        </Veld>
-      </div>
-      <Veld label={`Voortgang aanvraag: ${traject.voortgang}%`}>
-        <input
-          type="range" min="0" max="100" step="5"
-          value={traject.voortgang}
-          onChange={(e) => u("voortgang", parseInt(e.target.value))}
-          className="w-full accent-[#991A21]"
-        />
-        <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
-          <div className="bg-[#991A21] h-1.5 rounded-full transition-all" style={{ width: `${traject.voortgang}%` }} />
-        </div>
-      </Veld>
-      <div className="grid grid-cols-2 gap-4">
-        <Veld label="Status">
-          <Sel value={traject.status} onChange={(v) => u("status", v)}>
-            <option value="lopend">Lopend</option>
-            <option value="afgerond">Afgerond</option>
-          </Sel>
-        </Veld>
-        <Veld label="Te factureren bedrag (€)">
-          <Inp value={traject.teFactureren} onChange={(v) => u("teFactureren", v)} placeholder="bijv. 2500" />
-        </Veld>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <Veld label="Factuurdatum">
-          <Inp type="date" value={traject.factuurdatum} onChange={(v) => u("factuurdatum", v)} />
-        </Veld>
-        <div className="flex items-end pb-1">
-          <Check checked={traject.gefactureerd} onChange={(v) => u("gefactureerd", v)} label="Gefactureerd" />
-        </div>
-      </div>
-      <Veld label="Ontbrekende documenten">
-        <Txa value={traject.ontbrekendeDocs} onChange={(v) => u("ontbrekendeDocs", v)} placeholder="bijv. staatsteunverklaring, verklaring verhuurder…" />
-      </Veld>
-      <Veld label="Opmerkingen / openstaande acties">
-        <Txa value={traject.opmerkingen} onChange={(v) => u("opmerkingen", v)} placeholder="Overige acties en notities…" />
-      </Veld>
-    </div>
-  );
-}
-
-// ── Traject: Isolatieactie ────────────────────────────────────────
-function TrajectIsolatie({ traject, onChange }) {
-  const u = (k, v) => onChange({ ...traject, [k]: v });
-
-  const updateAannemer = (idx, veld, val) => {
-    const arr = [...(traject.aannemers || [])];
-    arr[idx] = { ...arr[idx], [veld]: val };
-    u("aannemers", arr);
-  };
-
-  const addAannemer = () => u("aannemers", [...(traject.aannemers || []), { id: uid(), naam: "", contactpersoon: "" }]);
-  const removeAannemer = (idx) => u("aannemers", (traject.aannemers || []).filter((_, i) => i !== idx));
-
-  const updateOfferte = (idx, veld, val) => {
-    const arr = [...(traject.offertes || [])];
-    arr[idx] = { ...arr[idx], [veld]: val };
-    u("offertes", arr);
-  };
-
-  const addOfferte = () => u("offertes", [...(traject.offertes || []), leegOfferte()]);
-  const removeOfferte = (idx) => u("offertes", (traject.offertes || []).filter((_, i) => i !== idx));
-
-  return (
-    <div className="space-y-5">
-      {/* Aannemers */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Aannemers</label>
-          <button onClick={addAannemer} className="text-[10px] text-[#991A21] hover:underline font-semibold">+ Aannemer toevoegen</button>
-        </div>
-        <div className="space-y-2">
-          {(traject.aannemers || []).map((a, idx) => (
-            <div key={a.id} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
-              <Inp value={a.naam} onChange={(v) => updateAannemer(idx, "naam", v)} placeholder="Naam aannemer" />
-              <Inp value={a.contactpersoon} onChange={(v) => updateAannemer(idx, "contactpersoon", v)} placeholder="Contactpersoon" />
-              {(traject.aannemers || []).length > 1 && (
-                <button onClick={() => removeAannemer(idx)} className="text-gray-400 hover:text-red-500 text-sm px-1">✕</button>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Werkzaamheden */}
-      <Veld label="Werkzaamheden">
-        <Txa value={traject.werkzaamheden} onChange={(v) => u("werkzaamheden", v)} placeholder="Omschrijving van de uit te voeren werkzaamheden…" />
-      </Veld>
-
-      {/* Offertes */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Offertes</label>
-          <button onClick={addOfferte} className="text-[10px] text-[#991A21] hover:underline font-semibold">+ Offerte toevoegen</button>
-        </div>
-        {(traject.offertes || []).length === 0 && (
-          <p className="text-xs text-gray-400 italic">Nog geen offertes toegevoegd.</p>
-        )}
-        {(traject.offertes || []).map((o, idx) => (
-          <div key={o.id} className="bg-[#FAF7F2] border border-gray-200 rounded-xl p-3 mb-2 space-y-2">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-semibold text-[#2D2D2D]">Offerte {idx + 1}</span>
-              <div className="flex items-center gap-2">
-                <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
-                  <input
-                    type="radio"
-                    name={`geselecteerd-${traject.id}`}
-                    checked={traject.geselecteerdeOfferte === o.id}
-                    onChange={() => u("geselecteerdeOfferte", o.id)}
-                    className="accent-[#991A21]"
-                  />
-                  Geselecteerd
-                </label>
-                <button onClick={() => removeOfferte(idx)} className="text-gray-400 hover:text-red-500 text-xs">✕</button>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <p className="text-[10px] text-gray-400 mb-0.5">Aanvraagdatum</p>
-                <Inp type="date" value={o.aanvraagdatum} onChange={(v) => updateOfferte(idx, "aanvraagdatum", v)} />
-              </div>
-              <div>
-                <p className="text-[10px] text-gray-400 mb-0.5">Ontvangstdatum</p>
-                <Inp type="date" value={o.ontvangstdatum} onChange={(v) => updateOfferte(idx, "ontvangstdatum", v)} />
-              </div>
-              <div>
-                <p className="text-[10px] text-gray-400 mb-0.5">Offertenummer</p>
-                <Inp value={o.offertenummer} onChange={(v) => updateOfferte(idx, "offertenummer", v)} placeholder="bijv. OFF-2025-001" />
-              </div>
-              <div>
-                <p className="text-[10px] text-gray-400 mb-0.5">Bedrag (€)</p>
-                <Inp value={o.bedrag} onChange={(v) => updateOfferte(idx, "bedrag", v)} placeholder="bijv. 12500" />
-              </div>
-              <div className="col-span-2">
-                <p className="text-[10px] text-gray-400 mb-0.5">Geldig tot</p>
-                <div className="flex items-center gap-2">
-                  <Inp type="date" value={o.geldigTot} onChange={(v) => updateOfferte(idx, "geldigTot", v)} />
-                  {o.geldigTot && <DeadlineBadge iso={o.geldigTot} />}
-                </div>
-              </div>
-            </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        {st.map((s, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 9, color: s.ok ? "#2D6A4F" : "#9CA3AF" }}>
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: s.ok ? "#2D6A4F" : "#E5DEDA", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 7, color: "#fff", flexShrink: 0 }}>{s.ok ? "✓" : ""}</span>
+            {s.lbl}
           </div>
         ))}
       </div>
-
-      {/* Status velden */}
-      <div className="grid grid-cols-2 gap-4">
-        <Veld label="Datum VvE akkoord">
-          <Inp type="date" value={traject.vveAkkoordDatum} onChange={(v) => u("vveAkkoordDatum", v)} />
-        </Veld>
-        <Veld label="Datum doorgestuurd gemeente">
-          <Inp type="date" value={traject.doorgestuurdDatum} onChange={(v) => u("doorgestuurdDatum", v)} />
-        </Veld>
-      </div>
-      <div className="flex gap-6 flex-wrap">
-        <Check checked={traject.vveAkkoord} onChange={(v) => u("vveAkkoord", v)} label="VvE akkoord met offerte" />
-        <Check checked={traject.doorgestuurdGemeente} onChange={(v) => u("doorgestuurdGemeente", v)} label="Doorgestuurd naar gemeente" />
-        <Check checked={traject.inkooporderOntvangen} onChange={(v) => u("inkooporderOntvangen", v)} label="Inkooporder ontvangen" />
-        <Check checked={traject.mailNodig} onChange={(v) => u("mailNodig", v)} label="Mail nog te sturen" />
-      </div>
-      <Veld label="Begeleidingsvergoeding (€)">
-        <Inp value={traject.begeleidingsvergoeding} onChange={(v) => u("begeleidingsvergoeding", v)} placeholder="bijv. 500" />
-      </Veld>
-      <Veld label="Actiepunten">
-        <Txa value={traject.actiepunten} onChange={(v) => u("actiepunten", v)} placeholder="Lopende acties en openstaande punten…" rows={4} />
-      </Veld>
     </div>
   );
 }
 
-// ── VvE Kaart (detail) ────────────────────────────────────────────
-function VveKaart({ vve, onUpdate, onDelete, openId, setOpenId, beheerderList, addAudit }) {
-  const isOpen = openId === vve.id;
-  const [actieveTab, setActieveTab] = useState("info");
-  const [nieuweLog, setNieuweLog] = useState(leegLogRegel());
-  const [logToevoegen, setLogToevoegen] = useState(false);
+function OffertesTab({ vve, onUpdate }) {
+  const togChk = (idx, field, value) => {
+    const ofs = [...(vve.offertes || [])];
+    const tl = { ...(ofs[idx].tijdlijn || {}) };
+    if (value && !tl[field]) tl[field] = nu(); else if (!value) delete tl[field];
+    ofs[idx] = { ...ofs[idx], [field]: value, tijdlijn: tl };
+    onUpdate({ ...vve, offertes: ofs });
+  };
+  const updV = (idx, field, val) => { const ofs = [...(vve.offertes || [])]; ofs[idx] = { ...ofs[idx], [field]: val }; onUpdate({ ...vve, offertes: ofs }); };
+  const add = () => onUpdate({ ...vve, offertes: [...(vve.offertes || []), leegOfferte()] });
+  const del = (idx) => { if (!confirm("Offerte verwijderen?")) return; const ofs = [...(vve.offertes || [])]; ofs.splice(idx, 1); onUpdate({ ...vve, offertes: ofs }); };
+  return (
+    <div>
+      <p className="text-xs text-gray-500 mb-4">Registreer per partij de offertestatus. De voortgangsbalk wordt automatisch bijgewerkt.</p>
+      {(vve.offertes || []).length === 0 && <div className="text-center py-8 text-gray-400 text-sm">Nog geen offertes geregistreerd.</div>}
+      {(vve.offertes || []).map((o, i) => (
+        <div key={o.id || i} className="bg-[#FAF7F2] border border-gray-200 rounded-xl p-4 mb-3">
+          <div className="grid grid-cols-[1fr_1fr_auto] gap-3 mb-4 items-end">
+            <Veld label="Partij / aannemer"><Inp value={o.partij || ""} onChange={v => updV(i, "partij", v)} placeholder="bijv. Bouwbedrijf Jansen" /></Veld>
+            <Veld label="Offertebedrag (€)"><Inp type="number" value={o.bedrag || ""} onChange={v => updV(i, "bedrag", v)} placeholder="bijv. 18500" /></Veld>
+            <button onClick={() => del(i)} className="text-gray-400 hover:text-red-500 text-xl pb-1">×</button>
+          </div>
+          <div className="grid grid-cols-3 gap-2 mb-2">
+            {[["aangevraagd","Offerte aangevraagd"],["ontvangen","Offerte ontvangen"],["vveVoorlegd","Aan VvE voorgelegd"],["vveAkkoord","VvE akkoord"],["opdracht","Opdracht verstrekt"],["opdrachtAfgerond","Opdracht afgerond"]].map(([field, lbl]) => (
+              <label key={field} style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", padding: "7px 8px", background: o[field] ? "#EAF4EE" : "#fff", border: `1.5px solid ${o[field] ? "#2D6A4F" : "#E5DEDA"}`, borderRadius: 7, fontSize: 10, fontWeight: 600, color: o[field] ? "#2D6A4F" : "#8A7E7B", userSelect: "none", transition: "all .15s" }}>
+                <input type="checkbox" checked={!!o[field]} onChange={e => togChk(i, field, e.target.checked)} style={{ width: 12, height: 12, accentColor: "#2D6A4F", cursor: "pointer" }} />
+                {lbl}
+              </label>
+            ))}
+          </div>
+          {Object.keys(o.tijdlijn || {}).length > 0 && (
+            <div className="mt-2 pt-2 border-t border-gray-200 flex flex-wrap gap-x-4">
+              {Object.entries(o.tijdlijn).map(([k, ts]) => <span key={k} className="text-[10px] text-gray-400">{k}: {datumTijdNL(ts)}</span>)}
+            </div>
+          )}
+          {o.ontvangen && o.bedrag && <div className="mt-2 px-3 py-1.5 bg-emerald-50 rounded-lg text-xs font-semibold text-emerald-700 font-mono">Offertebedrag: {euro(parseFloat(o.bedrag))}</div>}
+        </div>
+      ))}
+      <button onClick={add} className="w-full py-2.5 bg-white border-2 border-dashed border-gray-200 hover:border-[#991A21] hover:text-[#991A21] text-gray-500 text-sm rounded-xl transition-colors">+ Partij / offerte toevoegen</button>
+    </div>
+  );
+}
+
+function TijdlijnTab({ vve }) {
+  const tl = buildTijdlijn(vve);
+  if (!tl.length) return <div className="text-center py-8 text-gray-400 text-sm">Nog geen gebeurtenissen. Vul gegevens in en vink stappen aan.</div>;
+  return (
+    <div style={{ position: "relative", paddingLeft: 24 }}>
+      <div style={{ position: "absolute", left: 7, top: 0, bottom: 0, width: 2, background: "#E5DEDA", borderRadius: 2 }} />
+      {tl.map((e, i) => (
+        <div key={i} style={{ position: "relative", marginBottom: 16 }}>
+          <div style={{ position: "absolute", left: -20, top: 3, width: 10, height: 10, borderRadius: "50%", background: e.kleur, border: "2px solid #fff", boxShadow: `0 0 0 2px ${e.kleur}` }} />
+          <div style={{ fontSize: 11, color: "#8A7E7B", marginBottom: 2 }}>{datumTijdNL(e.ts)}</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: e.kleur }}>{e.tekst}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TrajectProcesbegeleiding({ t, onChange }) {
+  const u = (k, v) => onChange({ ...t, [k]: v });
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <Veld label="Fonds"><Sel value={t.fonds} onChange={v => u("fonds", v)}>{FONDS_OPTIES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}</Sel></Veld>
+        <Veld label="Bedrag procesbegeleiding (€)"><Inp value={t.bedrag} onChange={v => u("bedrag", v)} placeholder="bijv. 1500" /></Veld>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Veld label="Status"><Sel value={t.status} onChange={v => u("status", v)}><option value="lopend">Lopend</option><option value="afgerond">Afgerond</option></Sel></Veld>
+        <Veld label="Datum overeenkomst getekend"><Inp type="date" value={t.overeenkomstDatum} onChange={v => u("overeenkomstDatum", v)} /></Veld>
+      </div>
+      <div className="flex gap-6 flex-wrap">
+        <Chk checked={t.overeenkomstGetekend} onChange={v => u("overeenkomstGetekend", v)} label="Overeenkomst getekend door VvE" />
+        <Chk checked={t.gefactureerd} onChange={v => u("gefactureerd", v)} label="Gefactureerd" />
+      </div>
+    </div>
+  );
+}
+
+function TrajectSubsidie({ t, onChange }) {
+  const u = (k, v) => onChange({ ...t, [k]: v });
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-4">
+        <Veld label="Begindatum"><Inp type="date" value={t.begindatum} onChange={v => u("begindatum", v)} /></Veld>
+        <Veld label="Einddatum / deadline"><div className="flex items-center gap-2"><Inp type="date" value={t.einddatum} onChange={v => u("einddatum", v)} />{t.einddatum && <DlBdg iso={t.einddatum} />}</div></Veld>
+        <Veld label="Instantie"><Inp value={t.instantie} onChange={v => u("instantie", v)} placeholder="RVO, gemeente..." /></Veld>
+      </div>
+      <Veld label={`Voortgang: ${t.voortgang}%`}>
+        <input type="range" min="0" max="100" step="5" value={t.voortgang} onChange={e => u("voortgang", parseInt(e.target.value))} className="w-full accent-[#991A21]" />
+        <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1"><div className="bg-[#991A21] h-1.5 rounded-full" style={{ width: `${t.voortgang}%` }} /></div>
+      </Veld>
+      <div className="grid grid-cols-2 gap-4">
+        <Veld label="Status"><Sel value={t.status} onChange={v => u("status", v)}><option value="lopend">Lopend</option><option value="afgerond">Afgerond</option></Sel></Veld>
+        <Veld label="Te factureren (€)"><Inp value={t.teFactureren} onChange={v => u("teFactureren", v)} placeholder="bijv. 2500" /></Veld>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Veld label="Factuurdatum"><Inp type="date" value={t.factuurdatum} onChange={v => u("factuurdatum", v)} /></Veld>
+        <div className="flex items-end pb-1"><Chk checked={t.gefactureerd} onChange={v => u("gefactureerd", v)} label="Gefactureerd" /></div>
+      </div>
+      <Veld label="Ontbrekende documenten"><Txa value={t.ontbrekendeDocs} onChange={v => u("ontbrekendeDocs", v)} placeholder="bijv. staatsteunverklaring, verklaring verhuurder…" /></Veld>
+      <Veld label="Opmerkingen"><Txa value={t.opmerkingen} onChange={v => u("opmerkingen", v)} placeholder="Overige acties en notities…" /></Veld>
+    </div>
+  );
+}
+
+function TrajectIsolatie({ t, onChange }) {
+  const u = (k, v) => onChange({ ...t, [k]: v });
+  const updA = (idx, veld, val) => { const arr = [...(t.aannemers || [])]; arr[idx] = { ...arr[idx], [veld]: val }; u("aannemers", arr); };
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="flex items-center justify-between mb-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Aannemers</label><button onClick={() => u("aannemers", [...(t.aannemers || []), { id: uid(), naam: "", contactpersoon: "" }])} className="text-[10px] text-[#991A21] hover:underline font-semibold">+ Aannemer</button></div>
+        {(t.aannemers || []).map((a, idx) => (
+          <div key={a.id} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center mb-2">
+            <Inp value={a.naam} onChange={v => updA(idx, "naam", v)} placeholder="Naam aannemer" />
+            <Inp value={a.contactpersoon} onChange={v => updA(idx, "contactpersoon", v)} placeholder="Contactpersoon" />
+            {(t.aannemers || []).length > 1 && <button onClick={() => u("aannemers", (t.aannemers || []).filter((_, i) => i !== idx))} className="text-gray-400 hover:text-red-500 text-sm">✕</button>}
+          </div>
+        ))}
+      </div>
+      <Veld label="Werkzaamheden"><Txa value={t.werkzaamheden} onChange={v => u("werkzaamheden", v)} placeholder="Omschrijving van de uit te voeren werkzaamheden…" /></Veld>
+      <div className="grid grid-cols-2 gap-4">
+        <Veld label="Datum VvE akkoord"><Inp type="date" value={t.vveAkkoordDatum} onChange={v => u("vveAkkoordDatum", v)} /></Veld>
+        <Veld label="Datum doorgestuurd gemeente"><Inp type="date" value={t.doorgestuurdDatum} onChange={v => u("doorgestuurdDatum", v)} /></Veld>
+      </div>
+      <div className="flex gap-6 flex-wrap">
+        <Chk checked={t.vveAkkoord} onChange={v => u("vveAkkoord", v)} label="VvE akkoord" />
+        <Chk checked={t.doorgestuurdGemeente} onChange={v => u("doorgestuurdGemeente", v)} label="Doorgestuurd gemeente" />
+        <Chk checked={t.inkooporderOntvangen} onChange={v => u("inkooporderOntvangen", v)} label="Inkooporder ontvangen" />
+        <Chk checked={t.mailNodig} onChange={v => u("mailNodig", v)} label="Mail nog te sturen" />
+      </div>
+      <Veld label="Begeleidingsvergoeding (€)"><Inp value={t.begeleidingsvergoeding} onChange={v => u("begeleidingsvergoeding", v)} placeholder="bijv. 500" /></Veld>
+      <Veld label="Actiepunten"><Txa value={t.actiepunten} onChange={v => u("actiepunten", v)} placeholder="Lopende acties en openstaande punten…" rows={4} /></Veld>
+    </div>
+  );
+}
+
+function VveKaart({ vve, onUpdate, onDelete, openId, setOpenId, beheerderList }) {
+  const open = openId === vve.id;
+  const [tab, setTab] = useState("info");
+  const [nieuweLog, setNieuweLog] = useState(leegLog());
+  const [logForm, setLogForm] = useState(false);
 
   const u = (k, v) => {
-    const bijgewerkt = { ...vve, [k]: v };
-    addAudit(bijgewerkt, k, vve[k], v);
-    onUpdate(bijgewerkt);
+    const entry = { tijdstip: nu(), veld: k, oud: vve[k], nieuw: v };
+    const bij = { ...vve, [k]: v, audittrail: [...(vve.audittrail || []), entry] };
+    if (k === "alvBesluit" && v && !vve.tijdlijn?.alvBesluit) bij.tijdlijn = { ...(vve.tijdlijn || {}), alvBesluit: nu() };
+    onUpdate(bij);
   };
 
-  const updateTraject = (t) => {
-    const trajecten = vve.trajecten.map((x) => (x.id === t.id ? t : x));
-    onUpdate({ ...vve, trajecten });
-  };
-
-  const addTraject = (type) => {
-    const t = leegTraject(type);
-    onUpdate({ ...vve, trajecten: [...vve.trajecten, t] });
-  };
-
-  const removeTraject = (tid) => {
-    if (!confirm("Traject verwijderen?")) return;
-    onUpdate({ ...vve, trajecten: vve.trajecten.filter((t) => t.id !== tid) });
-  };
+  const updTraj = t => onUpdate({ ...vve, trajecten: (vve.trajecten || []).map(x => x.id === t.id ? t : x) });
+  const addTraj = type => onUpdate({ ...vve, trajecten: [...(vve.trajecten || []), leegTraject(type)] });
+  const delTraj = tid => { if (confirm("Traject verwijderen?")) onUpdate({ ...vve, trajecten: (vve.trajecten || []).filter(t => t.id !== tid) }); };
 
   const slaLogOp = () => {
     if (!nieuweLog.omschrijving.trim()) return;
-    const log = [...(vve.communicatielog || []), { ...nieuweLog, id: uid() }];
-    onUpdate({ ...vve, communicatielog: log });
-    setNieuweLog(leegLogRegel());
-    setLogToevoegen(false);
+    onUpdate({ ...vve, communicatielog: [...(vve.communicatielog || []), { ...nieuweLog, id: uid() }] });
+    setNieuweLog(leegLog()); setLogForm(false);
   };
 
-  // Actieve trajecttypen
-  const trajectTypen = vve.trajecten.map((t) => t.type);
+  const afgerond = () => { onUpdate({ ...vve, status: "afgerond", tijdlijn: { ...(vve.tijdlijn || {}), afgerond: nu() } }); setOpenId(null); };
 
-  // Deadlines voor deze VvE
   const deadlines = [];
   if (vve.alvDatum) deadlines.push({ label: "ALV besluit", datum: vve.alvDatum });
-  vve.trajecten.forEach((t) => {
-    if (t.type === "subsidie" && t.einddatum) deadlines.push({ label: "Subsidie deadline", datum: t.einddatum });
-    if (t.type === "isolatie") {
-      (t.offertes || []).forEach((o) => {
-        if (o.geldigTot) deadlines.push({ label: `Offerte ${o.offertenummer || ""}`, datum: o.geldigTot });
-      });
-    }
-  });
-
-  const urgentDeadline = deadlines.find((d) => {
-    const dag = dagenTot(d.datum);
-    return dag !== null && dag <= 14 && dag >= 0;
-  });
-  const overschreden = deadlines.some((d) => {
-    const dag = dagenTot(d.datum);
-    return dag !== null && dag < 0;
-  });
+  (vve.trajecten || []).forEach(t => { if (t.type === "subsidie" && t.einddatum) deadlines.push({ label: "Subsidie deadline", datum: t.einddatum }); });
+  const urgDl = deadlines.some(d => { const g = dagenTot(d.datum); return g !== null && g <= 14 && g >= 0; });
+  const ovrDl = deadlines.some(d => { const g = dagenTot(d.datum); return g !== null && g < 0; });
 
   return (
-    <div className={`bg-white border-2 rounded-xl transition-all ${overschreden ? "border-red-300" : urgentDeadline ? "border-amber-300" : isOpen ? "border-[#991A21]" : "border-gray-200"} shadow-sm`}>
-      {/* Header */}
-      <div
-        className="flex items-center justify-between px-5 py-4 cursor-pointer"
-        onClick={() => setOpenId(isOpen ? null : vve.id)}
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${overschreden ? "bg-red-500" : urgentDeadline ? "bg-amber-400" : "bg-emerald-400"}`} />
-          <div className="min-w-0">
-            <p className="font-bold text-sm text-[#2D2D2D] truncate">{vve.naam || <span className="text-gray-400 italic">Naamloos</span>}</p>
-            <p className="text-xs text-gray-500 truncate">{vve.adres || "Geen adres"}</p>
+    <div style={{ background: vve.status === "afgerond" ? "#FAFAFA" : "#fff", border: `1.5px solid ${open ? VD_ROOD : ovrDl ? "#FCA5A5" : urgDl ? "#FCD34D" : "#E5E0DB"}`, borderRadius: 12, overflow: "hidden", marginBottom: 10, boxShadow: open ? "0 2px 12px rgba(153,26,33,.08)" : "none", transition: "all .2s", opacity: vve.status === "afgerond" ? 0.75 : 1 }}>
+      <div onClick={() => setOpenId(open ? null : vve.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", cursor: "pointer", userSelect: "none" }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontWeight: 700, fontSize: 14, color: "#2D2D2D" }}>{vve.naam || <span style={{ color: "#aaa", fontStyle: "italic" }}>Naamloos</span>}</span>
+            <SB status={vve.status} />
+            {vve.beheerder && <span style={{ fontSize: 10, color: "#8A7E7B", background: "#F3F4F6", padding: "2px 7px", borderRadius: 8 }}>{vve.beheerder}</span>}
+            {ovrDl && <span style={{ fontSize: 10, fontWeight: 600, background: VD_ROOD_BG, color: VD_ROOD, padding: "1px 6px", borderRadius: 8 }}>Deadline voorbij</span>}
+            {urgDl && !ovrDl && <span style={{ fontSize: 10, fontWeight: 600, background: "#FEF3E2", color: "#92400E", padding: "1px 6px", borderRadius: 8 }}>Deadline nadert</span>}
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 4, flexWrap: "wrap" }}>
+            {vve.adres && <span style={{ fontSize: 11, color: "#8A7E7B" }}>{vve.adres}</span>}
+            {(vve.trajecten || []).map(t => <span key={t.id} style={{ fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 8, background: t.type === "isolatie" ? "#FEF3E2" : t.type === "subsidie" ? "#D1FAE5" : "#EAF1F8", color: t.type === "isolatie" ? "#92400E" : t.type === "subsidie" ? "#065F46" : "#1A4D7A" }}>{t.type === "procesbegeleiding" ? "Lening" : t.type === "subsidie" ? "Subsidie" : "Isolatie"}</span>)}
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0 ml-3">
-          {trajectTypen.includes("procesbegeleiding") && <Badge kleur="blauw" label="Lening" />}
-          {trajectTypen.includes("subsidie") && <Badge kleur="groen" label="Subsidie" />}
-          {trajectTypen.includes("isolatie") && <Badge kleur="oranje" label="Isolatie" />}
-          {overschreden && <Badge kleur="rood" label="Deadline overschreden" />}
-          {urgentDeadline && !overschreden && <Badge kleur="oranje" label="Deadline nadert" />}
-          <span className="text-[#2D2D2D] text-sm font-bold ml-1">{isOpen ? "▲" : "▼"}</span>
-        </div>
+        <div onClick={e => e.stopPropagation()}><VoortgangsBalk vve={vve} /></div>
+        <span style={{ fontSize: 14, color: "#8A7E7B", transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }}>▾</span>
       </div>
 
-      {/* Detail */}
-      {isOpen && (
-        <div className="border-t border-gray-100">
-          {/* Tabs */}
-          <div className="flex gap-0 border-b border-gray-100 px-5">
-            {[
-              { key: "info", label: "VvE info" },
-              { key: "trajecten", label: `Trajecten (${vve.trajecten.length})` },
-              { key: "log", label: `Communicatielog (${(vve.communicatielog || []).length})` },
-              { key: "audit", label: "Audittrail" },
-            ].map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActieveTab(tab.key)}
-                className={`px-4 py-3 text-xs font-semibold border-b-2 transition-colors ${
-                  actieveTab === tab.key
-                    ? "border-[#991A21] text-[#991A21]"
-                    : "border-transparent text-gray-500 hover:text-[#2D2D2D]"
-                }`}
-              >
-                {tab.label}
-              </button>
+      {open && (
+        <div style={{ borderTop: "1.5px solid #E5E0DB", background: "#FDFCFB" }}>
+          <div style={{ display: "flex", borderBottom: "1px solid #E5DEDA", background: "#fff", paddingLeft: 16, overflowX: "auto" }}>
+            {[["info","Dossier"],["trajecten",`Trajecten (${(vve.trajecten||[]).length})`],["offertes",`Offertes (${(vve.offertes||[]).length})`],["log",`Log (${(vve.communicatielog||[]).length})`],["tijdlijn","Tijdlijn"],["audit","Audittrail"]].map(([k,l]) => (
+              <button key={k} onClick={() => setTab(k)} style={{ padding: "9px 14px", border: "none", borderBottom: `2px solid ${tab === k ? VD_ROOD : "transparent"}`, background: "transparent", fontSize: 12, fontWeight: tab === k ? 600 : 400, color: tab === k ? VD_ROOD : "#6B7280", cursor: "pointer", whiteSpace: "nowrap" }}>{l}</button>
             ))}
           </div>
+          <div style={{ padding: 16 }}>
 
-          <div className="p-5">
-            {/* Tab: VvE info */}
-            {actieveTab === "info" && (
+            {tab === "info" && (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <Veld label="VvE naam">
-                    <Inp value={vve.naam} onChange={(v) => u("naam", v)} placeholder="Naam van de VvE" />
-                  </Veld>
-                  <Veld label="Adres">
-                    <Inp value={vve.adres} onChange={(v) => u("adres", v)} placeholder="Straat + nummer, plaats" />
-                  </Veld>
+                  <Veld label="VvE naam"><Inp value={vve.naam} onChange={v => u("naam", v)} placeholder="Naam van de VvE" /></Veld>
+                  <Veld label="Adres"><Inp value={vve.adres} onChange={v => u("adres", v)} placeholder="Straat + nummer, plaats" /></Veld>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <Veld label="Beheerder">
-                    <Sel value={vve.beheerder} onChange={(v) => u("beheerder", v)}>
-                      <option value="">— Kies beheerder —</option>
-                      {(beheerderList || []).map((n) => <option key={n} value={n}>{n}</option>)}
-                    </Sel>
-                  </Veld>
-                  <Veld label="Type eigendom">
-                    <Sel value={vve.typeEigendom} onChange={(v) => u("typeEigendom", v)}>
-                      {Object.entries(TYPE_EIGENDOM).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                    </Sel>
-                  </Veld>
+                <div className="grid grid-cols-3 gap-4">
+                  <Veld label="Beheerder"><Sel value={vve.beheerder} onChange={v => u("beheerder", v)}><option value="">— Kies beheerder —</option>{(beheerderList || []).map(n => <option key={n} value={n}>{n}</option>)}</Sel></Veld>
+                  <Veld label="Type eigendom"><Sel value={vve.typeEigendom} onChange={v => u("typeEigendom", v)}>{Object.entries(TYPE_EIGENDOM).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Sel></Veld>
+                  <Veld label="Dossier status"><Sel value={vve.status} onChange={v => u("status", v)}>{Object.entries(DOSSIER_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</Sel></Veld>
                 </div>
-                <div className="grid grid-cols-2 gap-4 items-end">
-                  <div className="flex items-end gap-3">
-                    <Check checked={vve.alvBesluit} onChange={(v) => u("alvBesluit", v)} label="ALV-besluit genomen" />
-                  </div>
-                  {vve.alvBesluit && (
-                    <Veld label="Datum ALV-besluit">
-                      <Inp type="date" value={vve.alvDatum} onChange={(v) => u("alvDatum", v)} />
-                    </Veld>
-                  )}
+                <div className="flex items-center gap-6">
+                  <Chk checked={vve.alvBesluit} onChange={v => u("alvBesluit", v)} label="ALV-besluit genomen" />
+                  {vve.alvBesluit && <Veld label="Datum ALV-besluit"><Inp type="date" value={vve.alvDatum} onChange={v => u("alvDatum", v)} /></Veld>}
                 </div>
-                {/* Deadlines overzicht voor deze VvE */}
                 {deadlines.length > 0 && (
                   <div className="bg-[#FAF7F2] border border-gray-200 rounded-xl p-4">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-3">Deadlines</p>
-                    <div className="space-y-2">
-                      {deadlines.map((d, i) => (
-                        <div key={i} className="flex items-center justify-between text-xs">
-                          <span className="text-gray-600">{d.label}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-gray-500">{datumNL(d.datum)}</span>
-                            <DeadlineBadge iso={d.datum} />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    {deadlines.map((d, i) => <div key={i} className="flex items-center justify-between text-xs mb-1"><span className="text-gray-600">{d.label}</span><div className="flex items-center gap-2"><span className="text-gray-500">{datumNL(d.datum)}</span><DlBdg iso={d.datum} /></div></div>)}
                   </div>
                 )}
-                <div className="flex justify-end pt-2">
-                  <button
-                    onClick={() => { if (confirm(`VvE "${vve.naam || "naamloos"}" definitief verwijderen?`)) onDelete(vve.id); }}
-                    className="text-xs text-red-400 hover:text-red-600 transition-colors"
-                  >
-                    VvE verwijderen
-                  </button>
+                <div className="flex justify-between pt-2 border-t border-gray-100">
+                  <button onClick={() => { if (confirm(`"${vve.naam || "naamloos"}" verwijderen?`)) onDelete(vve.id); }} className="text-xs text-red-400 hover:text-red-600">VvE verwijderen</button>
+                  {vve.status !== "afgerond" ? <button onClick={afgerond} className="text-xs px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold">Dossier afronden ✓</button> : <button onClick={() => u("status", "in_behandeling")} className="text-xs px-4 py-2 bg-white border border-blue-300 text-blue-700 rounded-lg font-semibold">Dossier heropenen</button>}
                 </div>
               </div>
             )}
 
-            {/* Tab: Trajecten */}
-            {actieveTab === "trajecten" && (
+            {tab === "trajecten" && (
               <div className="space-y-4">
-                {vve.trajecten.length === 0 && (
-                  <p className="text-xs text-gray-400 italic">Nog geen trajecten toegevoegd.</p>
-                )}
-                {vve.trajecten.map((t) => (
+                {(vve.trajecten || []).length === 0 && <p className="text-xs text-gray-400 italic">Nog geen trajecten toegevoegd.</p>}
+                {(vve.trajecten || []).map(t => (
                   <div key={t.id} className="border border-gray-200 rounded-xl overflow-hidden">
                     <div className="flex items-center justify-between px-4 py-3 bg-gray-50">
                       <span className="text-sm font-bold text-[#2D2D2D]">{TRAJECTEN[t.type]}</span>
-                      <div className="flex items-center gap-2">
-                        {t.status === "afgerond" ? <Badge kleur="groen" label="Afgerond" /> : <Badge kleur="blauw" label="Lopend" />}
-                        <button onClick={() => removeTraject(t.id)} className="text-xs text-gray-400 hover:text-red-500 transition-colors">✕ verwijderen</button>
-                      </div>
+                      <div className="flex items-center gap-2">{t.status === "afgerond" ? <Bdg kleur="groen" label="Afgerond" /> : <Bdg kleur="blauw" label="Lopend" />}<button onClick={() => delTraj(t.id)} className="text-xs text-gray-400 hover:text-red-500">✕ verwijderen</button></div>
                     </div>
                     <div className="p-4">
-                      {t.type === "procesbegeleiding" && <TrajectProcesbegeleiding traject={t} onChange={updateTraject} />}
-                      {t.type === "subsidie" && <TrajectSubsidie traject={t} onChange={updateTraject} />}
-                      {t.type === "isolatie" && <TrajectIsolatie traject={t} onChange={updateTraject} />}
+                      {t.type === "procesbegeleiding" && <TrajectProcesbegeleiding t={t} onChange={updTraj} />}
+                      {t.type === "subsidie" && <TrajectSubsidie t={t} onChange={updTraj} />}
+                      {t.type === "isolatie" && <TrajectIsolatie t={t} onChange={updTraj} />}
                     </div>
                   </div>
                 ))}
-
-                {/* Traject toevoegen */}
                 <div className="border-t border-gray-100 pt-3">
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">Traject toevoegen</p>
-                  <div className="flex gap-2 flex-wrap">
-                    {Object.entries(TRAJECTEN).map(([key, label]) => (
-                      <button
-                        key={key}
-                        onClick={() => addTraject(key)}
-                        className="text-xs px-3 py-1.5 bg-white border border-gray-200 hover:border-[#991A21] hover:text-[#991A21] rounded-lg font-medium transition-colors"
-                      >
-                        + {label}
-                      </button>
-                    ))}
-                  </div>
+                  <div className="flex gap-2 flex-wrap">{Object.entries(TRAJECTEN).map(([key, label]) => <button key={key} onClick={() => addTraj(key)} className="text-xs px-3 py-1.5 bg-white border border-gray-200 hover:border-[#991A21] hover:text-[#991A21] rounded-lg font-medium transition-colors">+ {label}</button>)}</div>
                 </div>
               </div>
             )}
 
-            {/* Tab: Communicatielog */}
-            {actieveTab === "log" && (
+            {tab === "offertes" && <OffertesTab vve={vve} onUpdate={onUpdate} />}
+
+            {tab === "log" && (
               <div className="space-y-4">
-                {/* Log toevoegen */}
-                {logToevoegen ? (
+                {logForm ? (
                   <div className="bg-[#FAF7F2] border border-gray-200 rounded-xl p-4 space-y-3">
                     <p className="text-xs font-bold text-[#2D2D2D]">Nieuw logitem</p>
                     <div className="grid grid-cols-2 gap-3">
-                      <Veld label="Datum">
-                        <Inp type="date" value={nieuweLog.datum} onChange={(v) => setNieuweLog({ ...nieuweLog, datum: v })} />
-                      </Veld>
-                      <Veld label="Beheerder">
-                        <Sel value={nieuweLog.beheerder} onChange={(v) => setNieuweLog({ ...nieuweLog, beheerder: v })}>
-                          <option value="">— kies —</option>
-                          {(beheerderList || []).map((n) => <option key={n} value={n}>{n}</option>)}
-                        </Sel>
-                      </Veld>
-                      <Veld label="Partij">
-                        <Inp value={nieuweLog.partij} onChange={(v) => setNieuweLog({ ...nieuweLog, partij: v })} placeholder="eigenaar, aannemer, gemeente…" />
-                      </Veld>
-                      <Veld label="Kanaal">
-                        <Sel value={nieuweLog.kanaal} onChange={(v) => setNieuweLog({ ...nieuweLog, kanaal: v })}>
-                          {KANAAL_OPTIES.map((k) => <option key={k} value={k}>{k}</option>)}
-                        </Sel>
-                      </Veld>
+                      <Veld label="Datum"><Inp type="date" value={nieuweLog.datum} onChange={v => setNieuweLog({ ...nieuweLog, datum: v })} /></Veld>
+                      <Veld label="Beheerder"><Sel value={nieuweLog.beheerder} onChange={v => setNieuweLog({ ...nieuweLog, beheerder: v })}><option value="">— kies —</option>{(beheerderList || []).map(n => <option key={n} value={n}>{n}</option>)}</Sel></Veld>
+                      <Veld label="Partij"><Inp value={nieuweLog.partij} onChange={v => setNieuweLog({ ...nieuweLog, partij: v })} placeholder="eigenaar, aannemer, gemeente…" /></Veld>
+                      <Veld label="Kanaal"><Sel value={nieuweLog.kanaal} onChange={v => setNieuweLog({ ...nieuweLog, kanaal: v })}>{KANAAL_OPTIES.map(k => <option key={k} value={k}>{k}</option>)}</Sel></Veld>
                     </div>
-                    <Veld label="Omschrijving">
-                      <Txa value={nieuweLog.omschrijving} onChange={(v) => setNieuweLog({ ...nieuweLog, omschrijving: v })} placeholder="Wat is er besproken of afgesproken?" />
-                    </Veld>
+                    <Veld label="Omschrijving"><Txa value={nieuweLog.omschrijving} onChange={v => setNieuweLog({ ...nieuweLog, omschrijving: v })} placeholder="Wat is er besproken of afgesproken?" /></Veld>
                     <div className="flex gap-2">
-                      <button onClick={slaLogOp} className="text-xs px-4 py-2 bg-[#991A21] text-white rounded-lg font-semibold hover:bg-[#7a1419] transition-colors">Opslaan</button>
-                      <button onClick={() => setLogToevoegen(false)} className="text-xs px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg font-semibold hover:bg-gray-50 transition-colors">Annuleren</button>
+                      <button onClick={slaLogOp} className="text-xs px-4 py-2 bg-[#991A21] text-white rounded-lg font-semibold hover:bg-[#7a1419]">Opslaan</button>
+                      <button onClick={() => setLogForm(false)} className="text-xs px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg font-semibold">Annuleren</button>
                     </div>
                   </div>
-                ) : (
-                  <button onClick={() => setLogToevoegen(true)} className="text-xs px-3 py-1.5 bg-white border border-gray-200 hover:border-[#991A21] hover:text-[#991A21] rounded-lg font-medium transition-colors">
-                    + Logitem toevoegen
-                  </button>
-                )}
-
-                {/* Log lijst */}
-                {(vve.communicatielog || []).length === 0 && !logToevoegen && (
-                  <p className="text-xs text-gray-400 italic">Nog geen communicatie geregistreerd.</p>
-                )}
+                ) : <button onClick={() => setLogForm(true)} className="text-xs px-3 py-1.5 bg-white border border-gray-200 hover:border-[#991A21] hover:text-[#991A21] rounded-lg font-medium">+ Logitem toevoegen</button>}
+                {(vve.communicatielog || []).length === 0 && !logForm && <p className="text-xs text-gray-400 italic">Nog geen communicatie geregistreerd.</p>}
                 <div className="space-y-2">
-                  {[...(vve.communicatielog || [])].reverse().map((l) => (
+                  {[...(vve.communicatielog || [])].reverse().map(l => (
                     <div key={l.id} className="flex gap-3 text-xs border-l-2 border-gray-200 pl-3 py-1">
                       <div className="flex-shrink-0 text-gray-400 w-20">{datumNL(l.datum)}</div>
-                      <div>
-                        <span className="font-semibold text-[#2D2D2D]">{l.beheerder}</span>
-                        {" · "}
-                        <span className="text-gray-500">{l.partij}</span>
-                        {" · "}
-                        <span className="italic text-gray-400">{l.kanaal}</span>
-                        <p className="text-gray-600 mt-0.5">{l.omschrijving}</p>
-                      </div>
+                      <div><span className="font-semibold text-[#2D2D2D]">{l.beheerder}</span>{" · "}<span className="text-gray-500">{l.partij}</span>{" · "}<span className="italic text-gray-400">{l.kanaal}</span><p className="text-gray-600 mt-0.5">{l.omschrijving}</p></div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Tab: Audittrail */}
-            {actieveTab === "audit" && (
+            {tab === "tijdlijn" && <TijdlijnTab vve={vve} />}
+
+            {tab === "audit" && (
               <div className="space-y-1">
-                {(vve.audittrail || []).length === 0 && (
-                  <p className="text-xs text-gray-400 italic">Nog geen wijzigingen vastgelegd.</p>
-                )}
+                {(vve.audittrail || []).length === 0 && <p className="text-xs text-gray-400 italic">Nog geen wijzigingen vastgelegd.</p>}
                 {[...(vve.audittrail || [])].reverse().map((a, i) => (
                   <div key={i} className="flex gap-3 text-xs border-l-2 border-gray-100 pl-3 py-1">
-                    <span className="text-gray-400 flex-shrink-0 w-32">{new Date(a.tijdstip).toLocaleString("nl-NL")}</span>
-                    <span className="font-semibold text-gray-600 w-20 flex-shrink-0">{a.beheerder || "—"}</span>
-                    <span className="text-gray-500">{a.veld}: <span className="line-through text-red-400">{String(a.oud || "—").slice(0, 40)}</span> → <span className="text-emerald-600">{String(a.nieuw || "—").slice(0, 40)}</span></span>
+                    <span className="text-gray-400 flex-shrink-0 w-36">{datumTijdNL(a.tijdstip)}</span>
+                    <span className="text-gray-500">{a.veld}: <span className="line-through text-red-400">{String(a.oud ?? "—").slice(0, 40)}</span> → <span className="text-emerald-600">{String(a.nieuw ?? "—").slice(0, 40)}</span></span>
                   </div>
                 ))}
               </div>
@@ -840,341 +455,137 @@ function VveKaart({ vve, onUpdate, onDelete, openId, setOpenId, beheerderList, a
   );
 }
 
-// ── Hoofd component ───────────────────────────────────────────────
 export default function VerduurzamingBeheer({ onTerug, beheerder, beheerderList }) {
   const [vves, setVves] = useState(() => vdLocalLoad());
   const [openId, setOpenId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [zoek, setZoek] = useState("");
-  const [filterTraject, setFilterTraject] = useState("alle");
-  const [filterBeheerder, setFilterBeheerder] = useState("alle");
-  const [actieveHoofdTab, setActieveHoofdTab] = useState("vves");
+  const [fTraj, setFTraj] = useState("alle");
+  const [fBeh, setFBeh] = useState("alle");
+  const [fStat, setFStat] = useState("alle");
+  const [hoofdTab, setHoofdTab] = useState("vves");
 
-  useEffect(() => {
-    vdLoad().then((data) => {
-      if (data && data.length) setVves(data);
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, []);
+  useEffect(() => { vdLoad().then(d => { if (d && d.length) setVves(d); setLoading(false); }).catch(() => setLoading(false)); }, []);
 
-  const addAudit = (vve, veld, oud, nieuw) => {
-    if (String(oud) === String(nieuw)) return vve;
-    const entry = { tijdstip: nu(), beheerder: beheerder || "onbekend", veld, oud, nieuw };
-    return { ...vve, audittrail: [...(vve.audittrail || []), entry] };
-  };
+  const addVve = async () => { const n = leegVve(); setVves([n, ...vves]); await vdSave(n); setOpenId(n.id); setHoofdTab("vves"); };
+  const updVve = async v => { setVves(p => p.map(x => x.id === v.id ? v : x)); await vdSave(v); };
+  const delVve = async id => { setVves(p => p.filter(x => x.id !== id)); await vdDelete(id); if (openId === id) setOpenId(null); };
 
-  const addVve = async () => {
-    const n = leegVve();
-    const updated = [n, ...vves];
-    setVves(updated);
-    await vdSave(n);
-    setOpenId(n.id);
-    setActieveHoofdTab("vves");
-  };
-
-  const updateVve = async (v) => {
-    setVves((prev) => prev.map((x) => (x.id === v.id ? v : x)));
-    await vdSave(v);
-  };
-
-  const deleteVve = async (id) => {
-    setVves((prev) => prev.filter((x) => x.id !== id));
-    await vdDelete(id);
-    if (openId === id) setOpenId(null);
-  };
-
-  const handleAddAudit = (vve, veld, oud, nieuw) => {
-    const bijgewerkt = addAudit(vve, veld, oud, nieuw);
-    return bijgewerkt;
-  };
-
-  // Filter
-  let zichtbaar = vves.filter((v) => {
+  const zichtbaar = vves.filter(v => {
     const mz = !zoek || (v.naam || "").toLowerCase().includes(zoek.toLowerCase()) || (v.adres || "").toLowerCase().includes(zoek.toLowerCase());
-    const mt = filterTraject === "alle" || v.trajecten.some((t) => t.type === filterTraject);
-    const mb = filterBeheerder === "alle" || v.beheerder === filterBeheerder;
-    return mz && mt && mb;
+    const mt = fTraj === "alle" || (v.trajecten || []).some(t => t.type === fTraj);
+    const mb = fBeh === "alle" || v.beheerder === fBeh;
+    const ms = fStat === "alle" || v.status === fStat;
+    return mz && mt && mb && ms;
   });
 
-  // Stats
-  const aantalActief = vves.filter((v) => v.trajecten.some((t) => t.status !== "afgerond")).length;
-  const aantalDeadline = vves.filter((v) => {
-    const deadlines = [];
-    v.trajecten.forEach((t) => {
-      if (t.type === "subsidie" && t.einddatum) deadlines.push(t.einddatum);
-      (t.offertes || []).forEach((o) => { if (o.geldigTot) deadlines.push(o.geldigTot); });
-    });
-    return deadlines.some((d) => { const dag = dagenTot(d); return dag !== null && dag <= 14 && dag >= 0; });
-  }).length;
+  const aantalActief = vves.filter(v => v.status !== "afgerond").length;
+  const aantalDl = vves.filter(v => (v.trajecten || []).some(t => t.type === "subsidie" && t.einddatum && (() => { const g = dagenTot(t.einddatum); return g !== null && g <= 14 && g >= 0; })())).length;
 
-  // Actielijst
   const acties = [];
-  vves.forEach((v) => {
-    v.trajecten.forEach((t) => {
+  vves.forEach(v => {
+    (v.trajecten || []).forEach(t => {
       if (t.type === "isolatie") {
-        if ((t.offertes || []).length === 0) acties.push({ vve: v.naam, beheerder: v.beheerder, type: "offerte_aanvragen", traject: "Isolatie" });
-        if (t.offertes.length > 0 && !t.doorgestuurdGemeente) acties.push({ vve: v.naam, beheerder: v.beheerder, type: "offerte_doorsturen", traject: "Isolatie" });
-        if (!t.vveAkkoord && t.offertes.length > 0) acties.push({ vve: v.naam, beheerder: v.beheerder, type: "akkoord_ophalen", traject: "Isolatie" });
-        if (!t.inkooporderOntvangen && t.doorgestuurdGemeente) acties.push({ vve: v.naam, beheerder: v.beheerder, type: "inkooporder_opvolgen", traject: "Isolatie" });
+        if (!(v.offertes || []).some(o => o.aangevraagd)) acties.push({ vve: v.naam, beh: v.beheerder, type: "offerte_aanvragen", traj: "Isolatie" });
+        if ((v.offertes || []).some(o => o.aangevraagd) && !t.doorgestuurdGemeente) acties.push({ vve: v.naam, beh: v.beheerder, type: "offerte_doorsturen", traj: "Isolatie" });
+        if (!(v.offertes || []).some(o => o.vveAkkoord) && (v.offertes || []).some(o => o.ontvangen)) acties.push({ vve: v.naam, beh: v.beheerder, type: "akkoord_ophalen", traj: "Isolatie" });
+        if (!t.inkooporderOntvangen && t.doorgestuurdGemeente) acties.push({ vve: v.naam, beh: v.beheerder, type: "inkooporder_opvolgen", traj: "Isolatie" });
       }
       if (t.type === "subsidie") {
-        if (t.ontbrekendeDocs?.trim()) acties.push({ vve: v.naam, beheerder: v.beheerder, type: "document_opvragen", traject: "Subsidie", detail: t.ontbrekendeDocs });
-        if (!t.gefactureerd && t.status === "afgerond") acties.push({ vve: v.naam, beheerder: v.beheerder, type: "factuur_versturen", traject: "Subsidie" });
+        if (t.ontbrekendeDocs?.trim()) acties.push({ vve: v.naam, beh: v.beheerder, type: "document_opvragen", traj: "Subsidie", detail: t.ontbrekendeDocs });
+        if (!t.gefactureerd && t.status === "afgerond") acties.push({ vve: v.naam, beh: v.beheerder, type: "factuur_versturen", traj: "Subsidie" });
       }
-      if (t.type === "procesbegeleiding") {
-        if (!t.gefactureerd && t.status === "afgerond") acties.push({ vve: v.naam, beheerder: v.beheerder, type: "factuur_versturen", traject: "Procesbegeleiding" });
-      }
+      if (t.type === "procesbegeleiding" && !t.gefactureerd && t.status === "afgerond") acties.push({ vve: v.naam, beh: v.beheerder, type: "factuur_versturen", traj: "Procesbegeleiding" });
     });
   });
 
-  // Financieel overzicht
-  const financieel = { totaal: 0, gefactureerd: 0, open: 0, perTraject: {} };
-  vves.forEach((v) => {
-    v.trajecten.forEach((t) => {
-      const bedrag = parseFloat(t.bedrag || t.teFactureren || 0) || 0;
-      const vergoeding = parseFloat(t.begeleidingsvergoeding || 0) || 0;
-      const totaalBedrag = bedrag + vergoeding;
-      financieel.totaal += totaalBedrag;
-      if (t.gefactureerd) financieel.gefactureerd += totaalBedrag;
-      else financieel.open += totaalBedrag;
-      if (!financieel.perTraject[t.type]) financieel.perTraject[t.type] = { totaal: 0, gefactureerd: 0, open: 0 };
-      financieel.perTraject[t.type].totaal += totaalBedrag;
-      if (t.gefactureerd) financieel.perTraject[t.type].gefactureerd += totaalBedrag;
-      else financieel.perTraject[t.type].open += totaalBedrag;
+  const fin = { totaal: 0, gefactureerd: 0, open: 0, per: {} };
+  vves.forEach(v => {
+    (v.trajecten || []).forEach(t => {
+      const b = (parseFloat(t.bedrag || t.teFactureren || 0) || 0) + (parseFloat(t.begeleidingsvergoeding || 0) || 0);
+      fin.totaal += b; if (t.gefactureerd) fin.gefactureerd += b; else fin.open += b;
+      if (!fin.per[t.type]) fin.per[t.type] = { totaal: 0, gefactureerd: 0, open: 0 };
+      fin.per[t.type].totaal += b; if (t.gefactureerd) fin.per[t.type].gefactureerd += b; else fin.per[t.type].open += b;
     });
   });
 
-  const euro = (n) => `€ ${n.toLocaleString("nl-NL", { minimumFractionDigits: 0 })}`;
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#F2EFEC] flex items-center justify-center">
-        <style>{CSS_FONT}</style>
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-[#991A21] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm text-gray-500">Gegevens laden…</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <div className="min-h-screen bg-[#F2EFEC] flex items-center justify-center"><style>{CSS_FONT}</style><div className="text-center"><div className="w-8 h-8 border-4 border-[#991A21] border-t-transparent rounded-full animate-spin mx-auto mb-3" /><p className="text-sm text-gray-500">Gegevens laden…</p></div></div>;
 
   return (
     <div className="min-h-screen bg-[#F2EFEC]">
       <style>{CSS_FONT}</style>
-
-      {/* Topbar */}
       <div className="border-b border-gray-200 px-6 h-14 flex items-center justify-between bg-white shadow-sm sticky top-0 z-50">
         <div className="flex items-center gap-3">
-          <div className="flex gap-1">
-            <div className="w-7 h-7 bg-[#991A21] rounded-md flex items-center justify-center">
-              <span className="text-white text-xs">🌿</span>
-            </div>
-            <div className="w-7 h-7 bg-[#2D2D2D] rounded-md flex items-center justify-center">
-              <span className="text-white text-xs">📋</span>
-            </div>
-          </div>
+          <div className="flex gap-1"><div className="w-7 h-7 bg-[#991A21] rounded-md flex items-center justify-center"><span className="text-white text-xs">🌿</span></div><div className="w-7 h-7 bg-[#2D2D2D] rounded-md flex items-center justify-center"><span className="text-white text-xs">📋</span></div></div>
           <div className="w-px h-5 bg-gray-200" />
           <span className="text-sm font-bold text-[#2D2D2D]">Verduurzaming & Subsidies</span>
-          {aantalDeadline > 0 && (
-            <span className="text-[10px] bg-red-50 text-[#991A21] border border-red-100 px-2 py-0.5 rounded-full font-bold">
-              {aantalDeadline} deadline{aantalDeadline > 1 ? "s" : ""} nadert
-            </span>
-          )}
+          {aantalDl > 0 && <span className="text-[10px] bg-red-50 text-[#991A21] border border-red-100 px-2 py-0.5 rounded-full font-bold">{aantalDl} deadline{aantalDl > 1 ? "s" : ""} nadert</span>}
         </div>
-        <button
-          onClick={onTerug}
-          className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-gray-600 hover:text-[#991A21] transition-colors"
-        >
-          ← Terug naar portaal
-        </button>
+        <button onClick={onTerug} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-gray-600 hover:text-[#991A21] transition-colors">← Terug naar portaal</button>
       </div>
 
       <div className="p-6 max-w-7xl mx-auto">
-        {/* Statistieken */}
         <div className="grid grid-cols-4 gap-4 mb-6">
-          {[
-            { label: "VvE's totaal", val: vves.length, kleur: "#2D2D2D" },
-            { label: "Actieve trajecten", val: aantalActief, kleur: "#1A4D7A" },
-            { label: "Openstaande acties", val: acties.length, kleur: "#92400E" },
-            { label: "Deadlines < 14 dagen", val: aantalDeadline, kleur: "#991A21" },
-          ].map((s) => (
-            <div key={s.label} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">{s.label}</p>
-              <p className="text-3xl font-bold" style={{ color: s.kleur }}>{s.val}</p>
-            </div>
+          {[{label:"VvE's totaal",val:vves.length,k:"#2D2D2D"},{label:"Actief",val:aantalActief,k:VD_ROOD},{label:"Openstaande acties",val:acties.length,k:"#92400E"},{label:"Deadlines < 14d",val:aantalDl,k:aantalDl>0?VD_ROOD:"#2D6A4F"}].map(s => (
+            <div key={s.label} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm"><p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">{s.label}</p><p className="text-3xl font-bold" style={{color:s.k}}>{s.val}</p></div>
           ))}
         </div>
 
-        {/* Hoofd tabs */}
         <div className="flex gap-0 border-b border-gray-200 mb-6">
-          {[
-            { key: "vves", label: `VvE's (${vves.length})` },
-            { key: "acties", label: `Actielijst (${acties.length})` },
-            { key: "financieel", label: "Financieel overzicht" },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActieveHoofdTab(tab.key)}
-              className={`px-5 py-3 text-sm font-semibold border-b-2 transition-colors ${
-                actieveHoofdTab === tab.key
-                  ? "border-[#991A21] text-[#991A21]"
-                  : "border-transparent text-gray-500 hover:text-[#2D2D2D]"
-              }`}
-            >
-              {tab.label}
-            </button>
+          {[{key:"vves",label:`VvE's (${vves.length})`},{key:"acties",label:`Actielijst (${acties.length})`},{key:"financieel",label:"Financieel"}].map(t => (
+            <button key={t.key} onClick={() => setHoofdTab(t.key)} className={`px-5 py-3 text-sm font-semibold border-b-2 transition-colors ${hoofdTab===t.key?"border-[#991A21] text-[#991A21]":"border-transparent text-gray-500 hover:text-[#2D2D2D]"}`}>{t.label}</button>
           ))}
         </div>
 
-        {/* Tab: VvE's */}
-        {actieveHoofdTab === "vves" && (
+        {hoofdTab === "vves" && (
           <>
-            {/* Zoek + filters */}
             <div className="flex gap-3 mb-4 flex-wrap">
-              <input
-                value={zoek}
-                onChange={(e) => setZoek(e.target.value)}
-                placeholder="Zoek op VvE naam of adres…"
-                className="flex-1 min-w-48 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#991A21] transition-colors"
-              />
-              <select
-                value={filterTraject}
-                onChange={(e) => setFilterTraject(e.target.value)}
-                className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#991A21] transition-colors"
-              >
-                <option value="alle">Alle trajecten</option>
-                {Object.entries(TRAJECTEN).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-              <select
-                value={filterBeheerder}
-                onChange={(e) => setFilterBeheerder(e.target.value)}
-                className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#991A21] transition-colors"
-              >
-                <option value="alle">Alle beheerders</option>
-                {(beheerderList || []).map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
-              <button
-                onClick={addVve}
-                className="px-4 py-2 bg-[#991A21] hover:bg-[#7a1419] text-white text-sm font-semibold rounded-lg transition-colors shadow-sm"
-              >
-                + VvE toevoegen
-              </button>
+              <input value={zoek} onChange={e => setZoek(e.target.value)} placeholder="Zoek op naam of adres…" className="flex-1 min-w-40 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#991A21]" />
+              <select value={fStat} onChange={e => setFStat(e.target.value)} className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#991A21]"><option value="alle">Alle statussen</option>{Object.entries(DOSSIER_STATUS).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}</select>
+              <select value={fTraj} onChange={e => setFTraj(e.target.value)} className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#991A21]"><option value="alle">Alle trajecten</option>{Object.entries(TRAJECTEN).map(([k,v]) => <option key={k} value={k}>{v}</option>)}</select>
+              <select value={fBeh} onChange={e => setFBeh(e.target.value)} className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#991A21]"><option value="alle">Alle beheerders</option>{(beheerderList||[]).map(n => <option key={n} value={n}>{n}</option>)}</select>
+              <button onClick={addVve} className="px-4 py-2 bg-[#991A21] hover:bg-[#7a1419] text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">+ VvE toevoegen</button>
             </div>
-
-            {/* VvE lijst */}
             {zichtbaar.length === 0 ? (
-              <div className="bg-white border border-gray-200 rounded-xl p-12 text-center shadow-sm">
-                <p className="text-4xl mb-3">🌿</p>
-                <p className="text-sm font-semibold text-[#2D2D2D] mb-1">
-                  {vves.length === 0 ? "Nog geen VvE's toegevoegd" : "Geen resultaten gevonden"}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {vves.length === 0 ? "Klik op '+ VvE toevoegen' om te beginnen." : "Pas de zoek- of filterinstellingen aan."}
-                </p>
-              </div>
+              <div className="bg-white border border-gray-200 rounded-xl p-12 text-center shadow-sm"><p className="text-4xl mb-3">🌿</p><p className="text-sm font-semibold text-[#2D2D2D] mb-1">{vves.length === 0 ? "Nog geen VvE's toegevoegd" : "Geen resultaten gevonden"}</p><p className="text-xs text-gray-500">{vves.length === 0 ? "Klik op '+ VvE toevoegen' om te beginnen." : "Pas de filters aan."}</p></div>
             ) : (
-              <div className="space-y-3">
-                {zichtbaar.map((v) => (
-                  <VveKaart
-                    key={v.id}
-                    vve={v}
-                    onUpdate={updateVve}
-                    onDelete={deleteVve}
-                    openId={openId}
-                    setOpenId={setOpenId}
-                    beheerderList={beheerderList}
-                    addAudit={handleAddAudit}
-                  />
-                ))}
-              </div>
+              <div>{zichtbaar.map(v => <VveKaart key={v.id} vve={v} onUpdate={updVve} onDelete={delVve} openId={openId} setOpenId={setOpenId} beheerderList={beheerderList} />)}</div>
             )}
           </>
         )}
 
-        {/* Tab: Actielijst */}
-        {actieveHoofdTab === "acties" && (
+        {hoofdTab === "acties" && (
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-            {acties.length === 0 ? (
-              <div className="p-12 text-center">
-                <p className="text-4xl mb-3">✅</p>
-                <p className="text-sm font-semibold text-[#2D2D2D]">Geen openstaande acties</p>
-                <p className="text-xs text-gray-500">Alle trajecten zijn bijgewerkt.</p>
-              </div>
-            ) : (
+            {acties.length === 0 ? <div className="p-12 text-center"><p className="text-4xl mb-3">✅</p><p className="text-sm font-semibold text-[#2D2D2D]">Geen openstaande acties</p></div> : (
               <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="text-left px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">VvE</th>
-                    <th className="text-left px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Beheerder</th>
-                    <th className="text-left px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Traject</th>
-                    <th className="text-left px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Actie</th>
+                <thead><tr className="border-b border-gray-100 bg-gray-50">{["VvE","Beheerder","Traject","Actie"].map(h => <th key={h} className="text-left px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">{h}</th>)}</tr></thead>
+                <tbody>{acties.map((a, i) => (
+                  <tr key={i} className="border-b border-gray-50 hover:bg-[#FAF7F2]">
+                    <td className="px-5 py-3 font-semibold text-[#2D2D2D]">{a.vve||"—"}</td>
+                    <td className="px-5 py-3 text-gray-600">{a.beh||"—"}</td>
+                    <td className="px-5 py-3"><Bdg kleur={a.traj==="Isolatie"?"oranje":a.traj==="Subsidie"?"groen":"blauw"} label={a.traj} /></td>
+                    <td className="px-5 py-3"><span className="font-medium text-[#2D2D2D]">{ACTIETYPE_LABELS[a.type]||a.type}</span>{a.detail&&<p className="text-xs text-gray-500 mt-0.5 truncate max-w-xs">{a.detail}</p>}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {acties.map((a, i) => (
-                    <tr key={i} className="border-b border-gray-50 hover:bg-[#FAF7F2] transition-colors">
-                      <td className="px-5 py-3 font-semibold text-[#2D2D2D]">{a.vve || "—"}</td>
-                      <td className="px-5 py-3 text-gray-600">{a.beheerder || "—"}</td>
-                      <td className="px-5 py-3"><Badge kleur={a.traject === "Isolatie" ? "oranje" : a.traject === "Subsidie" ? "groen" : "blauw"} label={a.traject} /></td>
-                      <td className="px-5 py-3">
-                        <div>
-                          <span className="font-medium text-[#2D2D2D]">{ACTIETYPE_LABELS[a.type] || a.type}</span>
-                          {a.detail && <p className="text-xs text-gray-500 mt-0.5 truncate max-w-xs">{a.detail}</p>}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
+                ))}</tbody>
               </table>
             )}
           </div>
         )}
 
-        {/* Tab: Financieel */}
-        {actieveHoofdTab === "financieel" && (
+        {hoofdTab === "financieel" && (
           <div className="space-y-4">
-            {/* Totalen */}
             <div className="grid grid-cols-3 gap-4">
-              {[
-                { label: "Totale omzet", val: financieel.totaal, kleur: "#2D2D2D" },
-                { label: "Al gefactureerd", val: financieel.gefactureerd, kleur: "#065F46" },
-                { label: "Nog te factureren", val: financieel.open, kleur: "#991A21" },
-              ].map((s) => (
-                <div key={s.label} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">{s.label}</p>
-                  <p className="text-2xl font-bold" style={{ color: s.kleur }}>{euro(s.val)}</p>
-                </div>
+              {[{label:"Totale omzet",val:fin.totaal,k:"#2D2D2D"},{label:"Al gefactureerd",val:fin.gefactureerd,k:"#065F46"},{label:"Nog te factureren",val:fin.open,k:VD_ROOD}].map(s => (
+                <div key={s.label} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm"><p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">{s.label}</p><p className="text-2xl font-bold" style={{color:s.k}}>{euro(s.val)}</p></div>
               ))}
             </div>
-
-            {/* Per traject */}
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-              <div className="px-5 py-3 border-b border-gray-100 bg-gray-50">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Per traject</p>
-              </div>
+              <div className="px-5 py-3 border-b border-gray-100 bg-gray-50"><p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Per traject</p></div>
               <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100">
-                    <th className="text-left px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Traject</th>
-                    <th className="text-right px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Totaal</th>
-                    <th className="text-right px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Gefactureerd</th>
-                    <th className="text-right px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">Open</th>
-                  </tr>
-                </thead>
+                <thead><tr className="border-b border-gray-100">{["Traject","Totaal","Gefactureerd","Open"].map((h,i) => <th key={h} className={`px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide ${i>0?"text-right":"text-left"}`}>{h}</th>)}</tr></thead>
                 <tbody>
-                  {Object.entries(financieel.perTraject).map(([type, f]) => (
-                    <tr key={type} className="border-b border-gray-50">
-                      <td className="px-5 py-3 font-medium text-[#2D2D2D]">{TRAJECTEN[type] || type}</td>
-                      <td className="px-5 py-3 text-right text-gray-600">{euro(f.totaal)}</td>
-                      <td className="px-5 py-3 text-right text-emerald-600 font-medium">{euro(f.gefactureerd)}</td>
-                      <td className="px-5 py-3 text-right text-[#991A21] font-medium">{euro(f.open)}</td>
-                    </tr>
-                  ))}
-                  {Object.keys(financieel.perTraject).length === 0 && (
-                    <tr>
-                      <td colSpan={4} className="px-5 py-8 text-center text-xs text-gray-400 italic">Nog geen financiële data beschikbaar.</td>
-                    </tr>
-                  )}
+                  {Object.entries(fin.per).map(([type, f]) => <tr key={type} className="border-b border-gray-50"><td className="px-5 py-3 font-medium text-[#2D2D2D]">{TRAJECTEN[type]||type}</td><td className="px-5 py-3 text-right text-gray-600">{euro(f.totaal)}</td><td className="px-5 py-3 text-right text-emerald-600 font-medium">{euro(f.gefactureerd)}</td><td className="px-5 py-3 text-right font-medium" style={{color:VD_ROOD}}>{euro(f.open)}</td></tr>)}
+                  {Object.keys(fin.per).length === 0 && <tr><td colSpan={4} className="px-5 py-8 text-center text-xs text-gray-400 italic">Nog geen financiële data.</td></tr>}
                 </tbody>
               </table>
             </div>
