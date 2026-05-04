@@ -3525,6 +3525,8 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
     const isHoofdAdmin = userRol === "hoofd_admin";
     const isLodBeheerder = userRol === "beheerder_plus";
     const heeftLodToegang = isAdmin || isHoofdAdmin || isLodBeheerder;
+    const VERDUURZAMING_BEHEERDERS = ["Brian", "Jeffrey"];
+    const heeftVerduurzamingToegang = isHoofdAdmin || VERDUURZAMING_BEHEERDERS.includes(beheerder);
     // LOD statistieken voor dashboard
     const lodData = isAdmin || isHoofdAdmin ? lodLocalLoad() : [];
     const lodActief = lodData.filter(l=>l.status!=='afgerond');
@@ -3635,8 +3637,8 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
             </div>
             )}
 
-            {/* Verduurzaming & Subsidies — alleen voor hoofd_admin */}
-            {isHoofdAdmin && (
+            {/* Verduurzaming & Subsidies — voor hoofd_admin en aangewezen beheerders */}
+            {heeftVerduurzamingToegang && (
             <div
               onClick={()=>setScreen("verduurzaming")}
               className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
