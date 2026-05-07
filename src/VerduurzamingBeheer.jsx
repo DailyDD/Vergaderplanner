@@ -85,6 +85,20 @@ function leegOfferte() { return { id: uid(), partij: "", bedrag: "", aangevraagd
 function leegLog() { return { id: uid(), datum: new Date().toISOString().slice(0, 10), beheerder: "", partij: "", kanaal: "mail", omschrijving: "" }; }
 
 function berekenVoortgang(vve) {
+  // Punt 6: als dossier afgerond is altijd 100% tonen
+  if (vve.status === "afgerond") {
+    return [
+      { lbl: "Dossier aangemaakt",     ok: true },
+      { lbl: "ALV-besluit genomen",    ok: true },
+      { lbl: "Offertes aangevraagd",   ok: true },
+      { lbl: "Offertes ontvangen",     ok: true },
+      { lbl: "Voorgelegd vergadering", ok: true },
+      { lbl: "VvE akkoord",            ok: true },
+      { lbl: "Opdracht verstrekt",     ok: true },
+      { lbl: "Opdracht afgerond",      ok: true },
+      { lbl: "Dossier afgerond",       ok: true },
+    ];
+  }
   const ofs = vve.offertes || [];
   const allOntvangen = ofs.filter(o => o.aangevraagd).length > 0 && ofs.filter(o => o.aangevraagd).every(o => o.ontvangen);
   return [
@@ -173,6 +187,8 @@ function StatSidebar({ vves }) {
   const aantalLog = vves.reduce((acc, v) => acc + (v.communicatielog || []).length, 0);
   const aantalDl = vves.filter(v => (v.trajecten || []).some(t => t.type === "subsidie" && t.einddatum && (() => { const g = dagenTot(t.einddatum); return g !== null && g <= 14 && g >= 0; })())).length;
   const aantalOfferteAfwachting = vves.filter(v => v.status === "wacht_offertes").length;
+  const begeleidingOpen = vves.filter(v => (v.trajecten || []).some(t => t.type === "isolatie" && !t.begeleidingsvergoeding?.trim())).length;
+  const procesNietGefactureerd = vves.filter(v => (v.trajecten || []).some(t => t.type === "procesbegeleiding" && t.bedrag?.trim() && !t.gefactureerd)).length;
   const openActies = vves.reduce((acc, v) => {
     let n = 0;
     (v.trajecten || []).forEach(t => {
@@ -243,6 +259,14 @@ function StatSidebar({ vves }) {
           <span style={{ fontSize: 13, fontWeight: 700, color: openActies > 0 ? "#92400E" : "#2D6A4F" }}>{openActies}</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 11, color: "#8A7E7B" }}>Begeleidingsverg. open</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: begeleidingOpen > 0 ? "#92400E" : "#2D6A4F" }}>{begeleidingOpen}</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 11, color: "#8A7E7B" }}>Lening niet gefact.</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: procesNietGefactureerd > 0 ? "#92400E" : "#2D6A4F" }}>{procesNietGefactureerd}</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ fontSize: 11, color: "#8A7E7B" }}>Offertes in afwachting</span>
           <span style={{ fontSize: 13, fontWeight: 700, color: aantalOfferteAfwachting > 0 ? "#0E7490" : "#2D6A4F" }}>{aantalOfferteAfwachting}</span>
         </div>
@@ -307,7 +331,7 @@ function OffertesTab({ vve, onUpdate }) {
             <button onClick={() => del(i)} className="text-gray-400 hover:text-red-500 text-xl pb-1">×</button>
           </div>
           <div className="grid grid-cols-3 gap-2 mb-2">
-            {[["aangevraagd","Offerte aangevraagd"],["ontvangen","Offerte ontvangen"],["vveVoorlegd","Aan VvE voorgelegd"],["vveAkkoord","VvE akkoord"],["opdracht","Opdracht verstrekt"],["opdrachtAfgerond","Opdracht afgerond"]].map(([field, lbl]) => (
+            {[["aangevraagd","Offerte aangevraagd"],["ontvangen","Offerte ontvangen"],["vveVoorlegd","Gedeeld met beheerder"],["vveAkkoord","VvE akkoord"],["opdracht","Opdracht verstrekt"],["opdrachtAfgerond","Opdracht afgerond"]].map(([field, lbl]) => (
               <label key={field} style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", padding: "7px 8px", background: o[field] ? "#EAF4EE" : "#fff", border: `1.5px solid ${o[field] ? "#2D6A4F" : "#E5DEDA"}`, borderRadius: 7, fontSize: 10, fontWeight: 600, color: o[field] ? "#2D6A4F" : "#8A7E7B", userSelect: "none", transition: "all .15s" }}>
                 <input type="checkbox" checked={!!o[field]} onChange={e => togChk(i, field, e.target.checked)} style={{ width: 12, height: 12, accentColor: "#2D6A4F", cursor: "pointer" }} />
                 {lbl}
@@ -320,6 +344,10 @@ function OffertesTab({ vve, onUpdate }) {
             </div>
           )}
           {o.ontvangen && o.bedrag && <div className="mt-2 px-3 py-1.5 bg-emerald-50 rounded-lg text-xs font-semibold text-emerald-700 font-mono">Offertebedrag: {euro(parseFloat(o.bedrag))}</div>}
+          <div className="mt-2">
+            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Notitie</label>
+            <textarea value={o.notitie || ""} onChange={e => updV(i, "notitie", e.target.value)} placeholder="Opmerking of aanvullende informatie over deze offerte…" rows={2} className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-xs text-[#2D2D2D] placeholder-gray-400 focus:outline-none focus:border-[#991A21] transition-colors resize-none" />
+          </div>
         </div>
       ))}
       <button onClick={add} className="w-full py-2.5 bg-white border-2 border-dashed border-gray-200 hover:border-[#991A21] hover:text-[#991A21] text-gray-500 text-sm rounded-xl transition-colors">+ Partij / offerte toevoegen</button>
@@ -396,16 +424,7 @@ function TrajectIsolatie({ t, onChange }) {
   const updA = (idx, veld, val) => { const arr = [...(t.aannemers || [])]; arr[idx] = { ...arr[idx], [veld]: val }; u("aannemers", arr); };
   return (
     <div className="space-y-4">
-      <div>
-        <div className="flex items-center justify-between mb-2"><label className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Aannemers</label><button onClick={() => u("aannemers", [...(t.aannemers || []), { id: uid(), naam: "", contactpersoon: "" }])} className="text-[10px] text-[#991A21] hover:underline font-semibold">+ Aannemer</button></div>
-        {(t.aannemers || []).map((a, idx) => (
-          <div key={a.id} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center mb-2">
-            <Inp value={a.naam} onChange={v => updA(idx, "naam", v)} placeholder="Naam aannemer" />
-            <Inp value={a.contactpersoon} onChange={v => updA(idx, "contactpersoon", v)} placeholder="Contactpersoon" />
-            {(t.aannemers || []).length > 1 && <button onClick={() => u("aannemers", (t.aannemers || []).filter((_, i) => i !== idx))} className="text-gray-400 hover:text-red-500 text-sm">✕</button>}
-          </div>
-        ))}
-      </div>
+      <Veld label="Contactpersoon VvE"><Inp value={(t.aannemers?.[0]?.contactpersoon) || ""} onChange={v => u("aannemers", [{ id: (t.aannemers?.[0]?.id || uid()), naam: "", contactpersoon: v }])} placeholder="Naam contactpersoon VvE" /></Veld>
       <Veld label="Werkzaamheden"><Txa value={t.werkzaamheden} onChange={v => u("werkzaamheden", v)} placeholder="Omschrijving van de uit te voeren werkzaamheden…" /></Veld>
       <div className="grid grid-cols-2 gap-4">
         <Veld label="Datum VvE akkoord"><Inp type="date" value={t.vveAkkoordDatum} onChange={v => u("vveAkkoordDatum", v)} /></Veld>
@@ -418,6 +437,10 @@ function TrajectIsolatie({ t, onChange }) {
         <Chk checked={t.mailNodig} onChange={v => u("mailNodig", v)} label="Mail nog te sturen" />
       </div>
       <Veld label="Begeleidingsvergoeding (€)"><Inp value={t.begeleidingsvergoeding} onChange={v => u("begeleidingsvergoeding", v)} placeholder="bijv. 500" /></Veld>
+      <div className="grid grid-cols-2 gap-4 items-end">
+        <div className="flex items-end pb-1"><Chk checked={!!t.gefactureerdVve} onChange={v => u("gefactureerdVve", v)} label="Gefactureerd aan de VvE" /></div>
+        {t.gefactureerdVve && <Veld label="Factuurdatum"><Inp type="date" value={t.factuurdatumVve || ""} onChange={v => u("factuurdatumVve", v)} /></Veld>}
+      </div>
       <Veld label="Actiepunten"><Txa value={t.actiepunten} onChange={v => u("actiepunten", v)} placeholder="Lopende acties en openstaande punten…" rows={4} /></Veld>
     </div>
   );
@@ -987,7 +1010,7 @@ export default function VerduurzamingBeheer({ onTerug, beheerder, beheerderList 
         </div>
 
         <div className="flex gap-0 border-b border-gray-200 mb-6">
-          {[{key:"vves",label:`VvE's (${vves.length})`},{key:"acties",label:`Actielijst (${acties.length})`},{key:"financieel",label:"Financieel"}].map(t => (
+          {[{key:"vves",label:`VvE's (${vves.length})`},{key:"acties",label:`Actielijst (${acties.length})`},{key:"financieel",label:"Financieel"},{key:"facturering",label:"Facturering"}].map(t => (
             <button key={t.key} onClick={() => setHoofdTab(t.key)} className={`px-5 py-3 text-sm font-semibold border-b-2 transition-colors ${hoofdTab===t.key?"border-[#991A21] text-[#991A21]":"border-transparent text-gray-500 hover:text-[#2D2D2D]"}`}>{t.label}</button>
           ))}
         </div>
@@ -1039,6 +1062,75 @@ export default function VerduurzamingBeheer({ onTerug, beheerder, beheerderList 
             </div>
           </div>
         )}
+
+        {hoofdTab === "facturering" && (() => {
+          const factRows = [];
+          vves.forEach(v => {
+            (v.trajecten || []).forEach(t => {
+              if (t.type === "isolatie" && t.begeleidingsvergoeding?.trim()) {
+                factRows.push({ naam: v.naam||"—", adres: v.adres||"—", beheerder: v.beheerder||"—", type: "Begeleidingsvergoeding", bedrag: parseFloat(t.begeleidingsvergoeding)||0, gefactureerd: !!t.gefactureerdVve, datum: t.factuurdatumVve||"" });
+              }
+              if (t.type === "procesbegeleiding" && t.bedrag?.trim()) {
+                factRows.push({ naam: v.naam||"—", adres: v.adres||"—", beheerder: v.beheerder||"—", type: "Procesbegeleiding", bedrag: parseFloat(t.bedrag)||0, gefactureerd: !!t.gefactureerd, datum: t.factuurdatum||"" });
+              }
+            });
+          });
+          const totaalGefact = factRows.filter(r => r.gefactureerd).reduce((a, r) => a + r.bedrag, 0);
+          const totaalOpen = factRows.filter(r => !r.gefactureerd).reduce((a, r) => a + r.bedrag, 0);
+          return (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-4">
+                {[{label:"Totaal te factureren",val:factRows.reduce((a,r)=>a+r.bedrag,0),k:"#2D2D2D"},{label:"Gefactureerd aan VvE",val:totaalGefact,k:"#065F46"},{label:"Nog te factureren",val:totaalOpen,k:VD_ROOD}].map(s => (
+                  <div key={s.label} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">{s.label}</p>
+                    <p className="text-2xl font-bold" style={{color:s.k}}>{euro(s.val)}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Factureringsbedrag / Begeleidingsvergoeding per VvE</p>
+                  <span className="text-xs text-gray-400">{factRows.length} regel{factRows.length !== 1 ? "s" : ""}</span>
+                </div>
+                {factRows.length === 0 ? (
+                  <div className="p-12 text-center text-xs text-gray-400 italic">Geen bedragen ingevuld bij isolatietrajecten of procesbegeleiding.</div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100 bg-gray-50">
+                        {["VvE","Beheerder","Type","Bedrag","Gefactureerd","Datum"].map((h,i) => (
+                          <th key={h} className={`px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide ${i>2?"text-right":"text-left"}`}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {factRows.map((r, i) => (
+                        <tr key={i} className={`border-b border-gray-50 hover:bg-[#FAF7F2] ${!r.gefactureerd ? "bg-red-50/30" : ""}`}>
+                          <td className="px-4 py-3 font-semibold text-[#2D2D2D]">
+                            <div>{r.naam}</div>
+                            <div className="text-[10px] text-gray-400">{r.adres}</div>
+                          </td>
+                          <td className="px-4 py-3 text-gray-600 text-xs">{r.beheerder}</td>
+                          <td className="px-4 py-3">
+                            <span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:8,background:r.type==="Begeleidingsvergoeding"?"#FEF3E2":"#EAF1F8",color:r.type==="Begeleidingsvergoeding"?"#92400E":"#1A4D7A"}}>{r.type}</span>
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono font-semibold text-[#2D2D2D]">{euro(r.bedrag)}</td>
+                          <td className="px-4 py-3 text-right">
+                            {r.gefactureerd
+                              ? <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">✓ Ja</span>
+                              : <span className="text-xs font-semibold text-[#991A21] bg-red-50 px-2 py-0.5 rounded-full">Nee</span>
+                            }
+                          </td>
+                          <td className="px-4 py-3 text-right text-xs text-gray-500">{r.datum ? new Date(r.datum).toLocaleDateString("nl-NL") : "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
