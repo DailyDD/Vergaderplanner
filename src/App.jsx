@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import MailConfigurator from './MailConfigurator';
 import VerduurzamingBeheer from './VerduurzamingBeheer';
 import NotulenAssistent from './NotulenAssistent_deel2';
+import KennisBank from './KennisBank';
 
 // ── Huisstijl Totaal VvE Beheer ──────────────────────────────────
 // Primair: #991A21 (donkerrood), Antraciet: #2D2D2D, Achtergrond: #F2EFEC
@@ -3454,6 +3455,7 @@ useEffect(() => {
   if (screen==="mail") return <MailConfigurator onTerug={()=>setScreen("portaal")} beheerder={beheerder}/>;
   if (screen==="verduurzaming") return <VerduurzamingBeheer onTerug={()=>setScreen("portaal")} beheerder={beheerder} beheerderList={beheerderList}/>;
   if (screen==="notulen") return <NotulenAssistent onTerug={()=>setScreen("portaal")} />;
+  if (screen==="kennisbank") return <KennisBank onTerug={()=>setScreen("portaal")} />;
 
 if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBack={()=>setScreen("portaal")}/>;
   if (screen==="lod") return <LodBeheer onTerug={()=>setScreen("portaal")} beheerderList={beheerderList}/>;
@@ -3666,6 +3668,23 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
                 <p className="text-xs text-gray-500 mb-4 leading-relaxed">Stel professionele vergadernotulen samen op basis van vaste tekstblokken en schrijfstijl.</p>
                 <div className="flex items-center justify-between">
                   <span className="text-xs bg-red-50 text-[#991A21] px-2 py-1 rounded-full font-semibold border border-red-100">Beschikbaar</span>
+                  <span className="text-[#991A21] font-bold group-hover:translate-x-1 transition-transform">→</span>
+                </div>
+              </div>
+            )}
+
+            {/* Kennisbank — alleen voor hoofd_admin */}
+            {isHoofdAdmin && (
+              <div
+                onClick={()=>setScreen("kennisbank")}
+                className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
+              >
+                <div className="absolute top-0 left-0 right-0 h-1 bg-[#991A21] rounded-t-2xl" />
+                <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-2xl mb-4">💡</div>
+                <h3 className="text-base font-bold text-[#2D2D2D] mb-2">Kennisbank</h3>
+                <p className="text-xs text-gray-500 mb-4 leading-relaxed">Doorzoek 985 vragen en antwoorden over de dagelijkse werkzaamheden van een VvE beheerder.</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs bg-red-50 text-[#991A21] px-2 py-1 rounded-full font-semibold border border-red-100">985 vragen</span>
                   <span className="text-[#991A21] font-bold group-hover:translate-x-1 transition-transform">→</span>
                 </div>
               </div>
