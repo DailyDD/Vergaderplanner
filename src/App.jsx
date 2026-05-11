@@ -3682,9 +3682,9 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
                 <div className="absolute top-0 left-0 right-0 h-1 bg-[#991A21] rounded-t-2xl" />
                 <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-2xl mb-4">💡</div>
                 <h3 className="text-base font-bold text-[#2D2D2D] mb-2">Kennisbank</h3>
-                <p className="text-xs text-gray-500 mb-4 leading-relaxed">Doorzoek 985 vragen en antwoorden over de dagelijkse werkzaamheden van een VvE beheerder.</p>
+                <p className="text-xs text-gray-500 mb-4 leading-relaxed">Doorzoek vragen en antwoorden over de dagelijkse werkzaamheden van een VvE beheerder.</p>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs bg-red-50 text-[#991A21] px-2 py-1 rounded-full font-semibold border border-red-100">985 vragen</span>
+                  <span className="text-xs bg-red-50 text-[#991A21] px-2 py-1 rounded-full font-semibold border border-red-100">Beschikbaar</span>
                   <span className="text-[#991A21] font-bold group-hover:translate-x-1 transition-transform">→</span>
                 </div>
               </div>
