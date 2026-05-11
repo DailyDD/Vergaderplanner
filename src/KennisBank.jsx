@@ -387,7 +387,7 @@ export default function KennisBank({ onTerug }) {
             </h2>
             <p style={{ fontSize: 13, color: "#8A7E7B", lineHeight: 1.6, maxWidth: 400, margin: "0 auto 20px" }}>
               We hebben geen passend antwoord gevonden op <strong>"{gezochtNaar}"</strong>.
-              Dit antwoord wordt uitgewerkt en toegevoegd aan de kennisbank.
+              Geef het door aan de beheerder, dan zal dit antwoord worden uitgewerkt en toegevoegd aan de kennisbank.
             </p>
             <div style={{
               display: "inline-flex",
