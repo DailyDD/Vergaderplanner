@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import MailConfigurator from './MailConfigurator';
 import VerduurzamingBeheer from './VerduurzamingBeheer';
 import NotulenAssistent from './NotulenAssistent_deel2';
-import KennisBank from './KennisBank';
 
 // ── Huisstijl Totaal VvE Beheer ──────────────────────────────────
 // Primair: #991A21 (donkerrood), Antraciet: #2D2D2D, Achtergrond: #F2EFEC
@@ -838,6 +837,30 @@ function calcExportPDF(r) {
             + (item.tekort > 0 ? '<table><thead><tr><th>Eigenaar</th><th style="text-align:right">Aandeel</th><th style="text-align:right">Korting</th><th style="text-align:right">Eenmalige bijdrage</th></tr></thead><tbody>' + item.perEigenaar.map((e,i) => '<tr style="background:' + (i%2===0?'#fff':'#FAF7F2') + '"><td>' + e.naam + '</td><td style="text-align:right">' + (e.aandeel*100).toFixed(2) + '%</td><td style="text-align:right;color:#2D6A4F">' + (e.korting > 0 ? new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(e.korting) : '—') + '</td><td style="text-align:right;font-weight:600;color:#991A21">' + new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(e.bijdrage) + '</td></tr>').join('') + '</tbody><tfoot><tr><td colspan="3"><strong>Totaal tekort</strong></td><td style="text-align:right">' + new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(item.tekort) + '</td></tr></tfoot></table>' : '')
           ).join('')
       ) : '')
+    + (r.alleenEenmalig ? '' : (()=>{
+        const fmtRes = (v) => v !== null && v !== undefined ? new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(v) : '—';
+        const col = (label, sub, value, active) =>
+          '<div style="padding:20px 24px;flex:1;border-right:1px solid #E5DEDA">'
+          + '<div style="font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8A7E7B;margin-bottom:4px">' + label + '</div>'
+          + '<div style="font-size:8.5pt;color:#8A7E7B;margin-bottom:12px">' + sub + '</div>'
+          + (active ? '<div style="font-family:\'DM Serif Display\',serif;font-size:20pt;color:' + (value>=0?'#2D6A4F':'#C0392B') + ';font-weight:400">' + fmtRes(value) + '</div><div style="font-size:8pt;color:#8A7E7B;margin-top:4px">per jaar</div>' : '<div style="font-size:13pt;color:#8A7E7B">—</div>')
+          + '</div>';
+        return '<div class="sec">Jaarlijkse reservering voor onderhoud — VvE totaal</div>'
+          + '<div style="border:1px solid #E5DEDA;border-radius:6px;overflow:hidden;margin-bottom:14px">'
+          + '<div style="padding:12px 16px;border-bottom:1px solid #E5DEDA;display:flex;align-items:center;gap:10px;background:#fff">'
+          + '<div style="font-size:13pt">💰</div>'
+          + '<div><div style="font-size:10pt;font-weight:600">Reservering = (totale maandelijkse bijdragen × 12) − exploitatiekosten</div>'
+          + '<div style="font-size:8.5pt;color:#8A7E7B;margin-top:2px">Wat de VvE per jaar spaart voor onderhoud na aftrek van vaste lasten</div></div></div>'
+          + '<div style="display:flex">'
+          + col('Huidig', 'Op basis van huidige bijdragen', r.jaarResHuidig, r.jaarResHuidig !== null)
+          + col('Op basis van MJOP', 'Nieuwe bijdrage methode 1', r.jaarResMjop, r.hasMjop)
+          + '<div style="padding:20px 24px;flex:1">'
+          + '<div style="font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#8A7E7B;margin-bottom:4px">Op basis van 0,5%</div>'
+          + '<div style="font-size:8.5pt;color:#8A7E7B;margin-bottom:12px">Nieuwe bijdrage methode 2</div>'
+          + (r.has05 ? '<div style="font-family:\'DM Serif Display\',serif;font-size:20pt;color:' + (r.jaarRes05>=0?'#2D6A4F':'#C0392B') + ';font-weight:400">' + fmtRes(r.jaarRes05) + '</div><div style="font-size:8pt;color:#8A7E7B;margin-top:4px">per jaar</div>' : '<div style="font-size:13pt;color:#8A7E7B">—</div>')
+          + '</div>'
+          + '</div></div>';
+      })())
     + (r.alleenEenmalig ? '' : '<div class="note"><strong>Toelichting:</strong> Methode 1 (MJOP) verdient de voorkeur bij een actueel MJOP. Methode 2 (0,5%) is het wettelijk minimum conform art. 5:126 lid 3 BW (v.a. 1 jan 2021).</div>')
     + '<div class="footer"><span>Totaal VvE Beheer Den Haag en omstreken B.V. · Rijswijk</span><span>' + calcToday() + '</span></div>'
     + '</body></html>'
@@ -3455,7 +3478,6 @@ useEffect(() => {
   if (screen==="mail") return <MailConfigurator onTerug={()=>setScreen("portaal")} beheerder={beheerder}/>;
   if (screen==="verduurzaming") return <VerduurzamingBeheer onTerug={()=>setScreen("portaal")} beheerder={beheerder} beheerderList={beheerderList}/>;
   if (screen==="notulen") return <NotulenAssistent onTerug={()=>setScreen("portaal")} />;
-  if (screen==="kennisbank") return <KennisBank onTerug={()=>setScreen("portaal")} />;
 
 if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBack={()=>setScreen("portaal")}/>;
   if (screen==="lod") return <LodBeheer onTerug={()=>setScreen("portaal")} beheerderList={beheerderList}/>;
@@ -3666,23 +3688,6 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
                 <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-2xl mb-4">📋</div>
                 <h3 className="text-base font-bold text-[#2D2D2D] mb-2">Notulen Assistent</h3>
                 <p className="text-xs text-gray-500 mb-4 leading-relaxed">Stel professionele vergadernotulen samen op basis van vaste tekstblokken en schrijfstijl.</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs bg-red-50 text-[#991A21] px-2 py-1 rounded-full font-semibold border border-red-100">Beschikbaar</span>
-                  <span className="text-[#991A21] font-bold group-hover:translate-x-1 transition-transform">→</span>
-                </div>
-              </div>
-            )}
-
-            {/* Kennisbank — alleen voor hoofd_admin */}
-            {isHoofdAdmin && (
-              <div
-                onClick={()=>setScreen("kennisbank")}
-                className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
-              >
-                <div className="absolute top-0 left-0 right-0 h-1 bg-[#991A21] rounded-t-2xl" />
-                <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-2xl mb-4">💡</div>
-                <h3 className="text-base font-bold text-[#2D2D2D] mb-2">Kennisbank</h3>
-                <p className="text-xs text-gray-500 mb-4 leading-relaxed">Doorzoek vragen en antwoorden over de dagelijkse werkzaamheden van een VvE beheerder.</p>
                 <div className="flex items-center justify-between">
                   <span className="text-xs bg-red-50 text-[#991A21] px-2 py-1 rounded-full font-semibold border border-red-100">Beschikbaar</span>
                   <span className="text-[#991A21] font-bold group-hover:translate-x-1 transition-transform">→</span>
