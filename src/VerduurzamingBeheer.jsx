@@ -28,17 +28,33 @@ async function vdFetch(path, options = {}) {
 async function vdLoad() {
   try {
     const rows = await vdFetch(`${VD_TABLE}?select=id,data&order=created_at.desc`);
-    if (!rows || !rows.length) return [];
+    // Alleen de localStorage overschrijven als Supabase écht data teruggeeft
+    // Lege array van Supabase = mogelijk RLS/netwerk probleem, val terug op localStorage
+    if (!rows || !rows.length) {
+      const local = localStorage.getItem("vd_data_v1");
+      return local ? JSON.parse(local) : [];
+    }
     return rows.map(r => ({ id: r.id, ...r.data }));
-  } catch { try { const r = localStorage.getItem("vd_data_v1"); return r ? JSON.parse(r) : []; } catch { return []; } }
+  } catch {
+    try { const r = localStorage.getItem("vd_data_v1"); return r ? JSON.parse(r) : []; } catch { return []; }
+  }
 }
 
 async function vdSave(record) {
-  const backup = () => { try { const all = JSON.parse(localStorage.getItem("vd_data_v1") || "[]"); const idx = all.findIndex(r => r.id === record.id); if (idx >= 0) all[idx] = record; else all.unshift(record); localStorage.setItem("vd_data_v1", JSON.stringify(all)); } catch {} };
+  const backup = () => {
+    try {
+      const all = JSON.parse(localStorage.getItem("vd_data_v1") || "[]");
+      const idx = all.findIndex(r => r.id === record.id);
+      if (idx >= 0) all[idx] = record; else all.unshift(record);
+      localStorage.setItem("vd_data_v1", JSON.stringify(all));
+    } catch {}
+  };
   try {
-    const existing = await vdFetch(`${VD_TABLE}?id=eq.${record.id}&select=id`);
-    if (existing && existing.length) { await vdFetch(`${VD_TABLE}?id=eq.${record.id}`, { method: "PATCH", body: JSON.stringify({ data: record }) }); }
-    else { await vdFetch(VD_TABLE, { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ id: record.id, data: record }) }); }
+    await vdFetch(VD_TABLE, {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({ id: record.id, data: record }),
+    });
     backup();
   } catch { backup(); }
 }
@@ -937,15 +953,19 @@ export default function VerduurzamingBeheer({ onTerug, beheerder, beheerderList 
 
   useEffect(() => { vdLoad().then(d => { if (d && d.length) setVves(d); setLoading(false); }).catch(() => setLoading(false)); }, []);
 
-  // Zorg dat openstaande saves direct worden uitgevoerd bij sluiten tabblad
+  // Ref voor meest recente vves state (voor beforeunload)
   const vvesRef = useRef([]);
   useEffect(() => { vvesRef.current = vves; }, [vves]);
+
+  // Debounce timers per VvE id
+  const saveTimers = useRef({});
+
+  // Flush alle openstaande saves bij sluiten tabblad
   useEffect(() => {
     const handler = () => {
-      const timers = saveTimers.current;
-      Object.keys(timers).forEach(id => {
-        if (timers[id]) {
-          clearTimeout(timers[id]);
+      Object.keys(saveTimers.current).forEach(id => {
+        if (saveTimers.current[id]) {
+          clearTimeout(saveTimers.current[id]);
           const vve = vvesRef.current.find(v => v.id === id);
           if (vve) vdSave(vve);
         }
@@ -955,14 +975,18 @@ export default function VerduurzamingBeheer({ onTerug, beheerder, beheerderList 
     return () => window.removeEventListener("beforeunload", handler);
   }, []);
 
-  const saveTimers = useRef({});
   const addVve = async () => { const n = leegVve(); setVves([n, ...vves]); await vdSave(n); setOpenId(n.id); setHoofdTab("vves"); };
   const updVve = useCallback((v) => {
     setVves(p => p.map(x => x.id === v.id ? v : x));
     if (saveTimers.current[v.id]) clearTimeout(saveTimers.current[v.id]);
-    saveTimers.current[v.id] = setTimeout(() => { vdSave(v); }, 600);
+    saveTimers.current[v.id] = setTimeout(() => { vdSave(v); }, 800);
   }, []);
-  const delVve = async id => { setVves(p => p.filter(x => x.id !== id)); await vdDelete(id); if (openId === id) setOpenId(null); };
+  const delVve = async id => {
+    if (saveTimers.current[id]) { clearTimeout(saveTimers.current[id]); delete saveTimers.current[id]; }
+    setVves(p => p.filter(x => x.id !== id));
+    await vdDelete(id);
+    if (openId === id) setOpenId(null);
+  };
 
   const zichtbaar = vves.filter(v => {
     const mz = !zoek || (v.naam || "").toLowerCase().includes(zoek.toLowerCase()) || (v.adres || "").toLowerCase().includes(zoek.toLowerCase());
