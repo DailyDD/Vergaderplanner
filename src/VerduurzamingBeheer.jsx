@@ -28,9 +28,8 @@ async function vdFetch(path, options = {}) {
 async function vdLoad() {
   try {
     const rows = await vdFetch(`${VD_TABLE}?select=id,data&order=created_at.desc`);
-    // Alleen de localStorage overschrijven als Supabase écht data teruggeeft
-    // Lege array van Supabase = mogelijk RLS/netwerk probleem, val terug op localStorage
     if (!rows || !rows.length) {
+      // Supabase geeft leeg terug — gebruik localStorage als veilige fallback
       const local = localStorage.getItem("vd_data_v1");
       return local ? JSON.parse(local) : [];
     }
@@ -50,13 +49,18 @@ async function vdSave(record) {
     } catch {}
   };
   try {
-    await vdFetch(VD_TABLE, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${VD_TABLE}`, {
       method: "POST",
-      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      headers: { ...getAuthHeaders(), Prefer: "resolution=merge-duplicates,return=minimal" },
       body: JSON.stringify({ id: record.id, data: record }),
     });
+    if (!res.ok) { const err = await res.text(); throw new Error(err); }
     backup();
-  } catch { backup(); }
+    return true;
+  } catch(e) {
+    backup();
+    return false;
+  }
 }
 
 async function vdDelete(id) {
@@ -463,48 +467,58 @@ function TrajectIsolatie({ t, onChange }) {
 }
 // ── DEEL 2 — plak direct onder deel 1, vervang de sluitende } van TrajectIsolatie niet ──
 
-function VveKaart({ vve, onUpdate, onDelete, openId, setOpenId, beheerderList }) {
+function VveKaart({ vve, onUpdate, onSave, onDelete, openId, setOpenId, beheerderList }) {
   const open = openId === vve.id;
   const [tab, setTab] = useState("info");
   const [nieuweLog, setNieuweLog] = useState(leegLog());
   const [logForm, setLogForm] = useState(false);
-  // FIX punt 3: staat voor bewerken log
   const [bewerkLogId, setBewerkLogId] = useState(null);
   const [bewerkLogData, setBewerkLogData] = useState(null);
+  const [saveStatus, setSaveStatus] = useState("idle"); // idle | saving | saved | error
+  const [heeftWijzigingen, setHeeftWijzigingen] = useState(false);
 
   const u = (k, v) => {
     const entry = { tijdstip: nu(), veld: k, oud: vve[k], nieuw: v };
     const bij = { ...vve, [k]: v, audittrail: [...(vve.audittrail || []), entry] };
     if (k === "alvBesluit" && v && !vve.tijdlijn?.alvBesluit) bij.tijdlijn = { ...(vve.tijdlijn || {}), alvBesluit: nu() };
     onUpdate(bij);
+    setHeeftWijzigingen(true);
+    setSaveStatus("idle");
   };
 
-  const updTraj = t => onUpdate({ ...vve, trajecten: (vve.trajecten || []).map(x => x.id === t.id ? t : x) });
-  const addTraj = type => onUpdate({ ...vve, trajecten: [...(vve.trajecten || []), leegTraject(type)] });
-  const delTraj = tid => { if (confirm("Traject verwijderen?")) onUpdate({ ...vve, trajecten: (vve.trajecten || []).filter(t => t.id !== tid) }); };
+  const updTraj = t => { onUpdate({ ...vve, trajecten: (vve.trajecten || []).map(x => x.id === t.id ? t : x) }); setHeeftWijzigingen(true); setSaveStatus("idle"); };
+  const addTraj = type => { onUpdate({ ...vve, trajecten: [...(vve.trajecten || []), leegTraject(type)] }); setHeeftWijzigingen(true); setSaveStatus("idle"); };
+  const delTraj = tid => { if (confirm("Traject verwijderen?")) { onUpdate({ ...vve, trajecten: (vve.trajecten || []).filter(t => t.id !== tid) }); setHeeftWijzigingen(true); setSaveStatus("idle"); } };
 
   const slaLogOp = () => {
     if (!nieuweLog.omschrijving.trim()) return;
     onUpdate({ ...vve, communicatielog: [...(vve.communicatielog || []), { ...nieuweLog, id: uid() }] });
     setNieuweLog(leegLog()); setLogForm(false);
+    setHeeftWijzigingen(true); setSaveStatus("idle");
   };
 
-  // FIX punt 3: log bewerken opslaan
   const slaLogBewerkingOp = () => {
     if (!bewerkLogData?.omschrijving?.trim()) return;
     const bijgewerkt = (vve.communicatielog || []).map(l => l.id === bewerkLogId ? { ...bewerkLogData } : l);
     onUpdate({ ...vve, communicatielog: bijgewerkt });
-    setBewerkLogId(null);
-    setBewerkLogData(null);
+    setBewerkLogId(null); setBewerkLogData(null);
+    setHeeftWijzigingen(true); setSaveStatus("idle");
   };
 
-  // FIX punt 3: log verwijderen
   const verwijderLog = (lid) => {
     if (!confirm("Logitem verwijderen?")) return;
     onUpdate({ ...vve, communicatielog: (vve.communicatielog || []).filter(l => l.id !== lid) });
+    setHeeftWijzigingen(true); setSaveStatus("idle");
   };
 
-  const afgerond = () => { onUpdate({ ...vve, status: "afgerond", tijdlijn: { ...(vve.tijdlijn || {}), afgerond: nu() } }); setOpenId(null); };
+  const opslaanNaarSupabase = async () => {
+    setSaveStatus("saving");
+    const ok = await onSave(vve);
+    if (ok) { setSaveStatus("saved"); setHeeftWijzigingen(false); setTimeout(() => setSaveStatus("idle"), 2500); }
+    else { setSaveStatus("error"); }
+  };
+
+  const afgerond = () => { onUpdate({ ...vve, status: "afgerond", tijdlijn: { ...(vve.tijdlijn || {}), afgerond: nu() } }); setHeeftWijzigingen(true); setSaveStatus("idle"); setOpenId(null); };
 
   // FIX punt 5: ALV uit deadlines gehaald — alleen subsidie einddatums
   const deadlines = [];
@@ -550,10 +564,30 @@ function VveKaart({ vve, onUpdate, onDelete, openId, setOpenId, beheerderList })
 
       {open && (
         <div style={{ borderTop: "1.5px solid #E5E0DB", background: "#FDFCFB" }}>
-          <div style={{ display: "flex", borderBottom: "1px solid #E5DEDA", background: "#fff", paddingLeft: 16, overflowX: "auto" }}>
+          <div style={{ display: "flex", borderBottom: "1px solid #E5DEDA", background: "#fff", paddingLeft: 16, overflowX: "auto", alignItems: "center" }}>
             {[["info","Dossier"],["trajecten",`Trajecten (${(vve.trajecten||[]).length})`],["offertes",`Offertes (${(vve.offertes||[]).length})`],["log",`Log (${(vve.communicatielog||[]).length})`],["tijdlijn","Tijdlijn"],["audit","Audittrail"]].map(([k,l]) => (
               <button key={k} onClick={() => setTab(k)} style={{ padding: "9px 14px", border: "none", borderBottom: `2px solid ${tab === k ? VD_ROOD : "transparent"}`, background: "transparent", fontSize: 12, fontWeight: tab === k ? 600 : 400, color: tab === k ? VD_ROOD : "#6B7280", cursor: "pointer", whiteSpace: "nowrap" }}>{l}</button>
             ))}
+            <div style={{ marginLeft: "auto", paddingRight: 12, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+              {heeftWijzigingen && saveStatus !== "saved" && (
+                <span style={{ fontSize: 10, color: "#92400E", background: "#FEF3E2", padding: "2px 8px", borderRadius: 8, fontWeight: 600 }}>● Niet opgeslagen</span>
+              )}
+              {saveStatus === "error" && (
+                <span style={{ fontSize: 10, color: "#991A21", background: "#FEF2F2", padding: "2px 8px", borderRadius: 8, fontWeight: 600 }}>✕ Opslaan mislukt — probeer opnieuw</span>
+              )}
+              <button
+                onClick={opslaanNaarSupabase}
+                disabled={saveStatus === "saving" || (!heeftWijzigingen && saveStatus !== "error")}
+                style={{
+                  padding: "5px 14px", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 600, cursor: (saveStatus === "saving" || (!heeftWijzigingen && saveStatus !== "error")) ? "not-allowed" : "pointer",
+                  background: saveStatus === "saved" ? "#D1FAE5" : saveStatus === "error" ? "#FEF2F2" : heeftWijzigingen ? VD_ROOD : "#F3F4F6",
+                  color: saveStatus === "saved" ? "#065F46" : saveStatus === "error" ? "#991A21" : heeftWijzigingen ? "#fff" : "#9CA3AF",
+                  transition: "all .2s",
+                }}
+              >
+                {saveStatus === "saving" ? "Opslaan…" : saveStatus === "saved" ? "✓ Opgeslagen" : saveStatus === "error" ? "↺ Opnieuw" : "Opslaan"}
+              </button>
+            </div>
           </div>
           <div style={{ padding: 16 }}>
 
@@ -953,40 +987,16 @@ export default function VerduurzamingBeheer({ onTerug, beheerder, beheerderList 
 
   useEffect(() => { vdLoad().then(d => { if (d && d.length) setVves(d); setLoading(false); }).catch(() => setLoading(false)); }, []);
 
-  // Ref voor meest recente vves state (voor beforeunload)
-  const vvesRef = useRef([]);
-  useEffect(() => { vvesRef.current = vves; }, [vves]);
-
-  // Debounce timers per VvE id
-  const saveTimers = useRef({});
-
-  // Flush alle openstaande saves bij sluiten tabblad
-  useEffect(() => {
-    const handler = () => {
-      Object.keys(saveTimers.current).forEach(id => {
-        if (saveTimers.current[id]) {
-          clearTimeout(saveTimers.current[id]);
-          const vve = vvesRef.current.find(v => v.id === id);
-          if (vve) vdSave(vve);
-        }
-      });
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, []);
-
   const addVve = async () => { const n = leegVve(); setVves([n, ...vves]); await vdSave(n); setOpenId(n.id); setHoofdTab("vves"); };
+  // updVve: alleen lokale state bijwerken, geen Supabase
   const updVve = useCallback((v) => {
     setVves(p => p.map(x => x.id === v.id ? v : x));
-    if (saveTimers.current[v.id]) clearTimeout(saveTimers.current[v.id]);
-    saveTimers.current[v.id] = setTimeout(() => { vdSave(v); }, 800);
   }, []);
-  const delVve = async id => {
-    if (saveTimers.current[id]) { clearTimeout(saveTimers.current[id]); delete saveTimers.current[id]; }
-    setVves(p => p.filter(x => x.id !== id));
-    await vdDelete(id);
-    if (openId === id) setOpenId(null);
-  };
+  // slaVveOp: expliciete save naar Supabase, geeft true/false terug
+  const slaVveOp = useCallback(async (v) => {
+    return await vdSave(v);
+  }, []);
+  const delVve = async id => { setVves(p => p.filter(x => x.id !== id)); await vdDelete(id); if (openId === id) setOpenId(null); };
 
   const zichtbaar = vves.filter(v => {
     const mz = !zoek || (v.naam || "").toLowerCase().includes(zoek.toLowerCase()) || (v.adres || "").toLowerCase().includes(zoek.toLowerCase());
@@ -1079,7 +1089,7 @@ export default function VerduurzamingBeheer({ onTerug, beheerder, beheerderList 
                 {zichtbaar.length === 0 ? (
                   <div className="bg-white border border-gray-200 rounded-xl p-12 text-center shadow-sm"><p className="text-4xl mb-3">🌿</p><p className="text-sm font-semibold text-[#2D2D2D] mb-1">{vves.length === 0 ? "Nog geen VvE's toegevoegd" : "Geen resultaten gevonden"}</p><p className="text-xs text-gray-500">{vves.length === 0 ? "Klik op '+ VvE toevoegen' om te beginnen." : "Pas de filters aan."}</p></div>
                 ) : (
-                  <div>{zichtbaar.map(v => <VveKaart key={v.id} vve={v} onUpdate={updVve} onDelete={delVve} openId={openId} setOpenId={setOpenId} beheerderList={beheerderList} />)}</div>
+                  <div>{zichtbaar.map(v => <VveKaart key={v.id} vve={v} onUpdate={updVve} onSave={slaVveOp} onDelete={delVve} openId={openId} setOpenId={setOpenId} beheerderList={beheerderList} />)}</div>
                 )}
               </div>
             </div>
