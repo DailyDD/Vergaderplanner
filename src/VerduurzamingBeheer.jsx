@@ -36,9 +36,11 @@ async function vdLoad() {
 async function vdSave(record) {
   const backup = () => { try { const all = JSON.parse(localStorage.getItem("vd_data_v1") || "[]"); const idx = all.findIndex(r => r.id === record.id); if (idx >= 0) all[idx] = record; else all.unshift(record); localStorage.setItem("vd_data_v1", JSON.stringify(all)); } catch {} };
   try {
-    const existing = await vdFetch(`${VD_TABLE}?id=eq.${record.id}&select=id`);
-    if (existing && existing.length) { await vdFetch(`${VD_TABLE}?id=eq.${record.id}`, { method: "PATCH", body: JSON.stringify({ data: record }) }); }
-    else { await vdFetch(VD_TABLE, { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ id: record.id, data: record }) }); }
+    await vdFetch(VD_TABLE, {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({ id: record.id, data: record }),
+    });
     backup();
   } catch { backup(); }
 }
