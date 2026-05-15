@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 
 const CSS_FONT = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
 * { font-family: 'DM Sans', sans-serif !important; }`;
@@ -36,11 +36,9 @@ async function vdLoad() {
 async function vdSave(record) {
   const backup = () => { try { const all = JSON.parse(localStorage.getItem("vd_data_v1") || "[]"); const idx = all.findIndex(r => r.id === record.id); if (idx >= 0) all[idx] = record; else all.unshift(record); localStorage.setItem("vd_data_v1", JSON.stringify(all)); } catch {} };
   try {
-    await vdFetch(VD_TABLE, {
-      method: "POST",
-      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify({ id: record.id, data: record }),
-    });
+    const existing = await vdFetch(`${VD_TABLE}?id=eq.${record.id}&select=id`);
+    if (existing && existing.length) { await vdFetch(`${VD_TABLE}?id=eq.${record.id}`, { method: "PATCH", body: JSON.stringify({ data: record }) }); }
+    else { await vdFetch(VD_TABLE, { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ id: record.id, data: record }) }); }
     backup();
   } catch { backup(); }
 }
@@ -939,8 +937,31 @@ export default function VerduurzamingBeheer({ onTerug, beheerder, beheerderList 
 
   useEffect(() => { vdLoad().then(d => { if (d && d.length) setVves(d); setLoading(false); }).catch(() => setLoading(false)); }, []);
 
+  // Zorg dat openstaande saves direct worden uitgevoerd bij sluiten tabblad
+  const vvesRef = useRef([]);
+  useEffect(() => { vvesRef.current = vves; }, [vves]);
+  useEffect(() => {
+    const handler = () => {
+      const timers = saveTimers.current;
+      Object.keys(timers).forEach(id => {
+        if (timers[id]) {
+          clearTimeout(timers[id]);
+          const vve = vvesRef.current.find(v => v.id === id);
+          if (vve) vdSave(vve);
+        }
+      });
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, []);
+
+  const saveTimers = useRef({});
   const addVve = async () => { const n = leegVve(); setVves([n, ...vves]); await vdSave(n); setOpenId(n.id); setHoofdTab("vves"); };
-  const updVve = async v => { setVves(p => p.map(x => x.id === v.id ? v : x)); await vdSave(v); };
+  const updVve = useCallback((v) => {
+    setVves(p => p.map(x => x.id === v.id ? v : x));
+    if (saveTimers.current[v.id]) clearTimeout(saveTimers.current[v.id]);
+    saveTimers.current[v.id] = setTimeout(() => { vdSave(v); }, 600);
+  }, []);
   const delVve = async id => { setVves(p => p.filter(x => x.id !== id)); await vdDelete(id); if (openId === id) setOpenId(null); };
 
   const zichtbaar = vves.filter(v => {
