@@ -1432,7 +1432,7 @@ body{font-family:Arial,sans-serif;font-size:10pt;color:#1A1614;background:#fff}
 .sum-box label{font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8A7E7B;display:block;margin-bottom:3px}
 .sum-box span{font-size:13pt;font-weight:700;color:#991A21}
 table{width:100%;border-collapse:collapse;margin-top:0}
-thead tr{background:#2D2D2D}
+thead tr{background:#991A21}
 thead th{padding:8px 12px;font-size:8pt;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#fff;text-align:left}
 thead th.r{text-align:right}
 tbody tr:nth-child(even){background:#FAF7F2}
@@ -1485,7 +1485,7 @@ ${r.mnd05 !== null ? '<div class="summary-grid" style="grid-template-columns:rep
   </tr></tfoot>
 </table>
 <div class="footer">
-  <span>Totaal VvE Beheer Den Haag e.o. &mdash; KvK Den Haag</span>
+  <span>Totaal VvE Beheer Den Haag e.o.</span>
   <span>Gegenereerd op ${today}</span>
 </div>
 </div></body></html>`
