@@ -7,10 +7,19 @@ const CSS_PRINT = `
 @media print {
   body * { visibility: hidden !important; }
   #vd-print-area, #vd-print-area * { visibility: visible !important; }
-  #vd-print-area { position: fixed !important; inset: 0 !important; padding: 28px 36px !important; background: #fff !important; z-index: 9999 !important; }
+  #vd-print-area {
+    position: absolute !important;
+    top: 0 !important; left: 0 !important;
+    width: 100% !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
   #vd-print-area .print-header { display: flex !important; }
   #vd-print-area .print-footer { display: flex !important; }
   #vd-print-area button { display: none !important; }
+  #vd-print-area table { page-break-inside: auto; }
+  #vd-print-area tr { page-break-inside: avoid; page-break-after: auto; }
+  #vd-print-area thead { display: table-header-group; }
   @page { margin: 1.5cm; size: A4; }
 }`;
 
