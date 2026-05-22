@@ -664,7 +664,7 @@ function VveKaart({ vve, onUpdate, onSave, onDelete, openId, setOpenId, beheerde
               </div>
             )}
 
-            {tab === "offertes" && <OffertesTab vve={vve} onUpdate={onUpdate} />}
+            {tab === "offertes" && <OffertesTab vve={vve} onUpdate={v => { onUpdate(v); setHeeftWijzigingen(true); setSaveStatus("idle"); }} />}
 
             {tab === "log" && (
               <div className="space-y-4">
@@ -987,14 +987,19 @@ export default function VerduurzamingBeheer({ onTerug, beheerder, beheerderList 
 
   useEffect(() => { vdLoad().then(d => { if (d && d.length) setVves(d); setLoading(false); }).catch(() => setLoading(false)); }, []);
 
-  const addVve = async () => { const n = leegVve(); setVves([n, ...vves]); await vdSave(n); setOpenId(n.id); setHoofdTab("vves"); };
+  const addVve = async () => { const n = leegVve(); setVves(p => [n, ...p]); await vdSave(n); setOpenId(n.id); setHoofdTab("vves"); };
   // updVve: alleen lokale state bijwerken, geen Supabase
   const updVve = useCallback((v) => {
     setVves(p => p.map(x => x.id === v.id ? v : x));
   }, []);
-  // slaVveOp: expliciete save naar Supabase, geeft true/false terug
+  // vvesRef houdt altijd de meest actuele vves bij voor gebruik in callbacks
+  const vvesRef = useRef(vves);
+  useEffect(() => { vvesRef.current = vves; }, [vves]);
+
+  // slaVveOp: leest actuele record uit vvesRef om stale-prop dataverlies te voorkomen
   const slaVveOp = useCallback(async (v) => {
-    return await vdSave(v);
+    const actueel = vvesRef.current.find(x => x.id === v.id) || v;
+    return await vdSave(actueel);
   }, []);
   const delVve = async id => { setVves(p => p.filter(x => x.id !== id)); await vdDelete(id); if (openId === id) setOpenId(null); };
 
