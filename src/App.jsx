@@ -973,14 +973,21 @@ function VveCalculator({ onTerug }) {
     const maandlast = rMnd === 0
       ? bedrag / n
       : bedrag * rMnd * Math.pow(1 + rMnd, n) / (Math.pow(1 + rMnd, n) - 1)
+    // 0,5% van herbouwwaarde berekening
+    const hv       = parseFloat(herbouwwaarde) || 0
+    const jaarExpl = (parseFloat(verzekering)||0) + (parseFloat(administratie)||0) + (parseFloat(bankkosten)||0) + (parseFloat(overig)||0) + extraKosten.reduce((s,e)=>s+(parseFloat(e.bedrag)||0),0)
+    const jaar05   = hv > 0 ? hv * 0.005 : null
+    const jaar05Totaal = jaar05 !== null ? jaar05 + jaarExpl : null
+    const mnd05    = jaar05Totaal !== null ? jaar05Totaal / 12 : null
+
     const eigenaren = validRows.map(row => {
       const teller  = parseFloat(row.teller)
       const aandeel = teller / noemer
       const lening  = aandeel * maandlast
-      const huidig  = parseFloat(row.huidig) || null
-      return { naam: row.naam || ('App. ' + row.id), teller, noemer, aandeel, lening, huidig }
+      const bijdr05 = mnd05 !== null ? aandeel * mnd05 : null
+      return { naam: row.naam || ('App. ' + row.id), teller, noemer, aandeel, lening, bijdr05 }
     })
-    setWfResult({ bedrag, looptijd, rente, maandlast, eigenaren, complexNaam })
+    setWfResult({ bedrag, looptijd, rente, maandlast, eigenaren, complexNaam, hv, mnd05 })
   }
 
   const addExtraKost = () => setExtraKosten(p => [...p, { id: uid(), naam: '', bedrag: '' }])
@@ -1238,6 +1245,39 @@ function VveCalculator({ onTerug }) {
               </div>
             </CCard>
 
+            <CCard header={<CCardHdr icon="🏢" bg={S.redBg} title="Complexgegevens" sub="Herbouwwaarde voor 0,5% berekening" />}>
+              <div style={{ padding:'18px 20px' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+                  <CField label="Naam complex"><CInp placeholder="bijv. VvE Reinkenstraat 1-24" value={complexNaam} onChange={e => setComplexNaam(e.target.value)} /></CField>
+                  <CField label="Herbouwwaarde (€)"><CInp type="number" placeholder="bijv. 2500000" value={herbouwwaarde} onChange={e => setHerbouwwaarde(e.target.value)} /></CField>
+                </div>
+              </div>
+            </CCard>
+
+            <CCard header={<CCardHdr icon="💼" bg={S.blueBg} title="Vaste lasten (jaarlijks)" sub="Worden meegenomen in de 0,5% bijdrageberekening" />}>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, padding:'18px 20px 14px' }}>
+                <CField label="Opstalverzekering (€/jaar)"><CInp type="number" placeholder="bijv. 3200" value={verzekering} onChange={e => setVerzekering(e.target.value)} /></CField>
+                <CField label="Administratie/beheer (€/jaar)"><CInp type="number" placeholder="bijv. 2400" value={administratie} onChange={e => setAdministratie(e.target.value)} /></CField>
+                <CField label="Bankkosten (€/jaar)"><CInp type="number" placeholder="bijv. 250" value={bankkosten} onChange={e => setBankkosten(e.target.value)} /></CField>
+                <CField label="Overig (€/jaar)"><CInp type="number" placeholder="bijv. 800" value={overig} onChange={e => setOverig(e.target.value)} /></CField>
+              </div>
+              {extraKosten.length > 0 && (
+                <div style={{ padding:'0 20px 8px' }}>
+                  <div style={{ fontSize:11, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 }}>Extra kostenposten</div>
+                  {extraKosten.map(e => (
+                    <div key={e.id} style={{ display:'grid', gridTemplateColumns:'1fr 180px 36px', gap:8, marginBottom:8, alignItems:'center' }}>
+                      <CInp placeholder="Naam kostenpost (bijv. Liftonderhoud)" value={e.naam} onChange={v => updExtraKost(e.id, 'naam', v.target.value)} />
+                      <CInp type="number" placeholder="euro/jaar" value={e.bedrag} onChange={v => updExtraKost(e.id, 'bedrag', v.target.value)} />
+                      <button onClick={() => delExtraKost(e.id)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:16, color:S.muted, padding:'6px', borderRadius:4, textAlign:'center' }}>x</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button onClick={addExtraKost} style={{ margin:'4px 20px 14px', padding:'8px 14px', background:'#fff', border:'1.5px dashed '+S.border, borderRadius:8, fontFamily:'inherit', fontSize:13, color:S.muted, cursor:'pointer', width:'calc(100% - 40px)' }}>
+                + Extra kostenpost toevoegen
+              </button>
+            </CCard>
+
             <div style={{ marginTop:4, padding:'10px 14px', background:'#EAF4EE', border:'1px solid #C6E8D0', borderRadius:8, fontSize:12, color:'#2D6A4F', marginBottom:14 }}>
               Eigenaren en breukdelen worden overgenomen uit de tabel hieronder. Vul die eerst in of importeer via bulk.
             </div>
@@ -1311,11 +1351,12 @@ function VveCalculator({ onTerug }) {
             {wfResult && (
               <div style={{ marginTop:28 }}>
                 <CSecTitle>Resultaat - Leningbijdrage Warmtefonds</CSecTitle>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:14, marginBottom:14 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:14, marginBottom:14 }}>
                   {[
                     { label:'Geleend bedrag', val: fmt(wfResult.bedrag) },
                     { label:'Looptijd', val: wfResult.looptijd + ' mnd (' + Math.round(wfResult.looptijd/12*10)/10 + ' jr)' },
-                    { label:'Maandlast VvE totaal', val: fmt(wfResult.maandlast), accent: true },
+                    { label:'Leningmaandlast VvE', val: fmt(wfResult.maandlast), accent: true },
+                    { label:'0,5% maandlast VvE', val: wfResult.mnd05 !== null ? fmt(wfResult.mnd05) : '—', accent: true },
                   ].map(s => (
                     <div key={s.label} style={{ background:'#fff', border:'1px solid '+S.border, borderRadius:12, padding:'16px 20px' }}>
                       <div style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:4 }}>{s.label}</div>
@@ -1328,7 +1369,7 @@ function VveCalculator({ onTerug }) {
                     <table style={{ width:'100%', borderCollapse:'collapse' }}>
                       <thead>
                         <tr style={{ background:S.cream, borderBottom:'1px solid '+S.border }}>
-                          {['Eigenaar','Breukdeel','Aandeel %','Huidige bijdrage/mnd','Leningbijdrage/mnd'].map((h,i) => (
+                          {['Eigenaar','Breukdeel','Aandeel %','Standaard bijdrage (0,5%)/mnd','Leningbijdrage/mnd'].map((h,i) => (
                             <th key={i} style={{ padding:'8px 10px', textAlign:i>1?'right':'left', fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em' }}>{h}</th>
                           ))}
                         </tr>
@@ -1339,8 +1380,8 @@ function VveCalculator({ onTerug }) {
                             <td style={{ padding:'8px 10px', fontWeight:500, fontSize:12 }}>{e.naam}</td>
                             <td style={{ padding:'8px 10px', fontFamily:'monospace', fontSize:12, textAlign:'right' }}>{e.teller}/{e.noemer}</td>
                             <td style={{ padding:'8px 10px', fontFamily:'monospace', fontSize:12, textAlign:'right' }}>{(e.aandeel*100).toFixed(2)}%</td>
-                            <td style={{ padding:'8px 10px', fontFamily:'monospace', fontSize:12, textAlign:'right', color: e.huidig ? S.ink : S.muted }}>
-                              {e.huidig !== null ? fmt(e.huidig) : '-'}
+                            <td style={{ padding:'8px 10px', fontFamily:'monospace', fontSize:12, textAlign:'right', color: e.bijdr05 !== null ? S.ink : S.muted }}>
+                              {e.bijdr05 !== null ? fmt(e.bijdr05) : '-'}
                             </td>
                             <td style={{ padding:'8px 10px', fontFamily:'monospace', fontSize:12, textAlign:'right', fontWeight:600, color:S.bordeaux }}>
                               {fmt(e.lening)}
@@ -1353,7 +1394,7 @@ function VveCalculator({ onTerug }) {
                           <td colSpan={2} style={{ padding:'9px 10px', fontSize:13, fontWeight:600, color:S.muted }}>Totaal VvE</td>
                           <td style={{ padding:'9px 10px', fontFamily:'monospace', fontSize:13, fontWeight:600, textAlign:'right' }}>100%</td>
                           <td style={{ padding:'9px 10px', fontFamily:'monospace', fontSize:13, fontWeight:600, color:S.bordeaux, textAlign:'right' }}>
-                            {(() => { const t = wfResult.eigenaren.reduce((s,e)=>s+(e.huidig||0),0); return t > 0 ? fmt(t) : '-' })()}
+                            {wfResult.mnd05 !== null ? fmt(wfResult.eigenaren.reduce((s,e)=>s+(e.bijdr05||0),0)) : '-'}
                           </td>
                           <td style={{ padding:'9px 10px', fontFamily:'monospace', fontSize:13, fontWeight:600, color:S.bordeaux, textAlign:'right' }}>
                             {fmt(wfResult.eigenaren.reduce((s,e)=>s+e.lening,0))}
@@ -1365,14 +1406,14 @@ function VveCalculator({ onTerug }) {
                 </CCard>
                 <button onClick={() => {
                   const r = wfResult
-                  const tRows = r.eigenaren.map((e,i) => '<tr style="background:' + (i%2===0?'#fff':'#FAF7F2') + '"><td>' + e.naam + '</td><td style="text-align:right">' + e.teller + '/' + e.noemer + '</td><td style="text-align:right">' + (e.aandeel*100).toFixed(2) + '%</td><td style="text-align:right">' + (e.huidig!==null?fmt(e.huidig):'-') + '</td><td style="text-align:right;font-weight:600;color:#991A21">' + fmt(e.lening) + '</td></tr>').join('')
-                  const totHuidig = r.eigenaren.reduce((s,e)=>s+(e.huidig||0),0)
-                  const html = '<html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;font-size:12pt;color:#1A1614;padding:32px 40px}h1{font-size:16pt;color:#991A21;margin-bottom:4px}h2{font-size:11pt;color:#8A7E7B;font-weight:400;margin-top:0}table{width:100%;border-collapse:collapse;margin-top:16px}th{background:#F2EFEC;padding:7px 10px;font-size:9pt;text-transform:uppercase;letter-spacing:.06em;color:#8A7E7B;font-weight:600}td{padding:7px 10px;border-bottom:1px solid #E5DEDA;font-size:11pt}tfoot td{font-weight:700;border-top:2px solid #991A21;background:#F2EFEC}.summary{display:flex;gap:32px;margin:16px 0;padding:14px 18px;background:#F2EFEC;border-radius:8px}.sum-item label{font-size:9pt;color:#8A7E7B;text-transform:uppercase;letter-spacing:.06em;display:block}.sum-item span{font-size:15pt;font-weight:700;color:#991A21}@media print{@page{margin:1.5cm;size:A4}}</style></head><body>'
+                  const tRows = r.eigenaren.map((e,i) => '<tr style="background:' + (i%2===0?'#fff':'#FAF7F2') + '"><td>' + e.naam + '</td><td style="text-align:right">' + e.teller + '/' + e.noemer + '</td><td style="text-align:right">' + (e.aandeel*100).toFixed(2) + '%</td><td style="text-align:right">' + (e.bijdr05!==null?fmt(e.bijdr05):'-') + '</td><td style="text-align:right;font-weight:600;color:#991A21">' + fmt(e.lening) + '</td></tr>').join('')
+                  const tot05 = r.eigenaren.reduce((s,e)=>s+(e.bijdr05||0),0)
+                  const html = '<html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;font-size:12pt;color:#1A1614;padding:32px 40px}h1{font-size:16pt;color:#991A21;margin-bottom:4px}h2{font-size:11pt;color:#8A7E7B;font-weight:400;margin-top:0}table{width:100%;border-collapse:collapse;margin-top:16px}th{background:#F2EFEC;padding:7px 10px;font-size:9pt;text-transform:uppercase;letter-spacing:.06em;color:#8A7E7B;font-weight:600}td{padding:7px 10px;border-bottom:1px solid #E5DEDA;font-size:11pt}tfoot td{font-weight:700;border-top:2px solid #991A21;background:#F2EFEC}.summary{display:flex;gap:24px;margin:16px 0;padding:14px 18px;background:#F2EFEC;border-radius:8px}.sum-item label{font-size:9pt;color:#8A7E7B;text-transform:uppercase;letter-spacing:.06em;display:block}.sum-item span{font-size:14pt;font-weight:700;color:#991A21}@media print{@page{margin:1.5cm;size:A4}}</style></head><body>'
                     + '<h1>Leningbijdrage Warmtefonds' + (r.complexNaam ? ' - ' + r.complexNaam : '') + '</h1>'
                     + '<h2>Berekening maandelijkse bijdrage per eigenaar - opgesteld ' + new Date().toLocaleDateString('nl-NL') + '</h2>'
-                    + '<div class="summary"><div class="sum-item"><label>Geleend bedrag</label><span>' + fmt(r.bedrag) + '</span></div><div class="sum-item"><label>Looptijd</label><span>' + r.looptijd + ' mnd</span></div><div class="sum-item"><label>Rente</label><span>' + r.rente + '%</span></div><div class="sum-item"><label>Maandlast VvE</label><span>' + fmt(r.maandlast) + '</span></div></div>'
-                    + '<table><thead><tr><th>Eigenaar</th><th style="text-align:right">Breukdeel</th><th style="text-align:right">Aandeel %</th><th style="text-align:right">Huidige bijdrage</th><th style="text-align:right">Leningbijdrage</th></tr></thead><tbody>' + tRows + '</tbody>'
-                    + '<tfoot><tr><td>Totaal VvE</td><td></td><td style="text-align:right">100%</td><td style="text-align:right">' + (totHuidig>0?fmt(totHuidig):'-') + '</td><td style="text-align:right">' + fmt(r.eigenaren.reduce((s,e)=>s+e.lening,0)) + '</td></tr></tfoot></table>'
+                    + '<div class="summary"><div class="sum-item"><label>Geleend bedrag</label><span>' + fmt(r.bedrag) + '</span></div><div class="sum-item"><label>Looptijd</label><span>' + r.looptijd + ' mnd</span></div><div class="sum-item"><label>Rente</label><span>' + r.rente + '%</span></div><div class="sum-item"><label>Leningmaandlast VvE</label><span>' + fmt(r.maandlast) + '</span></div>' + (r.mnd05!==null?'<div class="sum-item"><label>0,5% maandlast VvE</label><span>' + fmt(r.mnd05) + '</span></div>':'') + '</div>'
+                    + '<table><thead><tr><th>Eigenaar</th><th style="text-align:right">Breukdeel</th><th style="text-align:right">Aandeel %</th><th style="text-align:right">Standaard bijdrage (0,5%)/mnd</th><th style="text-align:right">Leningbijdrage/mnd</th></tr></thead><tbody>' + tRows + '</tbody>'
+                    + '<tfoot><tr><td>Totaal VvE</td><td></td><td style="text-align:right">100%</td><td style="text-align:right">' + (r.mnd05!==null?fmt(tot05):'-') + '</td><td style="text-align:right">' + fmt(r.eigenaren.reduce((s,e)=>s+e.lening,0)) + '</td></tr></tfoot></table>'
                     + '</body></html>'
                   const w = window.open('', '_blank')
                   w.document.write(html)
