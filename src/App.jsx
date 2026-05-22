@@ -9,7 +9,10 @@ import KennisBank from './KennisBank';
 const CSS_FONT = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
 * { font-family: 'DM Sans', sans-serif !important; }
 .calc-inp { width:100%; padding:8px 11px; border:1.5px solid #E5DEDA; border-radius:8px; font-family:monospace !important; font-size:14px; color:#1A1614; background:#FAF7F2; outline:none; box-sizing:border-box; }
-.calc-inp:focus { border-color:#991A21 !important; background:#fff !important; }`;
+.calc-inp:focus { border-color:#991A21 !important; background:#fff !important; }
+.calc-inp[type=number]::-webkit-inner-spin-button,
+.calc-inp[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+.calc-inp[type=number] { -moz-appearance:textfield; appearance:textfield; }`;
 
 // ── Config ───────────────────────────────────────────────────────
 const INVITE_DAYS = 21;
@@ -941,6 +944,45 @@ function VveCalculator({ onTerug }) {
   const [result, setResult] = useState(null)
   const [error,  setError]  = useState('')
 
+  // Tabblad
+  const [calcTab, setCalcTab] = useState('standaard') // 'standaard' | 'warmtefonds'
+
+  // Warmtefonds state
+  const [wfBedrag,    setWfBedrag]    = useState('')
+  const [wfLooptijd,  setWfLooptijd]  = useState('120')
+  const [wfRente,     setWfRente]     = useState('')
+  const [wfResult,    setWfResult]    = useState(null)
+  const [wfError,     setWfError]     = useState('')
+
+  // Annuitaire maandlast berekening
+  const berekenWarmtefonds = () => {
+    setWfError('')
+    setWfResult(null)
+    const bedrag   = parseFloat(wfBedrag)
+    const looptijd = parseInt(wfLooptijd)
+    const rente    = parseFloat(wfRente)
+    if (!bedrag || bedrag <= 0)     { setWfError('Vul een geldig geleend bedrag in.'); return }
+    if (!looptijd || looptijd <= 0) { setWfError('Vul een geldige looptijd in.'); return }
+    if (!rente || rente <= 0)       { setWfError('Vul een geldig rentepercentage in.'); return }
+    const validRows = rows.filter(r => r.teller !== '' && parseFloat(r.teller) > 0)
+    if (!validRows.length)          { setWfError('Voer eerst eigenaren en breukdelen in (gedeelde tabel onderaan).'); return }
+    if (!parseFloat(vasteNoemer))   { setWfError('Vul het totaal breukdelen (noemer) in bij de eigenarentabel.'); return }
+    const noemer = parseFloat(vasteNoemer)
+    const rMnd   = (rente / 100) / 12
+    const n      = looptijd
+    const maandlast = rMnd === 0
+      ? bedrag / n
+      : bedrag * rMnd * Math.pow(1 + rMnd, n) / (Math.pow(1 + rMnd, n) - 1)
+    const eigenaren = validRows.map(row => {
+      const teller  = parseFloat(row.teller)
+      const aandeel = teller / noemer
+      const lening  = aandeel * maandlast
+      const huidig  = parseFloat(row.huidig) || null
+      return { naam: row.naam || ('App. ' + row.id), teller, noemer, aandeel, lening, huidig }
+    })
+    setWfResult({ bedrag, looptijd, rente, maandlast, eigenaren, complexNaam })
+  }
+
   const addExtraKost = () => setExtraKosten(p => [...p, { id: uid(), naam: '', bedrag: '' }])
   const delExtraKost = (id) => setExtraKosten(p => p.filter(e => e.id !== id))
   const updExtraKost = (id, f, v) => setExtraKosten(p => p.map(e => e.id === id ? { ...e, [f]: v } : e))
@@ -1148,7 +1190,204 @@ function VveCalculator({ onTerug }) {
         </button>
       </div>
 
+      {/* Tabblad navigatie */}
+      <div style={{ background:'#fff', borderBottom:'1px solid #E5DEDA' }}>
+        <div style={{ maxWidth:960, margin:'0 auto', padding:'0 20px', display:'flex', gap:0 }}>
+          {[
+            { key:'standaard', label:'Standaard bijdrage', icon:'📋' },
+            { key:'warmtefonds', label:'Warmtefonds / Lening', icon:'🌿' },
+          ].map(t => (
+            <button key={t.key} onClick={() => setCalcTab(t.key)}
+              style={{ padding:'12px 20px', border:'none', borderBottom: calcTab===t.key ? '2px solid #991A21' : '2px solid transparent', background:'transparent', fontFamily:'inherit', fontSize:13, fontWeight: calcTab===t.key ? 600 : 400, color: calcTab===t.key ? '#991A21' : '#8A7E7B', cursor:'pointer', display:'flex', alignItems:'center', gap:6, transition:'all .15s' }}>
+              <span>{t.icon}</span>{t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div style={{ maxWidth: 960, margin: '0 auto', padding: '28px 20px 80px' }}>
+
+        {/* ── WARMTEFONDS TAB ── */}
+        {calcTab === 'warmtefonds' && (
+          <div>
+            <CCard header={<CCardHdr icon="🌿" bg={S.greenBg} title="Warmtefonds / Leningbijdrage" sub="Maandelijkse bijdrage per eigenaar op basis van annuitaire lening" />}>
+              <div style={{ padding:'18px 20px' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:14 }}>
+                  <CField label="Geleend bedrag (€)">
+                    <CInp type="number" placeholder="bijv. 120000" value={wfBedrag} onChange={e => setWfBedrag(e.target.value)} />
+                  </CField>
+                  <CField label="Looptijd (maanden)">
+                    <CInp type="number" placeholder="bijv. 120" value={wfLooptijd} onChange={e => setWfLooptijd(e.target.value)} />
+                  </CField>
+                  <CField label="Rentepercentage (%)">
+                    <CInp type="number" placeholder="bijv. 3.5" value={wfRente} onChange={e => setWfRente(e.target.value)} />
+                  </CField>
+                </div>
+                {wfBedrag && wfLooptijd && wfRente && (() => {
+                  const rMnd = (parseFloat(wfRente) / 100) / 12
+                  const n    = parseInt(wfLooptijd)
+                  const P    = parseFloat(wfBedrag)
+                  if (!P || !n || !rMnd) return null
+                  const M = P * rMnd * Math.pow(1+rMnd,n) / (Math.pow(1+rMnd,n)-1)
+                  return (
+                    <div style={{ marginTop:12, padding:'9px 13px', background:S.cream, border:'1px solid '+S.border, borderRadius:7, fontFamily:'monospace', fontSize:12, color:S.muted }}>
+                      {fmt(P)} — {wfRente}% rente — looptijd {Math.round(n/12*10)/10} jaar = <strong style={{color:S.bordeaux}}>{fmt(M)} / maand</strong> voor de VvE totaal
+                    </div>
+                  )
+                })()}
+              </div>
+            </CCard>
+
+            <div style={{ marginTop:4, padding:'10px 14px', background:'#EAF4EE', border:'1px solid #C6E8D0', borderRadius:8, fontSize:12, color:'#2D6A4F', marginBottom:14 }}>
+              Eigenaren en breukdelen worden overgenomen uit de tabel hieronder. Vul die eerst in of importeer via bulk.
+            </div>
+
+            <CCard header={<CCardHdr icon="👥" bg={S.greenBg} title="Eigenaren" sub="Naam en breukdeel conform splitsingsakte — gedeeld met standaard calculator" />}>
+              <div style={{ padding:'12px 20px 0' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+                  <button onClick={() => setBulkOpen(p => !p)} style={{ padding:'8px 16px', background:bulkOpen?S.bordeaux:'#fff', border:'1.5px solid '+S.bordeaux, borderRadius:8, fontFamily:'inherit', fontSize:13, color:bulkOpen?'#fff':S.bordeaux, cursor:'pointer', fontWeight:500 }}>
+                    {bulkOpen ? 'x Sluiten' : 'Bulk importeren via tekst'}
+                  </button>
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <label style={{ fontSize:11, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', whiteSpace:'nowrap' }}>Totaal breukdelen (noemer)</label>
+                    <input type="number" placeholder="bijv. 5250" value={vasteNoemer} onChange={e => setVasteNoemer(e.target.value)}
+                      style={{ width:120, padding:'7px 10px', border:'1.5px solid '+S.border, borderRadius:8, fontFamily:'monospace', fontSize:13, color:S.ink, background:S.cream, outline:'none', MozAppearance:'textfield', appearance:'textfield' }} />
+                  </div>
+                </div>
+                {bulkOpen && (
+                  <div style={{ background:S.cream, border:'1px solid '+S.border, borderRadius:10, padding:16, marginTop:10, marginBottom:12 }}>
+                    <div style={{ fontSize:12, color:S.muted, marginBottom:8 }}>Plak hieronder de presentielijst of eigenaarstekst.</div>
+                    <textarea value={bulkTekst} onChange={e => setBulkTekst(e.target.value)} placeholder="Plak hier de presentielijst..."
+                      style={{ width:'100%', minHeight:120, padding:'10px 12px', border:'1.5px solid '+S.border, borderRadius:8, fontFamily:'monospace', fontSize:12, color:S.ink, background:'#fff', outline:'none', resize:'vertical' }} />
+                    {bulkFout && <div style={{ color:S.bordeaux, fontSize:12, marginTop:6 }}>&#9888; {bulkFout}</div>}
+                    <div style={{ display:'flex', alignItems:'center', gap:12, marginTop:10 }}>
+                      <button onClick={parseBulk} style={{ padding:'9px 20px', background:S.bordeaux, border:'none', borderRadius:8, fontFamily:'inherit', fontSize:13, color:'#fff', cursor:'pointer', fontWeight:500 }}>Verwerken</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div style={{ overflowX:'auto', padding:'8px 20px' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                  <thead>
+                    <tr style={{ background:S.cream, borderBottom:'1px solid '+S.border }}>
+                      <th style={{ padding:'8px 10px', textAlign:'center', fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', width:30 }}>#</th>
+                      <th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em' }}>Naam / adres eigenaar</th>
+                      <th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', width:150 }}>Breukdeel teller</th>
+                      <th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', width:170 }}>Huidige bijdrage (euro/mnd)</th>
+                      <th style={{ width:36 }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => (
+                      <tr key={r.id} style={{ borderBottom: i < rows.length - 1 ? '1px solid '+S.border : 'none' }}>
+                        <td style={{ textAlign:'center', fontFamily:'monospace', fontSize:11, color:S.muted, padding:'7px 8px' }}>{i + 1}</td>
+                        <td style={{ padding:'5px 6px' }}><CInp placeholder="bijv. App. 1 De Vries" value={r.naam} onChange={e => updRow(r.id, 'naam', e.target.value)} /></td>
+                        <td style={{ padding:'5px 6px' }}><CInp type="number" placeholder="bijv. 45" value={r.teller} onChange={e => updRow(r.id, 'teller', e.target.value)} /></td>
+                        <td style={{ padding:'5px 6px' }}><CInp type="number" placeholder="bijv. 125" value={r.huidig} onChange={e => updRow(r.id, 'huidig', e.target.value)} /></td>
+                        <td style={{ padding:'5px 6px', textAlign:'center' }}>
+                          <button onClick={() => delRow(r.id)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:16, color:S.muted, padding:'2px 6px', borderRadius:4 }}>x</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {breukCheck && (
+                <div style={{ margin:'8px 20px 4px', padding:'6px 10px', borderRadius:6, fontSize:12, fontFamily:'monospace', background:parseFloat(vasteNoemer)>0?S.greenBg:S.amberBg, color:parseFloat(vasteNoemer)>0?S.green:S.amber }}>
+                  {parseFloat(vasteNoemer) > 0 ? 'Som tellers: ' + totalTeller + ' noemer vastgesteld op ' + vasteNoemer : 'Som tellers: ' + totalTeller + ' vul het totaal breukdelen in voor de juiste noemer'}
+                </div>
+              )}
+              <button onClick={addRow} style={{ margin:'10px 20px', padding:'8px 14px', background:'#fff', border:'1.5px dashed '+S.border, borderRadius:8, fontFamily:'inherit', fontSize:13, color:S.muted, cursor:'pointer', width:'calc(100% - 40px)' }}>
+                + Eigenaar toevoegen
+              </button>
+            </CCard>
+
+            {wfError && <div style={{ background:S.redBg, color:S.bordeaux, padding:'10px 14px', borderRadius:8, fontSize:13, marginBottom:10 }}>{wfError}</div>}
+
+            <button onClick={berekenWarmtefonds} style={{ width:'100%', padding:14, background:S.bordeaux, border:'none', borderRadius:12, fontFamily:'Georgia,serif', fontSize:17, color:'#fff', cursor:'pointer', marginTop:4 }}>
+              Bereken leningbijdrage per eigenaar
+            </button>
+
+            {wfResult && (
+              <div style={{ marginTop:28 }}>
+                <CSecTitle>Resultaat - Leningbijdrage Warmtefonds</CSecTitle>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:14, marginBottom:14 }}>
+                  {[
+                    { label:'Geleend bedrag', val: fmt(wfResult.bedrag) },
+                    { label:'Looptijd', val: wfResult.looptijd + ' mnd (' + Math.round(wfResult.looptijd/12*10)/10 + ' jr)' },
+                    { label:'Maandlast VvE totaal', val: fmt(wfResult.maandlast), accent: true },
+                  ].map(s => (
+                    <div key={s.label} style={{ background:'#fff', border:'1px solid '+S.border, borderRadius:12, padding:'16px 20px' }}>
+                      <div style={{ fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:4 }}>{s.label}</div>
+                      <div style={{ fontFamily:'Georgia,serif', fontSize:22, color: s.accent ? S.bordeaux : S.ink }}>{s.val}</div>
+                    </div>
+                  ))}
+                </div>
+                <CCard header={<CCardHdr icon="&#128290;" bg={S.redBg} title="Bijdrage per eigenaar" sub="Leningbijdrage en huidige bijdrage naast elkaar" />}>
+                  <div style={{ overflowX:'auto' }}>
+                    <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                      <thead>
+                        <tr style={{ background:S.cream, borderBottom:'1px solid '+S.border }}>
+                          {['Eigenaar','Breukdeel','Aandeel %','Huidige bijdrage/mnd','Leningbijdrage/mnd'].map((h,i) => (
+                            <th key={i} style={{ padding:'8px 10px', textAlign:i>1?'right':'left', fontSize:10, fontWeight:600, color:S.muted, textTransform:'uppercase', letterSpacing:'0.06em' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {wfResult.eigenaren.map((e, i) => (
+                          <tr key={i} style={{ borderBottom: i<wfResult.eigenaren.length-1 ? '1px solid '+S.border : 'none' }}>
+                            <td style={{ padding:'8px 10px', fontWeight:500, fontSize:12 }}>{e.naam}</td>
+                            <td style={{ padding:'8px 10px', fontFamily:'monospace', fontSize:12, textAlign:'right' }}>{e.teller}/{e.noemer}</td>
+                            <td style={{ padding:'8px 10px', fontFamily:'monospace', fontSize:12, textAlign:'right' }}>{(e.aandeel*100).toFixed(2)}%</td>
+                            <td style={{ padding:'8px 10px', fontFamily:'monospace', fontSize:12, textAlign:'right', color: e.huidig ? S.ink : S.muted }}>
+                              {e.huidig !== null ? fmt(e.huidig) : '-'}
+                            </td>
+                            <td style={{ padding:'8px 10px', fontFamily:'monospace', fontSize:12, textAlign:'right', fontWeight:600, color:S.bordeaux }}>
+                              {fmt(e.lening)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot style={{ borderTop:'2px solid '+S.bordeaux }}>
+                        <tr style={{ background:S.cream }}>
+                          <td colSpan={2} style={{ padding:'9px 10px', fontSize:13, fontWeight:600, color:S.muted }}>Totaal VvE</td>
+                          <td style={{ padding:'9px 10px', fontFamily:'monospace', fontSize:13, fontWeight:600, textAlign:'right' }}>100%</td>
+                          <td style={{ padding:'9px 10px', fontFamily:'monospace', fontSize:13, fontWeight:600, color:S.bordeaux, textAlign:'right' }}>
+                            {(() => { const t = wfResult.eigenaren.reduce((s,e)=>s+(e.huidig||0),0); return t > 0 ? fmt(t) : '-' })()}
+                          </td>
+                          <td style={{ padding:'9px 10px', fontFamily:'monospace', fontSize:13, fontWeight:600, color:S.bordeaux, textAlign:'right' }}>
+                            {fmt(wfResult.eigenaren.reduce((s,e)=>s+e.lening,0))}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </CCard>
+                <button onClick={() => {
+                  const r = wfResult
+                  const tRows = r.eigenaren.map((e,i) => '<tr style="background:' + (i%2===0?'#fff':'#FAF7F2') + '"><td>' + e.naam + '</td><td style="text-align:right">' + e.teller + '/' + e.noemer + '</td><td style="text-align:right">' + (e.aandeel*100).toFixed(2) + '%</td><td style="text-align:right">' + (e.huidig!==null?fmt(e.huidig):'-') + '</td><td style="text-align:right;font-weight:600;color:#991A21">' + fmt(e.lening) + '</td></tr>').join('')
+                  const totHuidig = r.eigenaren.reduce((s,e)=>s+(e.huidig||0),0)
+                  const html = '<html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;font-size:12pt;color:#1A1614;padding:32px 40px}h1{font-size:16pt;color:#991A21;margin-bottom:4px}h2{font-size:11pt;color:#8A7E7B;font-weight:400;margin-top:0}table{width:100%;border-collapse:collapse;margin-top:16px}th{background:#F2EFEC;padding:7px 10px;font-size:9pt;text-transform:uppercase;letter-spacing:.06em;color:#8A7E7B;font-weight:600}td{padding:7px 10px;border-bottom:1px solid #E5DEDA;font-size:11pt}tfoot td{font-weight:700;border-top:2px solid #991A21;background:#F2EFEC}.summary{display:flex;gap:32px;margin:16px 0;padding:14px 18px;background:#F2EFEC;border-radius:8px}.sum-item label{font-size:9pt;color:#8A7E7B;text-transform:uppercase;letter-spacing:.06em;display:block}.sum-item span{font-size:15pt;font-weight:700;color:#991A21}@media print{@page{margin:1.5cm;size:A4}}</style></head><body>'
+                    + '<h1>Leningbijdrage Warmtefonds' + (r.complexNaam ? ' - ' + r.complexNaam : '') + '</h1>'
+                    + '<h2>Berekening maandelijkse bijdrage per eigenaar - opgesteld ' + new Date().toLocaleDateString('nl-NL') + '</h2>'
+                    + '<div class="summary"><div class="sum-item"><label>Geleend bedrag</label><span>' + fmt(r.bedrag) + '</span></div><div class="sum-item"><label>Looptijd</label><span>' + r.looptijd + ' mnd</span></div><div class="sum-item"><label>Rente</label><span>' + r.rente + '%</span></div><div class="sum-item"><label>Maandlast VvE</label><span>' + fmt(r.maandlast) + '</span></div></div>'
+                    + '<table><thead><tr><th>Eigenaar</th><th style="text-align:right">Breukdeel</th><th style="text-align:right">Aandeel %</th><th style="text-align:right">Huidige bijdrage</th><th style="text-align:right">Leningbijdrage</th></tr></thead><tbody>' + tRows + '</tbody>'
+                    + '<tfoot><tr><td>Totaal VvE</td><td></td><td style="text-align:right">100%</td><td style="text-align:right">' + (totHuidig>0?fmt(totHuidig):'-') + '</td><td style="text-align:right">' + fmt(r.eigenaren.reduce((s,e)=>s+e.lening,0)) + '</td></tr></tfoot></table>'
+                    + '</body></html>'
+                  const w = window.open('', '_blank')
+                  w.document.write(html)
+                  w.document.close()
+                  setTimeout(() => w.print(), 400)
+                }} style={{ width:'100%', padding:'11px 16px', background:'#fff', border:'1.5px solid '+S.bordeaux, borderRadius:10, fontFamily:'inherit', fontSize:14, color:S.bordeaux, cursor:'pointer', fontWeight:500, marginTop:14 }}>
+                  Exporteer als PDF / Afdrukken
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* STANDAARD TAB */}
+        {calcTab === 'standaard' && <>
         <CSecTitle>Stap 1 — Algemene gegevens</CSecTitle>
         <CCard header={<CCardHdr icon="🏢" bg={S.redBg} title="Complexgegevens" sub="Naam en herbouwwaarde" />}>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, padding:'18px 20px' }}>
@@ -1543,6 +1782,7 @@ function VveCalculator({ onTerug }) {
             )}
           </div>
         )}
+        </>}
       </div>
     </div>
   )
