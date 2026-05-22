@@ -3,6 +3,17 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 const CSS_FONT = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
 * { font-family: 'DM Sans', sans-serif !important; }`;
 
+const CSS_PRINT = `
+@media print {
+  body * { visibility: hidden !important; }
+  #vd-print-area, #vd-print-area * { visibility: visible !important; }
+  #vd-print-area { position: fixed !important; inset: 0 !important; padding: 28px 36px !important; background: #fff !important; z-index: 9999 !important; }
+  #vd-print-area .print-header { display: flex !important; }
+  #vd-print-area .print-footer { display: flex !important; }
+  #vd-print-area button { display: none !important; }
+  @page { margin: 1.5cm; size: A4; }
+}`;
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const TOKEN_KEY = "vve_access_token";
@@ -1052,7 +1063,7 @@ export default function VerduurzamingBeheer({ onTerug, beheerder, beheerderList 
 
   return (
     <div className="min-h-screen bg-[#F2EFEC]">
-      <style>{CSS_FONT}</style>
+      <style>{CSS_FONT}{CSS_PRINT}</style>
       {toonConfetti && <ConfettiOverlay omzet={fin.gefactureerd} onDone={sluitConfetti} />}
       <div className="border-b border-gray-200 px-6 h-14 flex items-center justify-between bg-white shadow-sm sticky top-0 z-50">
         <div className="flex items-center gap-3">
@@ -1139,56 +1150,114 @@ export default function VerduurzamingBeheer({ onTerug, beheerder, beheerderList 
           });
           const totaalGefact = factRows.filter(r => r.gefactureerd).reduce((a, r) => a + r.bedrag, 0);
           const totaalOpen = factRows.filter(r => !r.gefactureerd).reduce((a, r) => a + r.bedrag, 0);
+          const totaalAlle = factRows.reduce((a,r)=>a+r.bedrag,0);
+          const printDatum = new Date().toLocaleDateString("nl-NL", { day: "2-digit", month: "long", year: "numeric" });
+
           return (
             <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
-                {[{label:"Totaal te factureren",val:factRows.reduce((a,r)=>a+r.bedrag,0),k:"#2D2D2D"},{label:"Gefactureerd aan VvE",val:totaalGefact,k:"#065F46"},{label:"Nog te factureren",val:totaalOpen,k:VD_ROOD}].map(s => (
-                  <div key={s.label} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">{s.label}</p>
-                    <p className="text-2xl font-bold" style={{color:s.k}}>{euro(s.val)}</p>
-                  </div>
-                ))}
+              {/* Exportknop — alleen zichtbaar op scherm */}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => window.print()}
+                  className="flex items-center gap-2 px-4 py-2 bg-[#991A21] hover:bg-[#7a1419] text-white text-sm font-semibold rounded-lg transition-colors shadow-sm"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                  Exporteren / Afdrukken
+                </button>
               </div>
-              <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-                <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Factureringsbedrag / Begeleidingsvergoeding per VvE</p>
-                  <span className="text-xs text-gray-400">{factRows.length} regel{factRows.length !== 1 ? "s" : ""}</span>
+
+              {/* Print-gebied — zichtbaar op scherm én in print */}
+              <div id="vd-print-area">
+
+                {/* Print-only header */}
+                <div style={{ display: "none" }} className="print-header">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, paddingBottom: 16, borderBottom: "2px solid #991A21" }}>
+                    <div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: "#2D2D2D" }}>Factureringsoverzicht</div>
+                      <div style={{ fontSize: 12, color: "#8A7E7B", marginTop: 4 }}>Verduurzaming &amp; Subsidies — Totaal VvE Beheer</div>
+                    </div>
+                    <div style={{ textAlign: "right", fontSize: 11, color: "#8A7E7B" }}>
+                      <div style={{ fontWeight: 600, color: "#2D2D2D" }}>{printDatum}</div>
+                      <div>{factRows.length} regel{factRows.length !== 1 ? "s" : ""}</div>
+                    </div>
+                  </div>
                 </div>
-                {factRows.length === 0 ? (
-                  <div className="p-12 text-center text-xs text-gray-400 italic">Geen bedragen ingevuld bij isolatietrajecten of procesbegeleiding.</div>
-                ) : (
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-100 bg-gray-50">
-                        {["VvE","Beheerder","Type","Bedrag","Gefactureerd","Datum"].map((h,i) => (
-                          <th key={h} className={`px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide ${i>2?"text-right":"text-left"}`}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {factRows.map((r, i) => (
-                        <tr key={i} className={`border-b border-gray-50 hover:bg-[#FAF7F2] ${!r.gefactureerd ? "bg-red-50/30" : ""}`}>
-                          <td className="px-4 py-3 font-semibold text-[#2D2D2D]">
-                            <div>{r.naam}</div>
-                            <div className="text-[10px] text-gray-400">{r.adres}</div>
-                          </td>
-                          <td className="px-4 py-3 text-gray-600 text-xs">{r.beheerder}</td>
-                          <td className="px-4 py-3">
-                            <span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:8,background:r.type==="Begeleidingsvergoeding"?"#FEF3E2":"#EAF1F8",color:r.type==="Begeleidingsvergoeding"?"#92400E":"#1A4D7A"}}>{r.type}</span>
-                          </td>
-                          <td className="px-4 py-3 text-right font-mono font-semibold text-[#2D2D2D]">{euro(r.bedrag)}</td>
-                          <td className="px-4 py-3 text-right">
-                            {r.gefactureerd
-                              ? <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">✓ Ja</span>
-                              : <span className="text-xs font-semibold text-[#991A21] bg-red-50 px-2 py-0.5 rounded-full">Nee</span>
-                            }
-                          </td>
-                          <td className="px-4 py-3 text-right text-xs text-gray-500">{r.datum ? new Date(r.datum).toLocaleDateString("nl-NL") : "—"}</td>
+
+                {/* Samenvattingskaarten */}
+                <div className="grid grid-cols-3 gap-4">
+                  {[
+                    { label: "Totaal te factureren", val: totaalAlle, k: "#2D2D2D" },
+                    { label: "Gefactureerd aan VvE", val: totaalGefact, k: "#065F46" },
+                    { label: "Nog te factureren", val: totaalOpen, k: VD_ROOD },
+                  ].map(s => (
+                    <div key={s.label} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">{s.label}</p>
+                      <p className="text-2xl font-bold" style={{ color: s.k }}>{euro(s.val)}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Tabel */}
+                <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden" style={{ marginTop: 16 }}>
+                  <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Factureringsbedrag / Begeleidingsvergoeding per VvE</p>
+                    <span className="text-xs text-gray-400">{factRows.length} regel{factRows.length !== 1 ? "s" : ""}</span>
+                  </div>
+                  {factRows.length === 0 ? (
+                    <div className="p-12 text-center text-xs text-gray-400 italic">Geen bedragen ingevuld bij isolatietrajecten of procesbegeleiding.</div>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-100 bg-gray-50">
+                          {["VvE", "Beheerder", "Type", "Bedrag", "Gefactureerd", "Datum"].map((h, i) => (
+                            <th key={h} className={`px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide ${i > 2 ? "text-right" : "text-left"}`}>{h}</th>
+                          ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
+                      </thead>
+                      <tbody>
+                        {factRows.map((r, i) => (
+                          <tr key={i} className={`border-b border-gray-50 hover:bg-[#FAF7F2] ${!r.gefactureerd ? "bg-red-50/30" : ""}`}>
+                            <td className="px-4 py-3 font-semibold text-[#2D2D2D]">
+                              <div>{r.naam}</div>
+                              <div className="text-[10px] text-gray-400">{r.adres}</div>
+                            </td>
+                            <td className="px-4 py-3 text-gray-600 text-xs">{r.beheerder}</td>
+                            <td className="px-4 py-3">
+                              <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 8, background: r.type === "Begeleidingsvergoeding" ? "#FEF3E2" : "#EAF1F8", color: r.type === "Begeleidingsvergoeding" ? "#92400E" : "#1A4D7A" }}>{r.type}</span>
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono font-semibold text-[#2D2D2D]">{euro(r.bedrag)}</td>
+                            <td className="px-4 py-3 text-right">
+                              {r.gefactureerd
+                                ? <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">✓ Ja</span>
+                                : <span className="text-xs font-semibold text-[#991A21] bg-red-50 px-2 py-0.5 rounded-full">Nee</span>
+                              }
+                            </td>
+                            <td className="px-4 py-3 text-right text-xs text-gray-500">{r.datum ? new Date(r.datum).toLocaleDateString("nl-NL") : "—"}</td>
+                          </tr>
+                        ))}
+                        {/* Totaalrij */}
+                        <tr className="border-t-2 border-gray-200 bg-gray-50">
+                          <td colSpan={3} className="px-4 py-3 text-xs font-bold text-gray-500 uppercase tracking-wide">Totaal</td>
+                          <td className="px-4 py-3 text-right font-mono font-bold text-[#2D2D2D]">{euro(totaalAlle)}</td>
+                          <td className="px-4 py-3 text-right">
+                            <span className="text-xs font-semibold text-emerald-600">{euro(totaalGefact)} gefact.</span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <span className="text-xs font-semibold" style={{ color: VD_ROOD }}>{euro(totaalOpen)} open</span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+
+                {/* Print-only footer */}
+                <div style={{ display: "none" }} className="print-footer">
+                  <div style={{ marginTop: 24, paddingTop: 12, borderTop: "1px solid #E5DEDA", fontSize: 10, color: "#8A7E7B", display: "flex", justifyContent: "space-between" }}>
+                    <span>Totaal VvE Beheer Den Haag B.V.</span>
+                    <span>Gegenereerd op {printDatum}</span>
+                  </div>
+                </div>
               </div>
             </div>
           );
