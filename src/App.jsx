@@ -21,6 +21,58 @@ const NL_MONTHS_FULL = ["Januari","Februari","Maart","April","Mei","Juni","Juli"
 const NL_DAYS = ["Zo","Ma","Di","Wo","Do","Vr","Za"];
 const WORK_DAYS_DEFAULT = [false, true, true, true, true, true, false];
 
+// ── Debounce-hook ────────────────────────────────────────────────
+// Geeft een gedebouncede versie van `callback` terug, plus flush() en cancel().
+// - flush(): voert een eventueel wachtende aanroep NU uit (bv. bij onBlur/unmount)
+// - cancel(): annuleert een wachtende aanroep zonder uit te voeren
+// De laatste argumenten worden bewaard, zodat flush met de juiste waarde opslaat.
+function useDebouncedCallback(callback, delay) {
+  const timerRef = useRef(null);
+  const lastArgsRef = useRef(null);
+  const callbackRef = useRef(callback);
+
+  // Houd de callback-ref actueel zonder de debounce te resetten
+  useEffect(() => { callbackRef.current = callback; }, [callback]);
+
+  const flush = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+      if (lastArgsRef.current !== null) {
+        const args = lastArgsRef.current;
+        lastArgsRef.current = null;
+        callbackRef.current(...args);
+      }
+    }
+  }, []);
+
+  const cancel = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    lastArgsRef.current = null;
+  }, []);
+
+  const debounced = useCallback((...args) => {
+    lastArgsRef.current = args;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      const a = lastArgsRef.current;
+      lastArgsRef.current = null;
+      if (a !== null) callbackRef.current(...a);
+    }, delay);
+  }, [delay]);
+
+  // Flush bij unmount zodat een wachtende save niet verloren gaat
+  useEffect(() => {
+    return () => { flush(); };
+  }, [flush]);
+
+  return [debounced, flush, cancel];
+}
+
 
 // ── Supabase client ──────────────────────────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -401,6 +453,26 @@ function Checkbox({ checked, disabled, onChange, label }) {
 function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onForceOpenHandled, vveHeeftLod }) {
   const [expanded, setExpanded] = useState(false);
 
+  // ── Notitie: lokale state + debounced opslaan ──
+  // Het notitieveld leest uit lokale state (vloeiend typen, geen her-render
+  // van de hele lijst per toetsaanslag). De propagatie naar boven (onUpdate,
+  // die naar Supabase schrijft) is gedebounced. Bij verlaten van het veld
+  // (onBlur) of unmount volgt een flush, zodat niets verloren gaat.
+  const [notitieLokaal, setNotitieLokaal] = useState(vve.notitie || "");
+
+  // Resync wanneer de VvE van buitenaf wijzigt (andere VvE getoond, of
+  // notitie extern aangepast via import/jaarwisseling). We syncen op id én
+  // op vve.notitie, maar overschrijven niet terwijl de gebruiker net typt:
+  // alleen als de binnenkomende waarde afwijkt van wat we lokaal hebben.
+  useEffect(() => {
+    setNotitieLokaal(vve.notitie || "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vve.id, vve.notitie]);
+
+  const [notitieDebounced, notitieFlush] = useDebouncedCallback((waarde) => {
+    onUpdate({ ...vve, notitie: waarde });
+  }, 800);
+
   // FIX 3: wanneer forceOpen=true, klap open en scroll
   const rowRef = useRef(null);
   useEffect(() => {
@@ -599,7 +671,10 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
 
           <div>
             <label className="text-xs text-zinc-500 block mb-1">Notitie</label>
-            <input type="text" value={vve.notitie||""} onChange={e=>onUpdate({...vve,notitie:e.target.value})}
+            <input type="text"
+              value={notitieLokaal}
+              onChange={e => { setNotitieLokaal(e.target.value); notitieDebounced(e.target.value); }}
+              onBlur={notitieFlush}
               placeholder="Bijv. altijd dinsdag…"
               className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none focus:border-[#991A21] transition-colors"/>
             {vve.voorkeurVolgendjaar && vve.notitie && (
