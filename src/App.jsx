@@ -3215,16 +3215,35 @@ function AdminDashboard({ beheerderList, onBack }) {
   const herindelen = async (vve, vanNaam, naarNaam) => {
     if (!naarNaam || naarNaam === vanNaam) return;
     const vanData = allData[vanNaam];
-    const naarData = allData[naarNaam] || defaultData();
     if (!vanData) return;
-    const updatedVan = { ...vanData, vves: vanData.vves.filter(v => v.id !== vve.id) };
-    const updatedNaar = { ...naarData, vves: [...(naarData.vves||[]), vve] };
-    await saveData(vanNaam, updatedVan);
-    await saveData(naarNaam, updatedNaar);
-    setAllData(prev => ({ ...prev, [vanNaam]: updatedVan, [naarNaam]: updatedNaar }));
-    setHerindelenVve(null); setHerindelenVan(null); setHerindelenNaar("");
-    setHerindelenMsg(`${vve.naam} verplaatst naar ${naarNaam}.`);
-    setTimeout(() => setHerindelenMsg(""), 3000);
+    try {
+      // Atomaire transfer via database-functie: verwijderen bij bron en
+      // toevoegen bij bestemming gebeurt in één transactie. Als een van
+      // beide stappen faalt, draait Postgres alles terug — de VvE kan
+      // dus niet verdwijnen tussen de twee stappen.
+      await sbFetch(`rpc/herindeel_vve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          van_naam: vanNaam,
+          naar_naam: naarNaam,
+          vve_id: String(vve.id),
+          vve_object: vve,
+        }),
+      });
+      // Lokale state pas bijwerken NA bevestigd succes in de database
+      const updatedVan = { ...vanData, vves: vanData.vves.filter(v => v.id !== vve.id) };
+      const naarData = allData[naarNaam] || defaultData();
+      const updatedNaar = { ...naarData, vves: [...(naarData.vves||[]), vve] };
+      setAllData(prev => ({ ...prev, [vanNaam]: updatedVan, [naarNaam]: updatedNaar }));
+      setHerindelenVve(null); setHerindelenVan(null); setHerindelenNaar("");
+      setHerindelenMsg(`${vve.naam} verplaatst naar ${naarNaam}.`);
+      setTimeout(() => setHerindelenMsg(""), 3000);
+    } catch (e) {
+      console.error("herindelen mislukt", e);
+      setHerindelenMsg(`Fout: verplaatsen van ${vve.naam} is mislukt. Er is niets gewijzigd.`);
+      setTimeout(() => setHerindelenMsg(""), 5000);
+    }
   };
 
   useEffect(() => {
