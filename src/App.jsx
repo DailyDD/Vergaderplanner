@@ -120,7 +120,7 @@ async function signOut() {
 }
 
 async function getUserRole() {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/user_roles?select=naam,rol`, {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/user_roles?select=naam,rol,welkomstscherm_gezien`, {
     headers: getAuthHeaders(),
   });
   if (!res.ok) throw new Error("Rol ophalen mislukt");
@@ -3533,6 +3533,8 @@ export default function App() {
   const [screen, setScreen] = useState("login"); // login | portaal | vergaderingen | calculator | admin | lod
   const [beheerder, setBeheerder] = useState("");
   const [userRol, setUserRol] = useState("beheerder"); // beheerder | beheerder_plus | admin
+  const [showWelkomst, setShowWelkomst] = useState(false);
+  const [eigenNaam, setEigenNaam] = useState("");
   const [beheerderList] = useState(getBeheerderList());
   const [data, setData] = useState(defaultData());
   const [loading, setLoading] = useState(false);
@@ -3563,6 +3565,8 @@ useEffect(() => {
   _accessToken = token;
   getUserRole().then(rol => {
     if (!rol) { setToken(null); return; }
+    if (rol.welkomstscherm_gezien === false) setShowWelkomst(true);
+    setEigenNaam(rol.naam);
     if (rol.rol === "admin") {
       setBeheerder("Admin");
       setUserRol("admin");
@@ -3596,6 +3600,22 @@ useEffect(() => {
     expanded:  "border-gray-200 bg-[#F2EFEC]",
   };
 
+  // Welkomstscherm sluiten: markeert in de database dat de gebruiker 'm heeft
+  // gezien (zodat 'ie niet elke login opnieuw verschijnt), en verbergt 'm lokaal.
+  // Als de database-update faalt (netwerkhik), sluit het scherm alsnog lokaal —
+  // de gebruiker mag niet vastzitten in het welkomstscherm door een netwerkfout.
+  const sluitWelkomst = async () => {
+    setShowWelkomst(false);
+    try {
+      const encodedNaam = encodeURIComponent(eigenNaam);
+      await fetch(`${SUPABASE_URL}/rest/v1/user_roles?naam=eq.${encodedNaam}`, {
+        method: "PATCH",
+        headers: { ...getAuthHeaders(), "Prefer": "" },
+        body: JSON.stringify({ welkomstscherm_gezien: true }),
+      });
+    } catch (e) { console.error("welkomstscherm_gezien opslaan mislukt", e); }
+  };
+
   const handleLogin = async () => {
     if (!loginNaam.trim() || !loginPw.trim()) { setLoginError("Vul je e-mail en wachtwoord in."); return; }
     setLoading(true);
@@ -3604,6 +3624,8 @@ useEffect(() => {
       await signIn(loginNaam.trim(), loginPw.trim());
       const rol = await getUserRole();
       if (!rol) throw new Error("Geen rol gevonden voor dit account.");
+      if (rol.welkomstscherm_gezien === false) setShowWelkomst(true);
+      setEigenNaam(rol.naam);
       if (rol.rol === "admin") {
         setBeheerder("Admin");
         setUserRol("admin");
@@ -3990,6 +4012,31 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+
+  // ── Welkomstscherm bij eerste login ─────────────────────────
+  // Verschijnt vóór het portaal als welkomstscherm_gezien false is voor deze
+  // gebruiker. Onafhankelijk van laatste_login, zodat dit veld los te resetten
+  // is zonder de "dagen sinds login"-weergave in Admin Dashboard te verstoren.
+  if (showWelkomst) return (
+    <div className="min-h-screen bg-[#F2EFEC] flex items-center justify-center p-6">
+      <style>{CSS_FONT}</style>
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-xl max-w-lg w-full p-8 space-y-5 text-center">
+        <div className="w-14 h-14 bg-[#991A21] rounded-2xl flex items-center justify-center mx-auto">
+          <span className="text-white text-2xl">👋</span>
+        </div>
+        <h2 className="text-xl font-bold text-[#2D2D2D]">Welkom bij VvE Planner{eigenNaam ? `, ${eigenNaam}` : ""}!</h2>
+        <p className="text-sm text-gray-500 leading-relaxed">
+          Dit portaal helpt je bij het plannen van vergaderingen, het bijhouden
+          van uitnodigingen en het beheren van VvE-data — allemaal op één plek.
+          Heb je vragen over hoe iets werkt? Neem gerust contact op met Daley.
+        </p>
+        <button onClick={sluitWelkomst}
+          className="w-full py-3 bg-[#991A21] hover:bg-[#7a1419] text-white text-sm font-semibold rounded-xl transition-colors shadow-lg shadow-red-900/20">
+          Aan de slag →
+        </button>
       </div>
     </div>
   );
