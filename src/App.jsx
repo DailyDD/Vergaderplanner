@@ -1565,6 +1565,7 @@ ${r.mnd05 !== null ? '<div class="summary-grid" style="grid-template-columns:rep
 </div>
 </div></body></html>`
                   const w = window.open('', '_blank')
+                  if (!w) { alert('Pop-up geblokkeerd. Sta pop-ups toe voor deze pagina.'); return }
                   w.document.write(html)
                   w.document.close()
                   setTimeout(() => w.print(), 400)
@@ -3192,6 +3193,7 @@ function exportAdminPDF(allData, beheerderList) {
   }
   html += `</table></body></html>`;
   const win = window.open("", "_blank");
+  if (!win) { alert('Pop-up geblokkeerd. Sta pop-ups toe voor deze pagina.'); return }
   win.document.write(html);
   win.document.close();
   win.print();
@@ -3811,7 +3813,9 @@ useEffect(() => {
       html += `</table>`;
     });
     html += `</body></html>`;
-    const win = window.open("","_blank"); win.document.write(html); win.document.close(); win.print();
+    const win = window.open("","_blank");
+    if (!win) { alert('Pop-up geblokkeerd. Sta pop-ups toe voor deze pagina.'); return }
+    win.document.write(html); win.document.close(); win.print();
   };
 
   const werkdagen = data.werkdagen || WORK_DAYS_DEFAULT;
