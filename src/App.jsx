@@ -119,6 +119,50 @@ async function signOut() {
   setToken(null);
 }
 
+// ── Password recovery (reset-link uit e-mail) ───────────────────
+// Supabase zet bij een recovery-link tokens in de URL-hash:
+//   #access_token=...&refresh_token=...&type=recovery
+// Bij een verlopen of ongeldige link staat er een error in de hash.
+// De hash wordt direct opgeschoond zodat de token niet in de
+// adresbalk of browserhistory blijft staan.
+function parseRecoveryHash() {
+  const hash = window.location.hash;
+  if (!hash || hash.length < 2) return null;
+  const params = new URLSearchParams(hash.slice(1));
+  const type = params.get("type");
+  const error = params.get("error_description") || params.get("error");
+  const token = params.get("access_token");
+  if (type || error) {
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  }
+  if (error) return { error };
+  if (type === "recovery" && token) return { token };
+  return null;
+}
+
+// Stelt een nieuw wachtwoord in met de recovery-token uit de e-maillink.
+// Bewust géén setToken(): de gebruiker logt daarna handmatig in, zodat
+// meteen bevestigd is dat het nieuwe wachtwoord daadwerkelijk werkt.
+async function updatePassword(recoveryToken, nieuwWachtwoord) {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    method: "PUT",
+    headers: {
+      "apikey": SUPABASE_ANON,
+      "Authorization": `Bearer ${recoveryToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ password: nieuwWachtwoord }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error_description || data.msg || "Wachtwoord instellen mislukt");
+  return data;
+}
+
+// Eén keer uitlezen bij het laden van de app, vóór React rendert.
+// De sessie-herstel-useEffect slaat zichzelf over als dit gezet is,
+// zodat een recovery-link nooit per ongeluk naar het portaal leidt.
+const RECOVERY = parseRecoveryHash();
+
 async function getUserRole() {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/user_roles?select=naam,rol,welkomstscherm_gezien`, {
     headers: getAuthHeaders(),
@@ -3532,7 +3576,7 @@ function AdminDashboard({ beheerderList, onBack }) {
 
 // ── Main App ─────────────────────────────────────────────────────
 export default function App() {
-  const [screen, setScreen] = useState("login"); // login | portaal | vergaderingen | calculator | admin | lod
+  const [screen, setScreen] = useState(RECOVERY && RECOVERY.token ? "wachtwoord-instellen" : "login"); // login | wachtwoord-instellen | portaal | vergaderingen | calculator | admin | lod
   const [beheerder, setBeheerder] = useState("");
   const [userRol, setUserRol] = useState("beheerder"); // beheerder | beheerder_plus | admin
   const [showWelkomst, setShowWelkomst] = useState(false);
@@ -3548,6 +3592,17 @@ export default function App() {
   const [loginNaam, setLoginNaam] = useState("");
   const [loginPw, setLoginPw] = useState("");
   const [loginError, setLoginError] = useState("");
+  // Wachtwoord-instellen (recovery-flow)
+  const [nieuwPw, setNieuwPw] = useState("");
+  const [nieuwPw2, setNieuwPw2] = useState("");
+  const [pwError, setPwError] = useState("");
+  // Melding op het loginscherm: succes na wachtwoord instellen, of
+  // een fout als de recovery-link verlopen/ongeldig was.
+  const [resetMelding, setResetMelding] = useState(
+    RECOVERY && RECOVERY.error
+      ? { type: "fout", tekst: "De wachtwoord-link is verlopen of ongeldig. Vraag een nieuwe reset-mail aan bij de beheerder." }
+      : null
+  );
   const [planningPreview, setPlanningPreview] = useState(null);
   // FIX 1: gesorteerde volgorde staat los van data
   // We bewaren een gesorteerde ID-volgorde en passen die toe bij weergave
@@ -3562,6 +3617,10 @@ export default function App() {
   const [geselecteerdeFilterMaanden, setGeselecteerdeFilterMaanden] = useState(new Set());
 // Herstel sessie bij page refresh
 useEffect(() => {
+  // Recovery-flow heeft voorrang: als de gebruiker via een reset-link
+  // binnenkomt, geen sessie herstellen — anders schiet de app door naar
+  // het portaal terwijl het wachtwoord-instellen-scherm getoond moet worden.
+  if (RECOVERY) return;
   const token = sessionStorage.getItem(TOKEN_KEY);
   if (!token) return;
   _accessToken = token;
@@ -3642,6 +3701,37 @@ useEffect(() => {
       setScreen("portaal");
     } catch(e) {
       setLoginError(e.message === "Invalid login credentials" ? "E-mail of wachtwoord onjuist." : e.message);
+    }
+    setLoading(false);
+  };
+
+  // Client-side spiegeling van de Supabase-wachtwoordpolicy
+  // (min. 12 tekens, hoofdletter, cijfer, speciaal teken) zodat de
+  // gebruiker een nette Nederlandse melding krijgt in plaats van een
+  // kale Engelse API-fout. De server blijft de echte handhaving.
+  const valideerWachtwoord = (pw) => {
+    if (pw.length < 12) return "Het wachtwoord moet minimaal 12 tekens lang zijn.";
+    if (!/[A-Z]/.test(pw)) return "Het wachtwoord moet minimaal één hoofdletter bevatten.";
+    if (!/[a-z]/.test(pw)) return "Het wachtwoord moet minimaal één kleine letter bevatten.";
+    if (!/[0-9]/.test(pw)) return "Het wachtwoord moet minimaal één cijfer bevatten.";
+    if (!/[^A-Za-z0-9]/.test(pw)) return "Het wachtwoord moet minimaal één speciaal teken bevatten (bijv. ! of #).";
+    return null;
+  };
+
+  const handleWachtwoordInstellen = async () => {
+    const fout = valideerWachtwoord(nieuwPw);
+    if (fout) { setPwError(fout); return; }
+    if (nieuwPw !== nieuwPw2) { setPwError("De twee wachtwoorden komen niet overeen."); return; }
+    setLoading(true);
+    setPwError("");
+    try {
+      await updatePassword(RECOVERY.token, nieuwPw);
+      setNieuwPw("");
+      setNieuwPw2("");
+      setResetMelding({ type: "succes", tekst: "Je wachtwoord is ingesteld. Log nu in met je e-mailadres en je nieuwe wachtwoord." });
+      setScreen("login");
+    } catch (e) {
+      setPwError(e.message || "Wachtwoord instellen mislukt. Probeer het opnieuw.");
     }
     setLoading(false);
   };
@@ -3960,6 +4050,64 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
   if (screen==="lod") return <LodBeheer onTerug={()=>setScreen("portaal")} beheerderList={beheerderList}/>;
   if (screen==="calculator") return <VveCalculator onTerug={()=>setScreen("portaal")}/>;
 
+  if (screen==="wachtwoord-instellen") return (
+    <div className="min-h-screen grid grid-cols-2">
+      <style>{CSS_FONT}</style>
+      {/* Links — merkpaneel (identiek aan loginscherm) */}
+      <div className="bg-[#2D2D2D] flex flex-col justify-center items-center p-12 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-[#991A21] rounded-full opacity-10 -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#991A21] rounded-full opacity-8 translate-y-1/2 -translate-x-1/2" />
+        <div className="relative z-10 flex flex-col items-center gap-8">
+          <div className="bg-white rounded-2xl px-8 py-6 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="flex gap-1">
+                <div className="w-10 h-10 bg-[#991A21] rounded-md flex items-center justify-center">
+                  <span className="text-white text-lg">🏠</span>
+                </div>
+                <div className="w-10 h-10 bg-[#2D2D2D] rounded-md flex items-center justify-center">
+                  <span className="text-white text-lg">📋</span>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-[#2D2D2D] leading-tight">Totaal VvE Beheer</p>
+                <p className="text-xs text-gray-500">Den Haag en omstreken B.V.</p>
+              </div>
+            </div>
+          </div>
+          <div className="text-center">
+            <p className="text-white text-xl font-bold mb-2">Wachtwoord instellen</p>
+            <p className="text-gray-400 text-sm leading-relaxed max-w-xs">Kies een nieuw wachtwoord om toegang te krijgen tot het portaal</p>
+          </div>
+        </div>
+      </div>
+      {/* Rechts — wachtwoordformulier */}
+      <div className="bg-[#F2EFEC] flex flex-col justify-center px-16 py-12">
+        <div className="max-w-sm w-full mx-auto">
+          <h1 className="text-2xl font-bold text-[#2D2D2D] mb-1">Nieuw wachtwoord</h1>
+          <p className="text-sm text-gray-500 mb-2">Stel het wachtwoord voor je account in.</p>
+          <p className="text-xs text-gray-400 mb-8">Minimaal 12 tekens, met een hoofdletter, kleine letter, cijfer en speciaal teken.</p>
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide block mb-1.5">Nieuw wachtwoord</label>
+              <input autoFocus type="password" value={nieuwPw} onChange={e=>{ setNieuwPw(e.target.value); setPwError(""); }} placeholder="••••••••••••"
+                className={`w-full bg-white border-2 rounded-xl px-4 py-3 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none transition-colors ${pwError?"border-[#991A21]":"border-gray-200 focus:border-[#991A21]"}`}/>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide block mb-1.5">Herhaal wachtwoord</label>
+              <input type="password" value={nieuwPw2} onChange={e=>{ setNieuwPw2(e.target.value); setPwError(""); }} onKeyDown={e=>e.key==="Enter"&&handleWachtwoordInstellen()} placeholder="••••••••••••"
+                className={`w-full bg-white border-2 rounded-xl px-4 py-3 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none transition-colors ${pwError?"border-[#991A21]":"border-gray-200 focus:border-[#991A21]"}`}/>
+            </div>
+            {pwError && <p className="text-xs text-[#991A21] font-medium">{pwError}</p>}
+            <button onClick={handleWachtwoordInstellen} disabled={loading}
+              className="w-full py-3 bg-[#991A21] hover:bg-[#7a1419] disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors shadow-lg shadow-red-900/20 mt-2">
+              {loading ? "Opslaan…" : "Wachtwoord instellen →"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   if (screen==="login") return (
     <div className="min-h-screen grid grid-cols-2">
       <style>{CSS_FONT}</style>
@@ -3998,6 +4146,15 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
         <div className="max-w-sm w-full mx-auto">
           <h1 className="text-2xl font-bold text-[#2D2D2D] mb-1">Welkom terug</h1>
           <p className="text-sm text-gray-500 mb-8">Log in met je account om door te gaan</p>
+          {resetMelding && (
+            <div className={`mb-5 rounded-xl border px-4 py-3 text-sm font-medium ${
+              resetMelding.type === "succes"
+                ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                : "bg-red-50 border-red-200 text-[#991A21]"
+            }`}>
+              {resetMelding.tekst}
+            </div>
+          )}
           <div className="space-y-4">
             <div>
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide block mb-1.5">E-mailadres</label>
