@@ -4158,7 +4158,7 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
           <div className="space-y-4">
             <div>
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide block mb-1.5">E-mailadres</label>
-              <input autoFocus value={loginNaam} onChange={e=>{ setLoginNaam(e.target.value); setLoginError(""); }} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="naam@vveplanner.nl"
+              <input autoFocus value={loginNaam} onChange={e=>{ setLoginNaam(e.target.value); setLoginError(""); }} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="naam@totaalvve.nl"
                 className={`w-full bg-white border-2 rounded-xl px-4 py-3 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none transition-colors ${loginError?"border-[#991A21]":"border-gray-200 focus:border-[#991A21]"}`}/>
             </div>
             <div>
