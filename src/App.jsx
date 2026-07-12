@@ -424,13 +424,13 @@ function Toast() { return <ToastBridge />; }
 // ── Shared UI ────────────────────────────────────────────────────
 function Badge({ color, children }) {
   const c = {
-    green:"bg-emerald-50 text-emerald-700 border border-emerald-200",
-    orange:"bg-orange-50 text-orange-700 border border-orange-200",
-    red:"bg-red-50 text-[#991A21] border border-red-200",
-    blue:"bg-blue-50 text-blue-700 border border-blue-200",
-    gray:"bg-gray-100 text-gray-600 border border-gray-200",
+    green:  "bg-[#EAF2EC] text-[#3B7A57] border border-[#CFE0D5]",
+    orange: "bg-[#F7EEDD] text-[#B07414] border border-[#E8D5B0]",
+    red:    "bg-[#F6ECEC] text-[#991A21] border border-[#E3C9C9]",
+    blue:   "bg-[#EAEFF4] text-[#4A6B8A] border border-[#C4D2DE]",
+    gray:   "bg-[#FAF8F5] text-[#6B6560] border border-[#E7E2DB]",
   };
-  return <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${c[color]||c.gray}`}>{children}</span>;
+  return <span className={`text-[10.5px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${c[color]||c.gray}`}>{children}</span>;
 }
 
 function MonthBar({ counts, vakanties }) {
@@ -482,13 +482,13 @@ function Checkbox({ checked, disabled, onChange, label }) {
     <label className="flex items-center gap-2 cursor-pointer group shrink-0" onClick={e=>e.stopPropagation()}>
       <div
         onClick={()=>!disabled && onChange(!checked)}
-        className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all
+        className={`w-[18px] h-[18px] rounded border flex items-center justify-center transition-colors shrink-0
           ${disabled ? "opacity-30 cursor-not-allowed" : "cursor-pointer"}
-          ${checked ? "bg-[#991A21] border-[#991A21]" : "border-gray-300 hover:border-[#991A21]"}`}
+          ${checked ? "bg-[#991A21] border-[#991A21]" : "bg-white border-[#C9BEB2] group-hover:border-[#991A21]"}`}
       >
-        {checked && <span className="text-white text-xs font-bold">✓</span>}
+        {checked && <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className="w-[11px] h-[11px]"><path d="M20 6 9 17l-5-5"/></svg>}
       </div>
-      <span className={`text-xs transition-colors ${disabled ? "text-gray-300" : "text-gray-600 group-hover:text-[#2D2D2D]"}`}>{label}</span>
+      <span className={`text-[12.5px] transition-colors ${disabled ? "text-[#C9BEB2]" : "text-[#6B6560] group-hover:text-[#2D2D2D]"}`}>{label}</span>
     </label>
   );
 }
@@ -541,96 +541,150 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
   const inv1 = inviteStatus(vve.datum1, uitgenodigd1);
   const inv2 = inviteStatus(vve.datum2, uitgenodigd2);
 
-  const invBadge = (status, which) => {
-    if (status === "none") return null;
-    if (status === "confirmed") return <Badge color="green">✉ Uitgenodigd</Badge>;
-    if (status === "overdue") return <Badge color="red">✉ Uitnodiging te laat ({which})</Badge>;
-    if (status === "warning") return <Badge color="orange">✉ Uitnodigen ({which})</Badge>;
+  // Een verstreken, niet-afgevinkte vergadering is géén "uitnodiging te laat":
+  // uitnodigen kán niet meer. De enige actie is de uitkomst vastleggen. Zelfde
+  // regel als in urgentItems en het filter "Actie vereist" in de lijst.
+  const vandaagIso = today();
+  const open1 = !!vve.datum1     && vve.datum1     < vandaagIso && !vergaderd1;
+  const open2 = !!vve.datum2     && vve.datum2     < vandaagIso && !vergaderd2;
+  const invE  = inviteStatus(vve.datumExtra, vve.uitgenodigdExtra);
+  const openE = !!vve.datumExtra && vve.datumExtra < vandaagIso && !vve.vergaderdExtra;
+  const st1 = open1 ? "open" : inv1;
+  const st2 = open2 ? "open" : inv2;
+  const stE = openE ? "open" : invE;
+
+  const STIJL = {
+    open:      { rand: "border-[#E3C9C9]", vlak: "bg-[#F6ECEC]", tekst: "text-[#991A21]" },
+    overdue:   { rand: "border-[#E3C9C9]", vlak: "bg-[#F6ECEC]", tekst: "text-[#991A21]" },
+    warning:   { rand: "border-[#E8D5B0]", vlak: "bg-[#F7EEDD]", tekst: "text-[#B07414]" },
+    confirmed: { rand: "border-[#CFE0D5]", vlak: "bg-[#EAF2EC]", tekst: "text-[#3B7A57]" },
+    ok:        { rand: "border-[#EFEBE4]", vlak: "bg-white",     tekst: "text-[#6B6560]" },
+    none:      { rand: "border-[#EFEBE4]", vlak: "bg-white",     tekst: "text-[#6B6560]" },
+  };
+
+  const statusTekst = (st, datum) =>
+    st === "open"      ? `Vergadering was op ${fmtDate(datum)} — leg de uitkomst vast` :
+    st === "confirmed" ? "Uitnodiging verstuurd" :
+    st === "overdue"   ? `Uitnodigingstermijn verlopen — uiterlijk ${fmtDate(addDays(datum, -INVITE_DAYS))}` :
+    st === "warning"   ? `Uitnodigen vóór ${fmtDate(addDays(datum, -INVITE_DAYS))}` :
+                         `Uitnodigen uiterlijk ${fmtDate(addDays(datum, -INVITE_DAYS))}`;
+
+  const statusBadge = (st, which) => {
+    if (st === "none") return null;
+    if (st === "open")      return <Badge color="red">Uitkomst vastleggen ({which})</Badge>;
+    if (st === "confirmed") return <Badge color="green">Uitgenodigd ({which})</Badge>;
+    if (st === "overdue")   return <Badge color="red">Uitnodiging te laat ({which})</Badge>;
+    if (st === "warning")   return <Badge color="orange">Uitnodigen ({which})</Badge>;
     return null;
   };
 
-  const dotColor = afgerond ? "bg-emerald-500"
-    : vergaderd1 ? "bg-sky-500"
-    : inv1 === "overdue" || inv2 === "overdue" ? "bg-red-500"
-    : inv1 === "warning" || inv2 === "warning" ? "bg-amber-400"
-    : vve.datum1 ? "bg-zinc-500"
-    : "bg-gray-300";
+  // Eén statuspaneel, drie keer gebruikt (1e / 2e / extra) in plaats van drie
+  // keer hetzelfde blok. Gewone functie, geen component: geen remount-risico.
+  const statusPaneel = (st, datum, uitgenodigd, onToggle) => {
+    const s = STIJL[st] || STIJL.none;
+    return (
+      <div className={`rounded-lg px-3.5 py-3 border ${s.rand} ${s.vlak}`}>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <span className={`flex items-center gap-2 text-[12.5px] font-medium ${s.tekst}`}>
+            {st === "open" ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[15px] h-[15px] shrink-0">
+                <path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[15px] h-[15px] shrink-0">
+                <rect x="2" y="4" width="20" height="16" rx="2.5"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+              </svg>
+            )}
+            {statusTekst(st, datum)}
+          </span>
+          <Checkbox checked={uitgenodigd} disabled={false} onChange={onToggle} label="Uitnodiging verstuurd"/>
+        </div>
+      </div>
+    );
+  };
+
+  // Het voorkeursdatumblok stond twee keer identiek in de code (na 1e zonder
+  // 2e, en na een afgeronde 2e). Nu één keer.
+  const voorkeurBlok = () => (
+    <div className="border border-[#CFE0D5] bg-[#EAF2EC] rounded-lg px-3.5 py-3 space-y-2">
+      <p className="text-[12.5px] font-semibold text-[#3B7A57]">Voorkeursdatum volgend jaar</p>
+      <p className="text-[11.5px] text-[#6B6560]">Optioneel — wordt meegenomen in de auto-planning voor {new Date().getFullYear() + 1}.</p>
+      <input type="date" value={vve.voorkeurVolgendjaar || ""}
+        onChange={e => onUpdate({ ...vve, voorkeurVolgendjaar: e.target.value })}
+        className="w-full bg-white border border-[#CFE0D5] rounded-lg px-3 h-10 text-[13.5px] text-[#2D2D2D] focus:outline-none focus:border-[#3B7A57] transition-colors"/>
+      {vve.voorkeurVolgendjaar && (
+        <p className="text-[11.5px] font-medium text-[#3B7A57] tabular-nums">Opgeslagen: {fmtDate(vve.voorkeurVolgendjaar)}</p>
+      )}
+    </div>
+  );
+
+  const INP = "w-full bg-white border border-[#E7E2DB] rounded-lg px-3 h-10 text-[13.5px] text-[#2D2D2D] focus:outline-none focus:border-[#991A21] transition-colors";
+  const LABEL = "text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#9B958E]";
+
+  const stipKleur = afgerond ? "#3B7A57"
+    : (open1 || open2 || openE) ? "#991A21"
+    : (st1 === "overdue" || st2 === "overdue" || stE === "overdue") ? "#991A21"
+    : (st1 === "warning" || st2 === "warning" || stE === "warning") ? "#B07414"
+    : vergaderd1 ? "#4A6B8A"
+    : vve.datum1 ? "#9B958E"
+    : "#C9BEB2";
+
+  const regelMeta = (datum, vergaderd, open, uitgenodigd, nr) => (
+    <span className="text-[12px] text-[#9B958E]">
+      <span>{nr}</span>{" "}
+      <span className={`tabular-nums font-medium ${vergaderd ? "text-[#3B7A57]" : "text-[#3f3d3b]"}`}>{fmtDate(datum)}</span>
+      {vergaderd ? <span className="text-[#3B7A57]"> · heeft plaatsgevonden</span>
+        : open ? <span className="text-[#991A21] font-medium"> · uitkomst niet vastgelegd</span>
+        : uitgenodigd ? <span className="text-[#3B7A57]"> · uitnodiging verstuurd</span>
+        : <span> · uitnodigen uiterlijk <span className="tabular-nums">{fmtDate(addDays(datum, -INVITE_DAYS))}</span></span>}
+    </span>
+  );
 
   const updateDatum1 = (val) => onUpdate({ ...vve, datum1: val, uitgenodigd1: false });
   const updateDatum2 = (val) => onUpdate({ ...vve, datum2: val, uitgenodigd2: false });
 
-  return (
-    <div ref={rowRef} className={`rounded-xl overflow-hidden transition-all shadow-sm ${afgerond ? "border-2 border-emerald-300 bg-emerald-50/30" : "border-2 border-gray-300 bg-white"}`}>
-      <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors" onClick={()=>setExpanded(e=>!e)}>
-        <div className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`}/>
+return (
+    <div ref={rowRef} className={`rounded-xl overflow-hidden border transition-colors ${
+      afgerond ? "border-[#CFE0D5] bg-[#F7FBF8]" : "border-[#E7E2DB] bg-white"
+    }`}>
+
+      {/* ── Ingeklapte rij ─────────────────────────────────────── */}
+      <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-[#FAF8F5] transition-colors" onClick={()=>setExpanded(e=>!e)}>
+        <span className="w-[9px] h-[9px] rounded-full shrink-0" style={{background: stipKleur}} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-sm font-semibold truncate ${afgerond ? "text-emerald-700" : "text-[#2D2D2D]"}`}>{vve.naam}</span>
-            {vveHeeftLod && vveHeeftLod(vve.naam) && (
-              <span style={{fontSize:9,fontWeight:700,background:'#FDEAEB',color:'#991A21',padding:'1px 6px',borderRadius:8,border:'1px solid #fca5a5',whiteSpace:'nowrap',flexShrink:0}}>⚠ LOD</span>
-            )}
-            {afgerond && <Badge color="green">✓ Afgerond</Badge>}
-            {afgerond && vve.voorkeurVolgendjaar && <Badge color="blue">📅 {new Date().getFullYear()+1} gepland</Badge>}
-            {!afgerond && vergaderd1 && vve.datum2 && !vergaderd2 && <Badge color="blue">1e ✓ · 2e loopt</Badge>}
+            <span className={`text-[13.5px] font-semibold truncate ${afgerond ? "text-[#3B7A57]" : "text-[#2D2D2D]"}`}>{vve.naam}</span>
+            {vveHeeftLod && vveHeeftLod(vve.naam) && <Badge color="red">LOD</Badge>}
+            {afgerond && <Badge color="green">Afgerond</Badge>}
+            {afgerond && vve.voorkeurVolgendjaar && <Badge color="blue">{new Date().getFullYear()+1} gepland</Badge>}
+            {!afgerond && vergaderd1 && vve.datum2 && !vergaderd2 && <Badge color="blue">1e gedaan · 2e loopt</Badge>}
             {!vve.datum1 && !afgerond && <Badge color="gray">Niet gepland</Badge>}
             {inVak1 && !vergaderd1 && <Badge color="orange">Vakantieperiode</Badge>}
             {inVak2 && !vergaderd2 && <Badge color="orange">2e in vakantie</Badge>}
-            {!vergaderd1 && invBadge(inv1, "1e")}
-            {!vergaderd2 && vve.datum2 && invBadge(inv2, "2e")}
+            {!vergaderd1 && statusBadge(st1, "1e")}
+            {!vergaderd2 && vve.datum2 && statusBadge(st2, "2e")}
           </div>
-          <div className="flex gap-4 mt-0.5 flex-wrap">
-            {vve.datum1 && (
-              <span className="text-xs text-gray-500">
-                1e: <span className={vergaderd1 ? "text-emerald-600 line-through" : "text-zinc-400"}>{fmtDate(vve.datum1)}</span>
-                {!uitgenodigd1 && !vergaderd1 && <span className="text-zinc-600 ml-1">· uitnodigen uiterlijk {fmtDate(addDays(vve.datum1, -INVITE_DAYS))}</span>}
-                {uitgenodigd1 && !vergaderd1 && <span className="text-emerald-700 ml-1">· uitnodiging verstuurd</span>}
-                {vergaderd1 && <span className="text-emerald-700 ml-1">· heeft plaatsgevonden</span>}
-              </span>
-            )}
-            {vve.datum2 && (
-              <span className="text-xs text-gray-500">
-                2e: <span className={vergaderd2 ? "text-emerald-600 line-through" : "text-zinc-400"}>{fmtDate(vve.datum2)}</span>
-                {!uitgenodigd2 && !vergaderd2 && <span className="text-zinc-600 ml-1">· uitnodigen uiterlijk {fmtDate(addDays(vve.datum2, -INVITE_DAYS))}</span>}
-                {uitgenodigd2 && !vergaderd2 && <span className="text-emerald-700 ml-1">· uitnodiging verstuurd</span>}
-                {vergaderd2 && <span className="text-emerald-700 ml-1">· heeft plaatsgevonden</span>}
-              </span>
-            )}
+          <div className="flex gap-x-5 gap-y-0.5 mt-1 flex-wrap">
+            {vve.datum1 && regelMeta(vve.datum1, vergaderd1, open1, uitgenodigd1, "1e")}
+            {vve.datum2 && regelMeta(vve.datum2, vergaderd2, open2, uitgenodigd2, "2e")}
           </div>
         </div>
-        <span className="text-gray-400 text-xs">{expanded?"▲":"▼"}</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+          className={`w-[16px] h-[16px] shrink-0 text-[#9B958E] transition-transform ${expanded ? "rotate-180" : ""}`}>
+          <path d="m6 9 6 6 6-6"/>
+        </svg>
       </div>
 
+      {/* ── Uitgeklapt ─────────────────────────────────────────── */}
       {expanded && (
-        <div className="border-t-2 border-x-2 border-b-2 border-gray-300 px-4 py-4 bg-[#F2EFEC] space-y-5">
+        <div className="border-t border-[#EFEBE4] px-4 py-5 bg-[#FAF8F5] space-y-5">
 
           {/* 1e vergadering */}
-          <div className="space-y-2">
-            <span className="text-xs text-zinc-400 font-medium">1e vergadering</span>
-            <input type="date" value={vve.datum1} onChange={e=>updateDatum1(e.target.value)}
-              className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] focus:outline-none focus:border-[#991A21] transition-colors"/>
-            {vve.datum1 && (
-              <div className={`rounded-lg px-3 py-2.5 border ${
-                inv1==="overdue" ? "border-red-900/50 bg-red-950/20" :
-                inv1==="warning" ? "border-amber-900/50 bg-amber-950/20" :
-                inv1==="confirmed" ? "border-emerald-900/40 bg-emerald-950/10" :
-                "border-gray-200 bg-gray-50"}`}>
-                <div className="flex items-center justify-between">
-                  <span className={`text-xs font-medium ${
-                    inv1==="overdue" ? "text-[#991A21]" :
-                    inv1==="warning" ? "text-amber-400" :
-                    inv1==="confirmed" ? "text-emerald-600" : "text-zinc-400"}`}>
-                    {inv1==="confirmed" ? "✉ Uitnodiging verstuurd" :
-                     inv1==="overdue" ? "✉ Uitnodigingstermijn verlopen" :
-                     inv1==="warning" ? `✉ Uitnodigen vóór ${fmtDate(addDays(vve.datum1,-INVITE_DAYS))}` :
-                     `✉ Uitnodigen uiterlijk ${fmtDate(addDays(vve.datum1,-INVITE_DAYS))}`}
-                  </span>
-                  <Checkbox checked={uitgenodigd1} disabled={false}
-                    onChange={v=>onUpdate({...vve, uitgenodigd1: v})}
-                    label="Uitnodiging verstuurd"/>
-                </div>
-              </div>
-            )}
-            <div className="flex flex-col gap-2 pt-1">
+          <div className="space-y-2.5">
+            <p className={LABEL}>1e vergadering</p>
+            <input type="date" value={vve.datum1} onChange={e=>updateDatum1(e.target.value)} className={INP}/>
+            {vve.datum1 && statusPaneel(st1, vve.datum1, uitgenodigd1, v=>onUpdate({...vve, uitgenodigd1: v}))}
+            <div className="flex flex-col gap-2.5 pt-1">
               <Checkbox checked={vergaderd1} disabled={false}
                 onChange={v=>onUpdate({...vve, vergaderd1: v})}
                 label="Vergadering heeft plaatsgevonden"/>
@@ -638,133 +692,57 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
                 onChange={v=>onUpdate({...vve, needs2e: v, datum2: v ? vve.datum2 : "", uitgenodigd2: false, vergaderd2: false})}
                 label="2e reglementaire vergadering nodig"/>
             </div>
-            {vergaderd1 && !vve.needs2e && (
-              <div className="border border-emerald-200 bg-emerald-50 rounded-lg px-3 py-2.5 space-y-1.5">
-                <label className="text-xs text-emerald-700 font-semibold block">📅 Voorkeursdatum volgend jaar</label>
-                <p className="text-[10px] text-gray-500">Optioneel — wordt meegenomen in de auto-planning voor {new Date().getFullYear() + 1}.</p>
-                <input
-                  type="date"
-                  value={vve.voorkeurVolgendjaar || ""}
-                  onChange={e => onUpdate({ ...vve, voorkeurVolgendjaar: e.target.value })}
-                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] focus:outline-none focus:border-emerald-600 transition-colors"
-                />
-                {vve.voorkeurVolgendjaar && (
-                  <p className="text-[10px] text-emerald-700 font-medium">✓ Voorkeur opgeslagen: {fmtDate(vve.voorkeurVolgendjaar)}</p>
-                )}
-              </div>
-            )}
+            {vergaderd1 && !vve.needs2e && voorkeurBlok()}
           </div>
 
-          {/* 2e vergadering */}
+          {/* 2e reglementaire vergadering */}
           {vve.needs2e && (
-            <div className="space-y-2 border-t border-gray-200 pt-4">
-              <span className="text-xs text-zinc-400 font-medium">2e reglementaire vergadering</span>
+            <div className="space-y-2.5 border-t border-[#EFEBE4] pt-4">
+              <p className={LABEL}>2e reglementaire vergadering</p>
               <div className="flex gap-2">
-                <input type="date" value={vve.datum2||""} onChange={e=>updateDatum2(e.target.value)}
-                  className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] focus:outline-none focus:border-[#991A21] transition-colors"/>
+                <input type="date" value={vve.datum2||""} onChange={e=>updateDatum2(e.target.value)} className={INP + " flex-1"}/>
                 {vve.datum1 && !vve.datum2 && (
-                  <button onClick={()=>onAdd2nd(vve)} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 border border-gray-200 px-3 py-2 rounded-lg transition-colors whitespace-nowrap">+3w</button>
+                  <button onClick={()=>onAdd2nd(vve)}
+                    className="shrink-0 px-3 h-10 bg-white hover:bg-[#F2EFEC] text-[#6B6560] border border-[#E7E2DB] text-[12.5px] font-medium rounded-lg transition-colors whitespace-nowrap">
+                    +3 weken
+                  </button>
                 )}
               </div>
+              {vve.datum2 && statusPaneel(st2, vve.datum2, uitgenodigd2, v=>onUpdate({...vve, uitgenodigd2: v}))}
               {vve.datum2 && (
-                <div className={`rounded-lg px-3 py-2.5 border ${
-                  inv2==="overdue" ? "border-red-900/50 bg-red-950/20" :
-                  inv2==="warning" ? "border-amber-900/50 bg-amber-950/20" :
-                  inv2==="confirmed" ? "border-emerald-900/40 bg-emerald-950/10" :
-                  "border-gray-200 bg-gray-50"}`}>
-                  <div className="flex items-center justify-between">
-                    <span className={`text-xs font-medium ${
-                      inv2==="overdue" ? "text-[#991A21]" :
-                      inv2==="warning" ? "text-amber-400" :
-                      inv2==="confirmed" ? "text-emerald-600" : "text-zinc-400"}`}>
-                      {inv2==="confirmed" ? "✉ Uitnodiging verstuurd" :
-                       inv2==="overdue" ? "✉ Uitnodigingstermijn verlopen" :
-                       inv2==="warning" ? `✉ Uitnodigen vóór ${fmtDate(addDays(vve.datum2,-INVITE_DAYS))}` :
-                       `✉ Uitnodigen uiterlijk ${fmtDate(addDays(vve.datum2,-INVITE_DAYS))}`}
-                    </span>
-                    <Checkbox checked={uitgenodigd2} disabled={false}
-                      onChange={v=>onUpdate({...vve, uitgenodigd2: v})}
-                      label="Uitnodiging verstuurd"/>
-                  </div>
-                </div>
-              )}
-              {vve.datum2 && (
-                <div className="flex items-center pt-1">
+                <div className="pt-1">
                   <Checkbox checked={vergaderd2} disabled={false}
                     onChange={v=>onUpdate({...vve, vergaderd2: v})}
                     label="Vergadering heeft plaatsgevonden"/>
                 </div>
               )}
-              {vergaderd2 && (
-                <div className="border border-emerald-200 bg-emerald-50 rounded-lg px-3 py-2.5 space-y-1.5">
-                  <label className="text-xs text-emerald-700 font-semibold block">📅 Voorkeursdatum volgend jaar</label>
-                  <p className="text-[10px] text-gray-500">Optioneel — wordt meegenomen in de auto-planning voor {new Date().getFullYear() + 1}.</p>
-                  <input
-                    type="date"
-                    value={vve.voorkeurVolgendjaar || ""}
-                    onChange={e => onUpdate({ ...vve, voorkeurVolgendjaar: e.target.value })}
-                    className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] focus:outline-none focus:border-emerald-600 transition-colors"
-                  />
-                  {vve.voorkeurVolgendjaar && (
-                    <p className="text-[10px] text-emerald-700 font-medium">✓ Voorkeur opgeslagen: {fmtDate(vve.voorkeurVolgendjaar)}</p>
-                  )}
-                </div>
-              )}
+              {vergaderd2 && voorkeurBlok()}
             </div>
           )}
 
-          <div>
-            <label className="text-xs text-zinc-500 block mb-1">Notitie</label>
+          {/* Notitie */}
+          <div className="border-t border-[#EFEBE4] pt-4">
+            <p className={LABEL + " mb-2"}>Notitie</p>
             <input type="text"
               value={notitieLokaal}
               onChange={e => { setNotitieLokaal(e.target.value); notitieDebounced(e.target.value); }}
               onBlur={notitieFlush}
               placeholder="Bijv. altijd dinsdag…"
-              className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none focus:border-[#991A21] transition-colors"/>
-            {vve.voorkeurVolgendjaar && vve.notitie && (
-              <div className="mt-2 flex items-start gap-2 bg-amber-950/30 border border-amber-800/50 rounded-lg px-3 py-2">
-                <span className="text-amber-400 shrink-0 mt-0.5">💡</span>
-                <p className="text-xs text-amber-300"><span className="font-medium">Let op:</span> {vve.notitie}</p>
-              </div>
-            )}
+              className="w-full bg-white border border-[#E7E2DB] rounded-lg px-3 h-10 text-[13.5px] text-[#2D2D2D] placeholder-[#9B958E] focus:outline-none focus:border-[#991A21] transition-colors"/>
           </div>
 
           {/* Extra vergadering */}
-          <div className="space-y-2 border-t border-gray-200 pt-4">
+          <div className="space-y-2.5 border-t border-[#EFEBE4] pt-4">
             <Checkbox checked={!!vve.extraVergadering} disabled={false}
               onChange={v=>onUpdate({...vve, extraVergadering: v, datumExtra: v ? vve.datumExtra : "", uitgenodigdExtra: false, vergaderdExtra: false})}
               label="Extra vergadering"/>
             {vve.extraVergadering && (
-              <div className="space-y-2 pl-1">
+              <div className="space-y-2.5 pl-6">
                 <input type="date" value={vve.datumExtra||""}
                   onChange={e=>onUpdate({...vve, datumExtra: e.target.value, uitgenodigdExtra: false})}
-                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] focus:outline-none focus:border-[#991A21] transition-colors"/>
-                {vve.datumExtra && (
-                  <div className={`rounded-lg px-3 py-2.5 border ${
-                    inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="overdue" ? "border-red-900/50 bg-red-950/20" :
-                    inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="warning" ? "border-amber-900/50 bg-amber-950/20" :
-                    inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="confirmed" ? "border-emerald-900/40 bg-emerald-950/10" :
-                    "border-gray-200 bg-gray-50"}`}>
-                    <div className="flex items-center justify-between">
-                      <span className={`text-xs font-medium ${
-                        inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="overdue" ? "text-[#991A21]" :
-                        inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="warning" ? "text-amber-400" :
-                        inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="confirmed" ? "text-emerald-600" : "text-zinc-400"}`}>
-                        {inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="confirmed" ? "✉ Uitnodiging verstuurd" :
-                         inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="overdue" ? "✉ Uitnodigingstermijn verlopen" :
-                         inviteStatus(vve.datumExtra, vve.uitgenodigdExtra)==="warning" ? `✉ Uitnodigen vóór ${fmtDate(addDays(vve.datumExtra,-INVITE_DAYS))}` :
-                         `✉ Uitnodigen uiterlijk ${fmtDate(addDays(vve.datumExtra,-INVITE_DAYS))}`}
-                      </span>
-                      <Checkbox checked={!!vve.uitgenodigdExtra} disabled={false}
-                        onChange={v=>onUpdate({...vve, uitgenodigdExtra: v})}
-                        label="Uitnodiging verstuurd"/>
-                    </div>
-                  </div>
-                )}
-                <div className="flex flex-col gap-2 pt-1">
-                  <Checkbox checked={!!vve.uitgenodigdExtra} disabled={false}
-                    onChange={v=>onUpdate({...vve, uitgenodigdExtra: v})}
-                    label="Uitnodiging verstuurd"/>
+                  className={INP}/>
+                {vve.datumExtra && statusPaneel(stE, vve.datumExtra, !!vve.uitgenodigdExtra, v=>onUpdate({...vve, uitgenodigdExtra: v}))}
+                <div className="pt-1">
                   <Checkbox checked={!!vve.vergaderdExtra} disabled={false}
                     onChange={v=>onUpdate({...vve, vergaderdExtra: v})}
                     label="Vergadering heeft plaatsgevonden"/>
@@ -773,25 +751,32 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
             )}
           </div>
 
-          {/* Kosten reminder */}
+          {/* Kostenherinnering */}
           {(vve.needs2e || vve.extraVergadering) && (
-            <p className="text-[10px] text-orange-700 border-t border-gray-200 pt-3">
-              💡 Vergeet niet de kosten in rekening te brengen
-              {vve.needs2e && vve.extraVergadering ? " voor de 2e reglementaire vergadering en de extra vergadering." :
-               vve.needs2e ? " voor de 2e reglementaire vergadering." :
-               " voor de extra vergadering."}
-            </p>
+            <div className="border-t border-[#EFEBE4] pt-4 flex items-start gap-2.5">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[15px] h-[15px] text-[#B07414] shrink-0 mt-px">
+                <circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>
+              </svg>
+              <p className="text-[12px] text-[#6B6560]">
+                Vergeet niet de kosten in rekening te brengen
+                {vve.needs2e && vve.extraVergadering ? " voor de 2e reglementaire vergadering en de extra vergadering." :
+                 vve.needs2e ? " voor de 2e reglementaire vergadering." :
+                 " voor de extra vergadering."}
+              </p>
+            </div>
           )}
 
-          <div className="flex justify-end">
-            <button onClick={()=>onDelete(vve.id)} className="text-xs text-gray-400 hover:text-[#991A21] transition-colors">Verwijder VvE</button>
+          <div className="flex justify-end border-t border-[#EFEBE4] pt-4">
+            <button onClick={()=>onDelete(vve.id)}
+              className="text-[12.5px] font-medium text-[#9B958E] hover:text-[#991A21] transition-colors">
+              Verwijder VvE
+            </button>
           </div>
         </div>
       )}
     </div>
   );
 }
-
 // ── Werkdagen selector ───────────────────────────────────────────
 function WerkdagenSelector({ werkdagen, onChange }) {
   const displayOrder = [1,2,3,4,5,6,0];
