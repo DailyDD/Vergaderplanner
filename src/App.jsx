@@ -3925,19 +3925,41 @@ useEffect(() => {
   }).length;
   const inVakantie = data.vves.filter(v=>(v.datum1&&isInVakantie(v.datum1,data.vakanties))||(v.datum2&&isInVakantie(v.datum2,data.vakanties))).length;
 
+  // ── Actiepunten ──────────────────────────────────────────────
+  // Twee soorten:
+  //   "warning" / "overdue"  → uitnodiging moet nog de deur uit
+  //   "nietVerwerkt"         → vergadering is geweest, uitkomst niet vastgelegd
+  //
+  // inviteStatus() geeft ook "overdue" wanneer de vergaderDATUM zelf al is
+  // verstreken. Uitnodigen is dan geen uitvoerbare actie meer, dus die items
+  // worden alleen aangemaakt zolang de vergadering nog moet plaatsvinden.
+  // Een verstreken, niet-afgevinkte vergadering levert in plaats daarvan één
+  // "nietVerwerkt"-item op. Dat vervangt het oude "geen2e"-item, dat !needs2e
+  // eiste en daardoor VvE's mét een geplande 2e volledig van de radar liet
+  // vallen.
   const urgentItems = data.vves.flatMap(v => {
     const items = [];
+    const t = today();
     const s1 = inviteStatus(v.datum1, v.uitgenodigd1);
     const s2 = inviteStatus(v.datum2, v.uitgenodigd2);
     const sE = inviteStatus(v.datumExtra, v.uitgenodigdExtra);
-    if (!v.vergaderd1 && (s1==="warning"||s1==="overdue"))
+
+    // Nog te versturen uitnodigingen — vergadering ligt in de toekomst
+    if (!v.vergaderd1 && v.datum1 && v.datum1 >= t && (s1==="warning"||s1==="overdue"))
       items.push({ id: v.id+"_u1", vveId: v.id, naam: v.naam, type: s1==="overdue"?"overdue":"warning", datum: v.datum1, deadline: addDays(v.datum1,-INVITE_DAYS) });
-    if (v.needs2e && v.datum2 && !v.vergaderd2 && (s2==="warning"||s2==="overdue"))
+    if (v.needs2e && v.datum2 && v.datum2 >= t && !v.vergaderd2 && (s2==="warning"||s2==="overdue"))
       items.push({ id: v.id+"_u2", vveId: v.id, naam: v.naam, type: s2==="overdue"?"overdue":"warning", datum: v.datum2, deadline: addDays(v.datum2,-INVITE_DAYS), is2e: true });
-    if (v.extraVergadering && v.datumExtra && !v.vergaderdExtra && (sE==="warning"||sE==="overdue"))
+    if (v.extraVergadering && v.datumExtra && v.datumExtra >= t && !v.vergaderdExtra && (sE==="warning"||sE==="overdue"))
       items.push({ id: v.id+"_uE", vveId: v.id, naam: v.naam, type: sE==="overdue"?"overdue":"warning", datum: v.datumExtra, deadline: addDays(v.datumExtra,-INVITE_DAYS), isExtra: true });
-    if (v.datum1 && v.datum1 < today() && !v.needs2e && !v.vergaderd1)
-      items.push({ id: v.id+"_2e", vveId: v.id, naam: v.naam, type: "geen2e", datum: v.datum1 });
+
+    // Verstreken vergaderingen waarvan de uitkomst nog niet is vastgelegd
+    if (v.datum1 && v.datum1 < t && !v.vergaderd1)
+      items.push({ id: v.id+"_open1", vveId: v.id, naam: v.naam, type: "nietVerwerkt", datum: v.datum1 });
+    if (v.needs2e && v.datum2 && v.datum2 < t && !v.vergaderd2)
+      items.push({ id: v.id+"_open2", vveId: v.id, naam: v.naam, type: "nietVerwerkt", datum: v.datum2, is2e: true });
+    if (v.extraVergadering && v.datumExtra && v.datumExtra < t && !v.vergaderdExtra)
+      items.push({ id: v.id+"_openE", vveId: v.id, naam: v.naam, type: "nietVerwerkt", datum: v.datumExtra, isExtra: true });
+
     return items;
   });
 
@@ -4271,31 +4293,6 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
     const heeftLodToegang = isAdmin || isHoofdAdmin || isLodBeheerder;
     const VERDUURZAMING_BEHEERDERS = ["Brian", "Jeffrey"];
     const heeftVerduurzamingToegang = isHoofdAdmin || VERDUURZAMING_BEHEERDERS.includes(beheerder);
-    // LOD statistieken voor dashboard
-    const lodData = isAdmin || isHoofdAdmin ? lodLocalLoad() : [];
-    const lodActief = lodData.filter(l=>l.status!=='afgerond');
-    const now = new Date();
-    const maandEind = new Date(now.getFullYear(), now.getMonth()+1, 0);
-    const lodDezesMaand = lodActief.filter(l=>{
-      if (!l.deadlineAlgemeen) return false;
-      const d = new Date(l.deadlineAlgemeen);
-      return d >= now && d <= maandEind;
-    }).length;
-    const lodUrgent = lodActief.filter(l=>{
-      const d = lodDagenTot(l.deadlineAlgemeen);
-      return d !== null && d <= 14 && d >= 0;
-    }).length;
-    // Recente activiteit: laatste 3 vergaderde VvE's
-    const recenteActiviteit = (data.vves || [])
-      .filter(v => v.vergaderd1 || v.vergaderd2 || v.uitgenodigd1)
-      .slice(-3)
-      .reverse()
-      .map(v => ({
-        naam: v.naam,
-        tekst: v.vergaderd1 ? "vergadering afgerond" : v.uitgenodigd1 ? "uitnodiging verstuurd" : "bijgewerkt",
-        kleur: v.vergaderd1 ? "#1a7a45" : v.uitgenodigd1 ? "#991A21" : "#1a4f7a",
-      }));
-
     // ── Afgeleide weergavewaarden (puur, alleen voor presentatie) ──────────
     // Geen state, geen handlers, geen fetches. urgentItems/afgerond/yearPct e.d.
     // worden hierboven in de App-component al berekend; hier worden ze alleen
@@ -4305,9 +4302,42 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
       ? Math.round((new Date(iso + "T00:00:00") - new Date(vandaag + "T00:00:00")) / 86400000)
       : null;
     const opDatum = (a, b) => (a.datum || "").localeCompare(b.datum || "");
-    const actieGeen2e = urgentItems.filter(i => i.type === "geen2e").sort(opDatum);
+    const actieNietVerwerkt = urgentItems.filter(i => i.type === "nietVerwerkt").sort(opDatum);
     const actieTeLaat = urgentItems.filter(i => i.type === "overdue").sort(opDatum);
     const actieNadert = urgentItems.filter(i => i.type === "warning").sort(opDatum);
+
+    // Eén bron van waarheid: de teller in de statusbalk telt exact de VvE's die
+    // in de wachtrij eronder staan. Een VvE met twee actiepunten telt één keer.
+    const vvesMetActie = new Set(urgentItems.map(i => i.vveId)).size;
+
+    // Eerstvolgende vergaderingen. Vervangt het oude "Recente activiteit"-blok:
+    // dat deed .slice(-3) op data.vves — arrayvolgorde, geen tijdvolgorde. Er
+    // staat geen tijdstempel in de VvE-data, dus "recent" is niet te berekenen.
+    // "Wat komt eraan" wel.
+    const komendeVergaderingen = data.vves
+      .flatMap(v => [
+        v.datum1 && !v.vergaderd1
+          ? { vveId: v.id, naam: v.naam, datum: v.datum1, soort: "1e vergadering", uitgenodigd: !!v.uitgenodigd1 } : null,
+        v.needs2e && v.datum2 && !v.vergaderd2
+          ? { vveId: v.id, naam: v.naam, datum: v.datum2, soort: "2e vergadering", uitgenodigd: !!v.uitgenodigd2 } : null,
+        v.extraVergadering && v.datumExtra && !v.vergaderdExtra
+          ? { vveId: v.id, naam: v.naam, datum: v.datumExtra, soort: "Extra vergadering", uitgenodigd: !!v.uitgenodigdExtra } : null,
+      ])
+      .filter(x => x && x.datum >= vandaag)
+      .sort((a, b) => a.datum.localeCompare(b.datum))
+      .slice(0, 4);
+
+    // Opent de VvE-kaart in de Vergaderplanner. Zelfde mechaniek als het
+    // notificatiepaneel daar (FIX 3): forceOpenId zetten en de filters uitzetten
+    // die de kaart zouden verbergen.
+    const openVveKaart = (vveId) => {
+      setForceOpenId(vveId);
+      const vve = data.vves.find(v => v.id === vveId);
+      if (vve && isAfgerond(vve) && hideAfgerond) setHideAfgerond(false);
+      if (geselecteerdeFilterMaanden.size > 0) setGeselecteerdeFilterMaanden(new Set());
+      if (statFilter) setStatFilter(null);
+      setScreen("vergaderingen");
+    };
 
     const dagTekst = (d) => d === null ? "" : d > 0 ? `over ${d} ${d === 1 ? "dag" : "dagen"}` : d === 0 ? "vandaag" : `${-d} ${-d === 1 ? "dag" : "dagen"} geleden`;
     const deadlineTekst = (d) => d === null ? "" : d < 0 ? `${-d} ${-d === 1 ? "dag" : "dagen"} te laat` : d === 0 ? "vandaag" : `nog ${d} ${d === 1 ? "dag" : "dagen"}`;
@@ -4318,40 +4348,46 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
       </svg>
     );
 
-    // Eén rij in de actie-wachtrij
+    // Eén rij in de actie-wachtrij. Klik opent de betreffende VvE-kaart.
+    // Datum en relatieve tekst staan onder elkaar: "15 juni 2026 · 27 dagen
+    // geleden" past niet op één regel binnen de kolom.
     const ActieRij = ({ item, ernst }) => {
       const dMeeting = dagenTot(item.datum);
       const dDeadline = item.deadline ? dagenTot(item.deadline) : null;
       const streep = ernst === 3 ? "#991A21" : ernst === 2 ? "#C97A70" : "#B07414";
       const soort = item.is2e ? "2e vergadering" : item.isExtra ? "Extra vergadering" : "1e vergadering";
+      const teLaat = dDeadline !== null && dDeadline < 0;
       return (
         <div
-          onClick={()=>setScreen("vergaderingen")}
-          className="relative grid grid-cols-1 sm:grid-cols-[1fr_150px_150px] gap-2 sm:gap-3 items-center px-5 py-3 border-b border-[#EFEBE4] last:border-b-0 cursor-pointer hover:bg-[#FAF8F5] transition-colors"
+          onClick={() => openVveKaart(item.vveId)}
+          className="relative grid grid-cols-1 sm:grid-cols-[1fr_170px_170px] gap-2 sm:gap-3 items-start px-5 py-3 border-b border-[#EFEBE4] last:border-b-0 cursor-pointer hover:bg-[#FAF8F5] transition-colors"
         >
           <span className="absolute left-0 top-0 bottom-0 w-[3px]" style={{background: streep}} />
-          <div className="min-w-0">
+          <div className="min-w-0 sm:self-center">
             <p className="text-[13.5px] font-semibold text-[#2D2D2D] truncate">{item.naam}</p>
             <p className="text-[11.5px] text-[#9B958E] mt-0.5">{soort}</p>
           </div>
           <div>
             <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#9B958E]">Vergadering</p>
-            <p className={`text-[12.5px] mt-0.5 ${dMeeting !== null && dMeeting <= 7 ? "font-semibold text-[#991A21]" : "text-[#3f3d3b]"}`}>
-              {fmtDate(item.datum)} · {dagTekst(dMeeting)}
+            <p className={`text-[12.5px] mt-0.5 tabular-nums ${dMeeting !== null && dMeeting <= 7 ? "font-semibold text-[#991A21]" : "text-[#3f3d3b]"}`}>
+              {fmtDate(item.datum)}
             </p>
+            <p className="text-[11.5px] text-[#9B958E]">{dagTekst(dMeeting)}</p>
           </div>
           <div>
-            {item.type === "geen2e" ? (
+            {item.type === "nietVerwerkt" ? (
               <>
-                <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#9B958E]">Vervolg</p>
-                <p className="text-[12.5px] mt-0.5 font-semibold text-[#991A21]">Geen 2e gepland</p>
+                <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#9B958E]">Actie</p>
+                <p className="text-[12.5px] mt-0.5 font-semibold text-[#991A21]">Uitkomst vastleggen</p>
+                <p className="text-[11.5px] text-[#9B958E]">afvinken of 2e plannen</p>
               </>
             ) : (
               <>
                 <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#9B958E]">Uitnodigen vóór</p>
-                <p className={`text-[12.5px] mt-0.5 font-semibold ${dDeadline !== null && dDeadline < 0 ? "text-[#991A21]" : "text-[#B07414]"}`}>
-                  {fmtDate(item.deadline)} · {deadlineTekst(dDeadline)}
+                <p className={`text-[12.5px] mt-0.5 font-semibold tabular-nums ${teLaat ? "text-[#991A21]" : "text-[#B07414]"}`}>
+                  {fmtDate(item.deadline)}
                 </p>
+                <p className={`text-[11.5px] ${teLaat ? "text-[#991A21]" : "text-[#9B958E]"}`}>{deadlineTekst(dDeadline)}</p>
               </>
             )}
           </div>
@@ -4441,12 +4477,12 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
                   <p className="text-[13px] font-semibold text-[#2D2D2D]">
                     Status van je {data.vves.length} VvE's <span className="text-[#9B958E] font-normal">· planjaar {new Date().getFullYear()}</span>
                   </p>
-                  {metWaarschuwing > 0 && (
+                  {vvesMetActie > 0 && (
                     <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-[#991A21]">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[14px] h-[14px]">
                         <path d="m10.3 3.2-8.5 14.6A2 2 0 0 0 3.5 21h17a2 2 0 0 0 1.7-3.2L13.7 3.2a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>
                       </svg>
-                      {metWaarschuwing} {metWaarschuwing === 1 ? "VvE vraagt" : "VvE's vragen"} nu actie
+                      {vvesMetActie} {vvesMetActie === 1 ? "VvE vraagt" : "VvE's vragen"} nu actie
                     </span>
                   )}
                 </div>
@@ -4549,20 +4585,20 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
                         </svg>
                       </div>
                       <p className="text-[13.5px] font-semibold text-[#2D2D2D]">Geen actiepunten</p>
-                      <p className="text-[12.5px] text-[#6B6560] mt-1">Alle uitnodigingen zijn op tijd verstuurd.</p>
+                      <p className="text-[12.5px] text-[#6B6560] mt-1">Alle uitnodigingen staan op tijd uit en elke verstreken vergadering is verwerkt.</p>
                     </div>
                   ) : (
                     <>
-                      {actieGeen2e.length > 0 && (
+                      {actieNietVerwerkt.length > 0 && (
                         <div>
                           <div className="flex items-center gap-2.5 px-5 py-2.5 bg-[#FAF8F5] border-b border-[#EFEBE4] text-[#991A21]">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[15px] h-[15px]">
                               <path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>
                             </svg>
-                            <span className="text-[12px] font-semibold uppercase tracking-[0.04em]">Vergadering geweest — geen 2e gepland</span>
-                            <span className="ml-auto text-[11.5px] font-semibold bg-[#991A21] text-white px-2 py-0.5 rounded-full">{actieGeen2e.length}</span>
+                            <span className="text-[12px] font-semibold uppercase tracking-[0.04em]">Vergadering geweest — uitkomst niet vastgelegd</span>
+                            <span className="ml-auto text-[11.5px] font-semibold bg-[#991A21] text-white px-2 py-0.5 rounded-full">{actieNietVerwerkt.length}</span>
                           </div>
-                          {actieGeen2e.map(item => <ActieRij key={item.id} item={item} ernst={3} />)}
+                          {actieNietVerwerkt.map(item => <ActieRij key={item.id} item={item} ernst={3} />)}
                         </div>
                       )}
 
@@ -4756,22 +4792,34 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
             )}
           </div>
 
-          {/* ── Recente activiteit ───────────────────────────────── */}
+          {/* ── Eerstvolgende vergaderingen ──────────────────────── */}
           <div className="bg-white border border-[#E7E2DB] rounded-xl overflow-hidden">
             <div className="flex items-center gap-2.5 px-5 py-4 border-b border-[#EFEBE4]">
               <span className="w-[3px] h-[15px] rounded-sm bg-[#991A21]" />
-              <p className="text-[14px] font-semibold text-[#2D2D2D]">Recente activiteit</p>
+              <p className="text-[14px] font-semibold text-[#2D2D2D]">Eerstvolgende vergaderingen</p>
             </div>
             <div className="px-5 py-4">
-              {recenteActiviteit.length === 0 ? (
-                <p className="text-[13px] text-[#9B958E]">Nog geen activiteit. Open de Vergaderplanner om te beginnen.</p>
+              {komendeVergaderingen.length === 0 ? (
+                <p className="text-[13px] text-[#9B958E]">Geen vergaderingen gepland. Open de Vergaderplanner om te beginnen.</p>
               ) : (
-                <div className="space-y-3.5">
-                  {recenteActiviteit.map((item, i) => (
-                    <div key={i} className="flex items-center gap-3 text-[13px]">
-                      <span className="w-[9px] h-[9px] rounded-full shrink-0 border-2 bg-white" style={{borderColor: item.kleur}} />
-                      <span className="font-semibold text-[#2D2D2D]">{item.naam}</span>
-                      <span className="text-[#9B958E]">— {item.tekst}</span>
+                <div className="space-y-3">
+                  {komendeVergaderingen.map((v, i) => (
+                    <div
+                      key={i}
+                      onClick={() => openVveKaart(v.vveId)}
+                      className="flex items-center gap-3 text-[13px] -mx-2 px-2 py-1 rounded-lg cursor-pointer hover:bg-[#FAF8F5] transition-colors"
+                    >
+                      <span
+                        className="w-[9px] h-[9px] rounded-full shrink-0 border-2 bg-white"
+                        style={{ borderColor: v.uitgenodigd ? "#4A6B8A" : "#C9BEB2" }}
+                        title={v.uitgenodigd ? "Uitnodiging verstuurd" : "Nog niet uitgenodigd"}
+                      />
+                      <span className="font-semibold text-[#2D2D2D] truncate">{v.naam}</span>
+                      <span className="text-[#9B958E] shrink-0 hidden sm:inline">— {v.soort}</span>
+                      <span className="ml-auto shrink-0 text-right whitespace-nowrap">
+                        <span className="text-[#3f3d3b] tabular-nums">{fmtDate(v.datum)}</span>
+                        <span className="text-[#9B958E]"> · {dagTekst(dagenTot(v.datum))}</span>
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -5183,11 +5231,11 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
                   <p className="text-xs font-bold text-[#991A21] uppercase tracking-wider mb-3">⚡ Actie vereist</p>
                   {urgentItems.map(item => (
                     <div key={item.id} className={`flex items-start gap-3 rounded-lg px-3 py-2 text-xs ${
-                      item.type==="overdue" ? "bg-red-50 border border-red-300 text-red-900" :
-                      item.type==="geen2e"  ? "bg-amber-50 border border-amber-300 text-amber-900" :
+                      item.type==="overdue"      ? "bg-red-50 border border-red-300 text-red-900" :
+                      item.type==="nietVerwerkt" ? "bg-amber-50 border border-amber-300 text-amber-900" :
                       "bg-amber-50 border border-amber-300 text-amber-900"}`}>
                       <span className="shrink-0 mt-0.5">
-                        {item.type==="overdue" ? "✉" : item.type==="geen2e" ? "↩" : "⏰"}
+                        {item.type==="overdue" ? "✉" : item.type==="nietVerwerkt" ? "↩" : "⏰"}
                       </span>
                       <div className="flex-1 min-w-0">
                         {/* FIX 3: klikbare naam → scroll + open VvE kaart */}
@@ -5207,8 +5255,8 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
                         {item.is2e && <span className="ml-1 opacity-80">(2e reglementaire vergadering)</span>}
                         {item.isExtra && <span className="ml-1 opacity-80">(extra vergadering)</span>}
                         <span className="ml-2 opacity-90">
-                          {item.type==="overdue"  ? `— uitnodigingstermijn verlopen, vergadering ${fmtDate(item.datum)}` :
-                           item.type==="geen2e"   ? `— 1e vergadering voorbij (${fmtDate(item.datum)}), geen 2e gepland` :
+                          {item.type==="overdue"      ? `— uitnodigingstermijn verlopen, vergadering ${fmtDate(item.datum)}` :
+                           item.type==="nietVerwerkt" ? `— vergadering was op ${fmtDate(item.datum)}, uitkomst nog niet vastgelegd` :
                            `— uitnodigen vóór ${fmtDate(item.deadline)} (vergadering ${fmtDate(item.datum)})`}
                         </span>
                       </div>
