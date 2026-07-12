@@ -3857,15 +3857,6 @@ useEffect(() => {
     return "Goedenavond";
   };
 
-  const aantalUitTeNodigen = data.vves.filter(v => {
-    const s1 = inviteStatus(v.datum1, v.uitgenodigd1);
-    const s2 = inviteStatus(v.datum2, v.uitgenodigd2);
-    const sE = inviteStatus(v.datumExtra, v.uitgenodigdExtra);
-    return (!v.vergaderd1 && (s1==="warning"||s1==="overdue")) ||
-           (v.needs2e && !v.vergaderd2 && (s2==="warning"||s2==="overdue")) ||
-           (v.extraVergadering && !v.vergaderdExtra && (sE==="warning"||sE==="overdue"));
-  }).length;
-
   const exportExcel = () => {
     const year = new Date().getFullYear();
     const rows = [["VvE", "1e vergadering", "Uitgenodigd 1e", "Vergaderd 1e", "2e reglementair", "2e vergadering", "Uitgenodigd 2e", "Vergaderd 2e", "Extra vergadering", "Extra datum", "Uitgenodigd extra", "Vergaderd extra", "Voorkeur volgend jaar", "Notitie"]];
@@ -3915,14 +3906,6 @@ useEffect(() => {
   const uitgenodigd = data.vves.filter(v=> (v.uitgenodigd1 || v.uitgenodigd2) && !isAfgerond(v)).length;
   const afgerond = data.vves.filter(v=> isAfgerond(v)).length;
   const nietUitgenodigd = data.vves.length - uitgenodigd - afgerond;
-  const metWaarschuwing = data.vves.filter(v => {
-    const s1 = inviteStatus(v.datum1, v.uitgenodigd1);
-    const s2 = inviteStatus(v.datum2, v.uitgenodigd2);
-    const sE = inviteStatus(v.datumExtra, v.uitgenodigdExtra);
-    return (!v.vergaderd1 && (s1==="warning"||s1==="overdue")) ||
-           (v.needs2e && !v.vergaderd2 && v.datum2 && (s2==="warning"||s2==="overdue")) ||
-           (v.extraVergadering && !v.vergaderdExtra && v.datumExtra && (sE==="warning"||sE==="overdue"));
-  }).length;
   const inVakantie = data.vves.filter(v=>(v.datum1&&isInVakantie(v.datum1,data.vakanties))||(v.datum2&&isInVakantie(v.datum2,data.vakanties))).length;
 
   // ── Actiepunten ──────────────────────────────────────────────
@@ -3962,6 +3945,13 @@ useEffect(() => {
 
     return items;
   });
+
+  // Eén bron van waarheid voor "vraagt actie". Het dashboard telt hieruit, en
+  // het filter in de Vergaderplanner filtert hierop. Vervangt de oude tellers
+  // aantalUitTeNodigen en metWaarschuwing, die allebei óók uitnodigingen
+  // eisten voor vergaderingen die al waren geweest.
+  const urgenteVveIds = new Set(urgentItems.map(i => i.vveId));
+  const vvesMetActie = urgenteVveIds.size;
 
   const now = new Date();
   const yearStart = new Date(now.getFullYear(), 0, 1);
@@ -4011,11 +4001,7 @@ useEffect(() => {
       if (statFilter === 'afgerond') return afgr;
       if (statFilter === 'uitgenodigd') return uitgen;
       if (statFilter === 'niet-uitgenodigd') return !afgr && !uitgen;
-      if (statFilter === 'uitnodiging') {
-        const s1 = inviteStatus(v.datum1, v.uitgenodigd1);
-        const s2 = inviteStatus(v.datum2, v.uitgenodigd2);
-        return (s1 === 'warning' || s1 === 'overdue') || (s2 === 'warning' || s2 === 'overdue');
-      }
+      if (statFilter === 'actie') return urgenteVveIds.has(v.id);
       if (statFilter === 'vakantie') {
         const d = v.datum1 || v.datum2 || v.datumExtra;
         return d && isInVakantie(d, data.vakanties);
@@ -4431,10 +4417,6 @@ useEffect(() => {
     const actieTeLaat = urgentItems.filter(i => i.type === "overdue").sort(opDatum);
     const actieNadert = urgentItems.filter(i => i.type === "warning").sort(opDatum);
 
-    // Eén bron van waarheid: de teller in de statusbalk telt exact de VvE's die
-    // in de wachtrij eronder staan. Een VvE met twee actiepunten telt één keer.
-    const vvesMetActie = new Set(urgentItems.map(i => i.vveId)).size;
-
     // Eerstvolgende vergaderingen. Vervangt het oude "Recente activiteit"-blok:
     // dat deed .slice(-3) op data.vves — arrayvolgorde, geen tijdvolgorde. Er
     // staat geen tijdstempel in de VvE-data, dus "recent" is niet te berekenen.
@@ -4778,225 +4760,158 @@ useEffect(() => {
     <div className={`min-h-screen ${t.bg} ${t.text}`}>
       <Toast />
       <style>{CSS_FONT}</style>
-      <div className={`border-b ${t.border} px-6 h-14 flex items-center justify-between bg-white shadow-sm sticky top-0 z-50`}>
-        <div className="flex items-center gap-3">
-          <div className="flex gap-1">
-            <div className="w-7 h-7 bg-[#991A21] rounded-md flex items-center justify-center"><span className="text-white text-xs">🏠</span></div>
-            <div className="w-7 h-7 bg-[#2D2D2D] rounded-md flex items-center justify-center"><span className="text-white text-xs">📋</span></div>
+<div className="sticky top-0 z-40">
+
+        {/* ── Modulekop ─────────────────────────────────────────── */}
+        <div className="bg-white border-b border-[#E7E2DB] px-7 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="w-[3px] h-[16px] rounded-sm bg-[#991A21]" />
+            <h1 className="text-[15px] font-semibold text-[#2D2D2D]">Vergaderplanner</h1>
+            <span className="text-[12.5px] text-[#9B958E] tabular-nums">· {data.vves.length} VvE{data.vves.length === 1 ? "" : "'s"}</span>
           </div>
-          <div className="w-px h-5 bg-gray-200" />
-          <div>
-            <h1 className="text-sm font-bold text-[#2D2D2D]">Vergaderplanner</h1>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          {saving && <span className="text-[10px] text-gray-400 animate-pulse">Opslaan…</span>}
-          <div className="w-8 h-8 bg-[#991A21] rounded-full flex items-center justify-center">
-            <span className="text-white text-xs font-bold">{beheerder.charAt(0)}</span>
-          </div>
-          <span className="text-sm font-medium text-[#2D2D2D]">{beheerder}</span>
-          <button onClick={()=>setScreen("portaal")}
-            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-[#991A21] hover:border-red-200 hover:bg-red-50 transition-colors">
-            ← Portaal
-          </button>
-          {beheerder === "Admin" && (
-            <button onClick={()=>setScreen("portaal")}
-              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-[#991A21] hover:border-red-200 hover:bg-red-50 transition-colors">
-              ← Dashboard
+          <div className="flex items-center gap-2">
+            {saving && (
+              <span className="flex items-center gap-1.5 text-[12px] text-[#9B958E] mr-1">
+                <span className="w-[6px] h-[6px] rounded-full bg-[#B07414] animate-pulse" />
+                Opslaan…
+              </span>
+            )}
+            <button onClick={exportExcel} className="flex items-center gap-1.5 text-[12.5px] font-medium px-3 h-9 rounded-lg border border-[#E7E2DB] text-[#6B6560] hover:text-[#991A21] hover:border-[#C9BEB2] transition-colors">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[15px] h-[15px]"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+              Excel
             </button>
-          )}
-          <button onClick={async ()=>{ await signOut(); setScreen("login"); setLoginNaam(""); setLoginPw(""); setBeheerder(""); setUserRol("beheerder"); setData(defaultData()); }}
-            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-[#991A21] hover:border-red-200 hover:bg-red-50 transition-colors">
-            Uitloggen
-          </button>
+            <button onClick={exportPDF} className="flex items-center gap-1.5 text-[12.5px] font-medium px-3 h-9 rounded-lg border border-[#E7E2DB] text-[#6B6560] hover:text-[#991A21] hover:border-[#C9BEB2] transition-colors">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[15px] h-[15px]"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+              PDF
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div className={`border-b ${t.border} px-6 flex bg-white`}>
-        {[
-          [data.vves.length, "VvE's", "text-[#2D2D2D]", "bg-[#2D2D2D]", null],
-          [afgerond, "Afgerond", "text-emerald-700", "bg-emerald-500", "afgerond"],
-          [uitgenodigd, "Uitgenodigd", "text-blue-700", "bg-blue-500", "uitgenodigd"],
-          [nietUitgenodigd, "Niet uitgenodigd", "text-gray-500", "bg-gray-400", "niet-uitgenodigd"],
-        ].map(([val, label, textClr, dotClr, filterKey]) => (
-          <div key={label}
-            onClick={() => { if (filterKey) { setStatFilter(f => f === filterKey ? null : filterKey); setTab("vergaderingen"); } }}
-            className={`flex items-center gap-2.5 px-5 py-3.5 border-r border-gray-100 ${filterKey ? "cursor-pointer hover:bg-gray-50 transition-colors" : ""}`}>
-            <div className={`w-2 h-2 rounded-full ${dotClr}`} />
-            <div>
-              <div className={`text-lg font-bold ${textClr}`}>{val}</div>
-              <div className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">{label}</div>
-            </div>
-          </div>
-        ))}
-        {metWaarschuwing>0 && (
-          <div
-            onClick={() => { setStatFilter(f => f === "uitnodiging" ? null : "uitnodiging"); setTab("vergaderingen"); }}
-            className="flex items-center gap-2.5 px-5 py-3.5 border-r border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors">
-            <div className="w-2 h-2 rounded-full bg-[#991A21]" />
-            <div>
-              <div className="text-lg font-bold text-[#991A21]">{metWaarschuwing}</div>
-              <div className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">Uitnodiging!</div>
-            </div>
-          </div>
-        )}
-        {inVakantie>0 && (
-          <div
-            onClick={() => { setStatFilter(f => f === "vakantie" ? null : "vakantie"); setTab("vergaderingen"); }}
-            className="flex items-center gap-2.5 px-5 py-3.5 cursor-pointer hover:bg-gray-50 transition-colors">
-            <div className="w-2 h-2 rounded-full bg-orange-500" />
-            <div>
-              <div className="text-lg font-bold text-orange-600">{inVakantie}</div>
-              <div className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">In vakantie</div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className={`border-b ${t.border} px-6 flex gap-0 items-center justify-between bg-white`}>
-        <div className="flex gap-0">
+        {/* ── Tabs ──────────────────────────────────────────────── */}
+        <div className="bg-white border-b border-[#E7E2DB] px-7 flex gap-1">
           {[["vergaderingen","Vergaderingen"],["overzicht","Spreiding"],["vakantie","Vakantie"],["instellingen","Instellingen"]].map(([key,label])=>(
-            <button key={key} onClick={()=>setTab(key)} className={`px-5 py-3.5 text-sm font-medium transition-colors border-b-2 -mb-px ${tab===key ? "border-[#991A21] text-[#991A21] font-semibold" : "border-transparent text-gray-500 hover:text-[#2D2D2D]"}`}>{label}</button>
+            <button key={key} onClick={()=>setTab(key)}
+              className={`px-4 py-3 text-[13.5px] border-b-2 -mb-px transition-colors ${
+                tab===key ? "border-[#991A21] text-[#991A21] font-semibold" : "border-transparent text-[#6B6560] font-medium hover:text-[#2D2D2D]"
+              }`}>{label}</button>
           ))}
         </div>
-        <div className="flex gap-2 pb-1">
-          <button onClick={exportExcel} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 rounded-lg transition-colors">⬇ Excel</button>
-          <button onClick={exportPDF} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 rounded-lg transition-colors">⬇ PDF</button>
-        </div>
-      </div>
 
+      </div>
       <div className="p-6 max-w-6xl mx-auto">
 
-        {/* Jaarwisseling prompt */}
+{/* Jaarwisseling prompt */}
         {toonJaarwisselingPrompt && (
-          <div className="mb-4 bg-amber-50 border border-amber-200 border-l-4 border-l-amber-500 rounded-xl p-5 space-y-3 shadow-sm">
-            <div className="flex items-start gap-3">
-              <span className="text-2xl shrink-0">🎉</span>
-              <div>
-                <p className="text-sm font-semibold text-amber-800">Nieuw jaar — planning vernieuwen?</p>
-                <p className="text-xs text-amber-700 mt-1">
-                  De planning bevat nog vergaderingen van vorig jaar. Je kunt het overzicht nu opschonen voor {new Date().getFullYear()}.
-                  VvE's met een voorkeursdatum worden automatisch ingepland. Notities blijven bewaard.
-                </p>
+          <div className="mb-5 bg-white border border-[#E7E2DB] rounded-xl overflow-hidden">
+            <div className="flex items-center gap-2.5 px-5 py-4 border-b border-[#EFEBE4]">
+              <span className="w-[3px] h-[15px] rounded-sm bg-[#B07414]" />
+              <p className="text-[14px] font-semibold text-[#2D2D2D]">Nieuw jaar — planning vernieuwen?</p>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              <p className="text-[13px] text-[#6B6560] leading-relaxed">
+                De planning bevat nog vergaderingen van vorig jaar. Je kunt het overzicht opschonen voor {new Date().getFullYear()}. VvE's met een voorkeursdatum worden automatisch ingepland.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="bg-[#FAF8F5] border border-[#EFEBE4] rounded-lg px-4 py-3">
+                  <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#991A21] mb-1.5">Wordt gereset</p>
+                  <p className="text-[12.5px] text-[#6B6560] leading-relaxed">Vergaderdatums, uitnodigingen, vergaderd-vinkjes, 2e reglementaire en extra vergaderingen.</p>
+                </div>
+                <div className="bg-[#FAF8F5] border border-[#EFEBE4] rounded-lg px-4 py-3">
+                  <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#3B7A57] mb-1.5">Blijft bewaard</p>
+                  <p className="text-[12.5px] text-[#6B6560] leading-relaxed">VvE-namen, notities, vakantieperiodes, werkdagen. Voorkeursdatums worden de nieuwe vergaderdatum.</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={handleJaarwisselingBevestigen}
+                  className="px-4 h-10 bg-[#991A21] hover:bg-[#7A1419] text-white text-[13px] font-semibold rounded-lg transition-colors">
+                  Vernieuw planning voor {new Date().getFullYear()}
+                </button>
+                <button onClick={() => setToonJaarwisselingPrompt(false)}
+                  className="px-4 h-10 bg-white hover:bg-[#FAF8F5] text-[#6B6560] border border-[#E7E2DB] text-[13px] font-medium rounded-lg transition-colors">
+                  Niet nu
+                </button>
               </div>
             </div>
-            <div className="bg-amber-100/50 border border-amber-200 rounded-lg px-3 py-2">
-              <p className="text-[10px] text-amber-700 font-semibold mb-1">Wat wordt gereset:</p>
-              <p className="text-[10px] text-amber-700">Alle vergaderdatums, uitnodigingen, vergaderd-vinkjes, 2e reglementaire en extra vergaderingen.</p>
-              <p className="text-[10px] text-amber-500 font-medium mt-1.5 mb-1">Wat blijft bewaard:</p>
-              <p className="text-[10px] text-amber-700">VvE namen, notities, vakantieperiodes, werkdagen. Voorkeursdatums worden de nieuwe vergaderdatum.</p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={handleJaarwisselingBevestigen}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-lg transition-colors"
-              >
-                ✓ Ja, vernieuw planning voor {new Date().getFullYear()}
-              </button>
-              <button
-                onClick={() => setToonJaarwisselingPrompt(false)}
-                className="px-4 py-2 bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 text-sm rounded-lg transition-colors"
-              >
-                Niet nu
-              </button>
-            </div>
           </div>
         )}
-
-        {/* Begroeting */}
-        {tab==="vergaderingen" && (
-          <div className={`mb-4 px-4 py-3 bg-white border-l-4 border-l-[#991A21] border border-gray-200 rounded-xl flex items-center justify-between shadow-sm`}>
-            <div>
-              <p className="text-sm font-semibold text-[#2D2D2D]">Hoi {beheerder}! 👋</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {aantalUitTeNodigen > 0
-                  ? `Je hebt ${aantalUitTeNodigen} uitnodiging${aantalUitTeNodigen > 1 ? "en" : ""} te versturen.`
-                  : afgerond === data.vves.length && data.vves.length > 0
-                  ? "Alles is afgerond — geweldig werk! 🎉"
-                  : `Je hebt nog ${data.vves.filter(v => !isAfgerond(v)).length} open vergaderingen.`}
-              </p>
-            </div>
-            <span className="text-2xl">{aantalUitTeNodigen > 0 ? "📬" : afgerond === data.vves.length && data.vves.length > 0 ? "🏆" : "📋"}</span>
-          </div>
-        )}
-
         {/* ── VERGADERINGEN ── */}
-        {tab==="vergaderingen" && (
-          <div className="flex gap-5 items-start">
+{tab==="vergaderingen" && (
+          <div className="space-y-4">
 
-            {/* Voortgang zijbalk */}
-            {data.vves.length > 0 && (() => {
-              const total = data.vves.length;
-              const pctAfgerond = Math.round((afgerond / total) * 100);
-              const pctUitgenodigd = Math.round((uitgenodigd / total) * 100);
-              const pctNiet = 100 - pctAfgerond - pctUitgenodigd;
-              const R = 40; const C = 2 * Math.PI * R;
-              const dasAfgerond = (pctAfgerond / 100) * C;
-              const dasUitgenodigd = (pctUitgenodigd / 100) * C;
-              const label = pctAfgerond === 100 ? "Alles afgerond! 🎉"
-                : pctAfgerond >= 75 ? "Bijna klaar"
-                : pctAfgerond >= 50 ? "Op de helft"
-                : pctAfgerond >= 25 ? "Goed op weg"
-                : "Net begonnen";
-              return (
-                <div className={"w-52 shrink-0 bg-white border border-gray-200 rounded-xl p-4 space-y-3 sticky top-4 shadow-sm"}>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Voortgang {year}</p>
-                  <div className="flex flex-col items-center gap-1">
-                    <svg width="96" height="96" viewBox="0 0 96 96">
-                      <circle cx="48" cy="48" r={R} fill="none" stroke="#F0EDE9" strokeWidth="10"/>
-                      {pctNiet > 0 && (
-                        <circle cx="48" cy="48" r={R} fill="none" stroke="#E8E4E0" strokeWidth="10"
-                          strokeDasharray={`${(pctNiet/100)*C} ${C}`} strokeDashoffset={-(dasAfgerond+dasUitgenodigd)}
-                          transform="rotate(-90 48 48)" strokeLinecap="butt"/>
-                      )}
-                      {pctUitgenodigd > 0 && (
-                        <circle cx="48" cy="48" r={R} fill="none" stroke="#0ea5e9" strokeWidth="10"
-                          strokeDasharray={`${dasUitgenodigd} ${C}`} strokeDashoffset={-dasAfgerond}
-                          transform="rotate(-90 48 48)" strokeLinecap="butt"/>
-                      )}
-                      {pctAfgerond > 0 && (
-                        <circle cx="48" cy="48" r={R} fill="none" stroke="#10b981" strokeWidth="10"
-                          strokeDasharray={`${dasAfgerond} ${C}`} strokeDashoffset={0}
-                          transform="rotate(-90 48 48)" strokeLinecap="butt"/>
-                      )}
-                      <text x="48" y="44" textAnchor="middle" fill="#2D2D2D" fontSize="18" fontWeight="700" fontFamily="DM Sans, sans-serif">{pctAfgerond}%</text>
-                      <text x="48" y="57" textAnchor="middle" fill="#8A8A8A" fontSize="8" fontFamily="DM Sans, sans-serif">afgerond</text>
-                    </svg>
-                    <p className="text-sm font-semibold text-[#2D2D2D] text-center">{label}</p>
-                    <p className="text-[10px] text-gray-500 text-center">{afgerond} van {total} vergaderingen volledig afgerond</p>
-                  </div>
-                  <div className="space-y-2 pt-1">
-                    {[
-                      ["Afgerond", afgerond, total, "bg-emerald-500"],
-                      ["Uitgenodigd", uitgenodigd, total, "bg-sky-500"],
-                      ["Niet uitgenodigd", nietUitgenodigd, total, "bg-zinc-600"],
-                    ].map(([lbl, val, tot, barColor]) => (
-                      <div key={lbl}>
-                        <div className="flex justify-between mb-0.5">
-                          <span className="text-[10px] text-gray-500">{lbl}</span>
-                          <span className="text-[10px] font-mono text-gray-600 font-semibold">{val} <span className="text-gray-400">/ {tot}</span></span>
-                        </div>
-                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full ${barColor}`} style={{width:`${tot===0?0:Math.round((val/tot)*100)}%`}}/>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+            {/* ── Filters ─────────────────────────────────────────── */}
+            {data.vves.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                {[
+                  [null,               "Alle",             data.vves.length, "#2D2D2D"],
+                  ["actie",            "Actie vereist",    vvesMetActie,     "#991A21"],
+                  ["niet-uitgenodigd", "Niet uitgenodigd", nietUitgenodigd,  "#9B958E"],
+                  ["uitgenodigd",      "Uitgenodigd",      uitgenodigd,      "#4A6B8A"],
+                  ["afgerond",         "Afgerond",         afgerond,         "#3B7A57"],
+                  ["vakantie",         "In vakantie",      inVakantie,       "#B07414"],
+                ].map(([key, label, aantal, kleur]) => {
+                  if (key && aantal === 0) return null;
+                  const actief = statFilter === key;
+                  return (
+                    <button
+                      key={label}
+                      onClick={() => setStatFilter(actief ? null : key)}
+                      className={`flex items-center gap-2 h-9 px-3.5 rounded-lg border text-[13px] transition-colors ${
+                        actief
+                          ? "bg-[#F6ECEC] border-[#991A21] text-[#991A21] font-semibold"
+                          : "bg-white border-[#E7E2DB] text-[#6B6560] font-medium hover:border-[#C9BEB2] hover:text-[#2D2D2D]"
+                      }`}
+                    >
+                      <span className="w-[7px] h-[7px] rounded-full shrink-0" style={{background: kleur}} />
+                      {label}
+                      <span className="tabular-nums text-[#9B958E]">{aantal}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
-                  {/* Countdown naar jaareinde */}
+            <div className="flex flex-col lg:flex-row gap-5 items-start">
+
+              {/* ── Linkerkolom ───────────────────────────────────── */}
+              {data.vves.length > 0 && (
+                <div className="w-full lg:w-56 lg:shrink-0 lg:sticky lg:top-[125px] space-y-4">
+
+                  {/* Deze week */}
                   {(() => {
+                    const pad = (n) => String(n).padStart(2, "0");
+                    const isoLok = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
                     const nu = new Date();
-                    const jaareinde = new Date(nu.getFullYear(), 11, 31);
-                    const dagenOver = Math.ceil((jaareinde - nu) / 86400000);
-                    const opSchema = onTrackDiff >= -5;
+                    const startWeek = new Date(nu);
+                    startWeek.setDate(nu.getDate() - ((nu.getDay() + 6) % 7));
+                    const eindWeek = new Date(startWeek);
+                    eindWeek.setDate(startWeek.getDate() + 6);
+                    const isoStart = isoLok(startWeek);
+                    const isoEind = isoLok(eindWeek);
+                    const dezeWeek = data.vves.flatMap(v => {
+                      const items = [];
+                      if (v.datum1 && v.datum1 >= isoStart && v.datum1 <= isoEind) items.push({ id: v.id, naam: v.naam, datum: v.datum1, soort: "1e vergadering" });
+                      if (v.datum2 && v.datum2 >= isoStart && v.datum2 <= isoEind) items.push({ id: v.id, naam: v.naam, datum: v.datum2, soort: "2e reglementair" });
+                      if (v.datumExtra && v.datumExtra >= isoStart && v.datumExtra <= isoEind) items.push({ id: v.id, naam: v.naam, datum: v.datumExtra, soort: "Extra vergadering" });
+                      return items;
+                    }).sort((a, b) => a.datum.localeCompare(b.datum));
                     return (
-                      <div className="border-t border-gray-100 pt-3 space-y-1">
-                        <p className="text-[10px] text-gray-500">
-                          <span className="text-[#2D2D2D] font-semibold">Nog {dagenOver} dagen</span> tot eind {nu.getFullYear()}
-                        </p>
-                        <p className={`text-[10px] font-medium ${opSchema ? "text-emerald-600" : "text-amber-400"}`}>
-                          {opSchema ? "✓ Je bent op schema" : <span className="text-red-600">⚠ Je loopt achter op schema</span>}
-                        </p>
+                      <div className="bg-white border border-[#E7E2DB] rounded-xl px-4 py-4">
+                        <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#9B958E] mb-3">Deze week</p>
+                        {dezeWeek.length === 0 ? (
+                          <p className="text-[12.5px] text-[#9B958E]">Geen vergaderingen.</p>
+                        ) : (
+                          <div className="space-y-2.5">
+                            {dezeWeek.map((item, i) => (
+                              <button key={i} onClick={() => setForceOpenId(item.id)} className="flex items-start gap-2.5 w-full text-left group">
+                                <span className="text-[11px] tabular-nums text-[#9B958E] shrink-0 w-[44px] pt-px">{fmtDate(item.datum).split(" ").slice(0,2).join(" ")}</span>
+                                <span className="min-w-0">
+                                  <span className="block text-[12.5px] font-medium text-[#2D2D2D] truncate group-hover:text-[#991A21] transition-colors">{item.naam}</span>
+                                  <span className="block text-[11px] text-[#9B958E]">{item.soort}</span>
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
@@ -5017,73 +4932,40 @@ useEffect(() => {
                     if (entries.length === 0) return null;
                     const [maandIdx, aantal] = entries.sort((a,b) => b[1]-a[1])[0];
                     return (
-                      <div className="border-t border-gray-100 pt-3">
-                        <p className="text-[10px] text-gray-500">
-                          📅 <span className="text-red-600 font-medium">{NL_MONTHS_FULL[parseInt(maandIdx)]}</span> wordt je drukste maand
-                        </p>
-                        <p className="text-[10px] text-gray-400">{aantal} vergadering{aantal !== 1 ? "en" : ""} gepland</p>
+                      <div className="bg-white border border-[#E7E2DB] rounded-xl px-4 py-4">
+                        <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#9B958E] mb-2">Drukste maand</p>
+                        <p className="text-[15px] font-semibold text-[#2D2D2D]">{NL_MONTHS_FULL[parseInt(maandIdx)]}</p>
+                        <p className="text-[12px] text-[#6B6560] mt-0.5 tabular-nums">{aantal} vergadering{aantal !== 1 ? "en" : ""} gepland</p>
                       </div>
                     );
                   })()}
 
-                  {/* Week agenda */}
-                  {(() => {
-                    const nu = new Date();
-                    const startWeek = new Date(nu);
-                    startWeek.setDate(nu.getDate() - ((nu.getDay() + 6) % 7));
-                    const eindWeek = new Date(startWeek); eindWeek.setDate(startWeek.getDate() + 6);
-                    const isoStart = startWeek.toISOString().slice(0,10);
-                    const isoEind = eindWeek.toISOString().slice(0,10);
-                    const dezeWeek = data.vves.flatMap(v => {
-                      const items = [];
-                      if (v.datum1 && v.datum1 >= isoStart && v.datum1 <= isoEind) items.push({ naam: v.naam, datum: v.datum1, type: "1e" });
-                      if (v.datum2 && v.datum2 >= isoStart && v.datum2 <= isoEind) items.push({ naam: v.naam, datum: v.datum2, type: "2e" });
-                      if (v.datumExtra && v.datumExtra >= isoStart && v.datumExtra <= isoEind) items.push({ naam: v.naam, datum: v.datumExtra, type: "extra" });
-                      return items;
-                    }).sort((a,b) => a.datum.localeCompare(b.datum));
-                    return (
-                      <div className="border-t border-gray-100 pt-3 space-y-2">
-                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wide">Deze week</p>
-                        {dezeWeek.length === 0 ? (
-                          <p className="text-[10px] text-gray-400">Geen vergaderingen deze week.</p>
-                        ) : (
-                          dezeWeek.map((item, i) => (
-                            <div key={i} className="flex items-start gap-2">
-                              <span className="text-[9px] text-gray-400 shrink-0 mt-0.5 w-12">{fmtDate(item.datum).slice(0,6)}</span>
-                              <div className="min-w-0">
-                                <p className="text-[10px] text-[#2D2D2D] font-medium truncate">{item.naam}</p>
-                                <p className="text-[9px] text-gray-400">{item.type === "1e" ? "1e vergadering" : item.type === "2e" ? "2e reglementair" : "Extra"}</p>
-                              </div>
-                            </div>
-                          ))
+                  {/* Maandfilter */}
+                  {(maandenMetVves2026.length > 0 || maandenMetVves2027.length > 0) && (
+                    <div className="bg-white border border-[#E7E2DB] rounded-xl px-4 py-4 space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#9B958E]">Filter op maand</p>
+                        {geselecteerdeFilterMaanden.size > 0 && (
+                          <button onClick={() => setGeselecteerdeFilterMaanden(new Set())}
+                            className="text-[11px] font-semibold text-[#991A21] hover:underline shrink-0">
+                            Wis ({geselecteerdeFilterMaanden.size})
+                          </button>
                         )}
                       </div>
-                    );
-                  })()}
 
-                  {/* ── FIX 2: Maandfilter ───────────────────── */}
-                  {(maandenMetVves2026.length > 0 || maandenMetVves2027.length > 0) && (
-                    <div className="border-t border-gray-100 pt-3 space-y-2">
-                      <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wide">Filter op maand</p>
-
-                      {/* 2026 maanden */}
                       {maandenMetVves2026.length > 0 && (
-                        <div className="space-y-1">
-                          <p className="text-[9px] text-zinc-600 uppercase tracking-wide">{year}</p>
+                        <div className="space-y-1.5">
+                          <p className="text-[11px] font-medium text-[#6B6560]">{year}</p>
                           <div className="flex flex-wrap gap-1">
                             {maandenMetVves2026.map(({ key, label, count }) => {
                               const actief = geselecteerdeFilterMaanden.has(key);
                               return (
-                                <button
-                                  key={key}
-                                  onClick={() => toggleFilterMaand(key)}
-                                  className={`text-[10px] px-2 py-0.5 rounded font-mono transition-all ${
-                                    actief
-                                      ? "bg-sky-700 text-sky-100 border border-sky-600"
-                                      : "bg-gray-100 text-gray-600 border border-gray-200 hover:border-[#991A21]"
-                                  }`}
-                                >
-                                  {label} <span className="opacity-60">({count})</span>
+                                <button key={key} onClick={() => toggleFilterMaand(key)}
+                                  className={`text-[11px] px-2 py-1 rounded-md border transition-colors ${
+                                    actief ? "bg-[#F6ECEC] border-[#991A21] text-[#991A21] font-semibold"
+                                           : "bg-[#FAF8F5] border-[#EFEBE4] text-[#6B6560] hover:border-[#C9BEB2]"
+                                  }`}>
+                                  {label} <span className="tabular-nums text-[#9B958E]">{count}</span>
                                 </button>
                               );
                             })}
@@ -5091,12 +4973,10 @@ useEffect(() => {
                         </div>
                       )}
 
-                      {/* 2027 toggle */}
-                      <div className="space-y-1">
+                      <div className="pt-3 border-t border-[#EFEBE4] space-y-1.5">
                         <label className="flex items-center gap-2 cursor-pointer group" onClick={() => {
                           const next = !filterJaar2027;
                           setFilterJaar2027(next);
-                          // verwijder 2027 maanden uit filter als we 2027 uitzetten
                           if (!next) {
                             setGeselecteerdeFilterMaanden(prev => {
                               const updated = new Set(prev);
@@ -5105,233 +4985,193 @@ useEffect(() => {
                             });
                           }
                         }}>
-                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${filterJaar2027 ? "bg-emerald-600 border-emerald-600" : "border-zinc-600 hover:border-zinc-400"}`}>
-                            {filterJaar2027 && <span className="text-white text-[9px] font-bold">✓</span>}
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0 ${filterJaar2027 ? "bg-[#991A21] border-[#991A21]" : "bg-white border-[#C9BEB2] group-hover:border-[#991A21]"}`}>
+                            {filterJaar2027 && <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className="w-[10px] h-[10px]"><path d="M20 6 9 17l-5-5"/></svg>}
                           </div>
-                          <span className="text-[10px] text-zinc-400 group-hover:text-zinc-300 transition-colors">{nextYear} (voorkeursdatums)</span>
+                          <span className="text-[11.5px] text-[#6B6560] group-hover:text-[#2D2D2D] transition-colors">{nextYear} — voorkeursdatums</span>
                         </label>
 
-                        {filterJaar2027 && maandenMetVves2027.length > 0 && (
-                          <div className="flex flex-wrap gap-1 pl-1">
-                            {maandenMetVves2027.map(({ key, label, count }) => {
-                              const actief = geselecteerdeFilterMaanden.has(key);
-                              return (
-                                <button
-                                  key={key}
-                                  onClick={() => toggleFilterMaand(key)}
-                                  className={`text-[10px] px-2 py-0.5 rounded font-mono transition-all ${
-                                    actief
-                                      ? "bg-emerald-700 text-emerald-100 border border-emerald-600"
-                                      : "bg-gray-100 text-gray-600 border border-gray-200 hover:border-[#991A21]"
-                                  }`}
-                                >
-                                  {label} <span className="opacity-60">({count})</span>
-                                </button>
-                              );
-                            })}
-                            {maandenMetVves2027.length === 0 && (
-                              <p className="text-[10px] text-gray-400">Nog geen voorkeursdatums ingevuld voor {nextYear}.</p>
-                            )}
-                          </div>
+                        {filterJaar2027 && (
+                          maandenMetVves2027.length > 0 ? (
+                            <div className="flex flex-wrap gap-1 pl-6">
+                              {maandenMetVves2027.map(({ key, label, count }) => {
+                                const actief = geselecteerdeFilterMaanden.has(key);
+                                return (
+                                  <button key={key} onClick={() => toggleFilterMaand(key)}
+                                    className={`text-[11px] px-2 py-1 rounded-md border transition-colors ${
+                                      actief ? "bg-[#EAF2EC] border-[#3B7A57] text-[#3B7A57] font-semibold"
+                                             : "bg-[#FAF8F5] border-[#EFEBE4] text-[#6B6560] hover:border-[#C9BEB2]"
+                                    }`}>
+                                    {label} <span className="tabular-nums text-[#9B958E]">{count}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <p className="text-[11.5px] text-[#9B958E] pl-6">Nog geen voorkeursdatums voor {nextYear}.</p>
+                          )
                         )}
                       </div>
-
-                      {/* Wis filter knop */}
-                      {geselecteerdeFilterMaanden.size > 0 && (
-                        <button
-                          onClick={() => setGeselecteerdeFilterMaanden(new Set())}
-                          className="text-[10px] text-gray-400 hover:text-[#991A21] transition-colors underline"
-                        >
-                          Wis filter ({geselecteerdeFilterMaanden.size} actief)
-                        </button>
-                      )}
                     </div>
                   )}
 
                 </div>
-              );
-            })()}
+              )}
 
-            {/* VvE lijst */}
-            <div className="flex-1 space-y-4">
+              {/* ── Rechterkolom: de lijst ────────────────────────── */}
+              <div className="flex-1 min-w-0 w-full space-y-4">
 
-              {/* Notification panel — FIX 3: klikbare naam */}
-              {urgentItems.length > 0 && (
-                <div className="bg-white border border-gray-200 border-l-4 border-l-[#991A21] rounded-xl p-4 space-y-2 shadow-sm">
-                  <p className="text-xs font-bold text-[#991A21] uppercase tracking-wider mb-3">⚡ Actie vereist</p>
-                  {urgentItems.map(item => (
-                    <div key={item.id} className={`flex items-start gap-3 rounded-lg px-3 py-2 text-xs ${
-                      item.type==="overdue"      ? "bg-red-50 border border-red-300 text-red-900" :
-                      item.type==="nietVerwerkt" ? "bg-amber-50 border border-amber-300 text-amber-900" :
-                      "bg-amber-50 border border-amber-300 text-amber-900"}`}>
-                      <span className="shrink-0 mt-0.5">
-                        {item.type==="overdue" ? "✉" : item.type==="nietVerwerkt" ? "↩" : "⏰"}
+{/* Voorgestelde planning */}
+                {planningPreview && (
+                  <div className="bg-white border border-[#4A6B8A] rounded-xl overflow-hidden">
+                    <div className="px-5 py-4 border-b border-[#EFEBE4] flex items-start justify-between gap-4 flex-wrap">
+                      <div className="min-w-0">
+                        <p className="text-[14px] font-semibold text-[#2D2D2D]">Voorgestelde planning</p>
+                        <p className="text-[12.5px] text-[#6B6560] mt-0.5">
+                          {planningPreview.filter(v=>v.datum1).length - data.vves.filter(v=>v.datum1).length} VvE's automatisch ingepland. Controleer de datums en bevestig.
+                        </p>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <button onClick={handleConfirmPlanning} className="px-4 h-9 bg-[#991A21] hover:bg-[#7A1419] text-white text-[13px] font-semibold rounded-lg transition-colors">Bevestigen</button>
+                        <button onClick={handleRejectPlanning} className="px-4 h-9 bg-white hover:bg-[#FAF8F5] text-[#6B6560] border border-[#E7E2DB] text-[13px] font-medium rounded-lg transition-colors">Annuleren</button>
+                      </div>
+                    </div>
+                    <div className="px-5 py-4 bg-[#FAF8F5]">
+                      <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#9B958E] mb-2">Spreiding na planning</p>
+                      <MonthBar counts={spreadScore(planningPreview)} vakanties={data.vakanties}/>
+                    </div>
+                  </div>
+                )}
+
+                {/* Toevoegen / importeren / plannen */}
+                <div className="flex gap-2 flex-wrap">
+                  <input value={newVveName} onChange={e=>setNewVveName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addVve()} placeholder="VvE naam toevoegen…"
+                    className="flex-1 min-w-48 bg-white border border-[#E7E2DB] rounded-lg px-4 h-10 text-[13.5px] text-[#2D2D2D] placeholder-[#9B958E] focus:outline-none focus:border-[#991A21] transition-colors"/>
+                  <button onClick={addVve} className="px-4 h-10 bg-[#991A21] hover:bg-[#7A1419] text-white text-[13px] font-semibold rounded-lg transition-colors">Toevoegen</button>
+                  <button onClick={()=>setShowImport(i=>!i)} className="px-4 h-10 bg-white hover:bg-[#FAF8F5] text-[#6B6560] border border-[#E7E2DB] text-[13px] font-medium rounded-lg transition-colors whitespace-nowrap">Bulk import</button>
+                  {ongepland > 0 && !planningPreview && (
+                    <button onClick={handleGeneratePlanning}
+                      className="flex items-center gap-2 px-4 h-10 bg-[#EAEFF4] hover:bg-[#DDE6EE] border border-[#C4D2DE] text-[#4A6B8A] text-[13px] font-semibold rounded-lg transition-colors whitespace-nowrap">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[15px] h-[15px]">
+                        <path d="M12 3v3M12 18v3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M3 12h3M18 12h3M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>
+                      </svg>
+                      Stel planning voor ({ongepland} ongepland)
+                    </button>
+                  )}
+                </div>
+
+                {showImport && (
+                  <div className="bg-white border border-[#E7E2DB] rounded-xl p-5 space-y-3">
+                    <p className="text-[12.5px] text-[#6B6560]">Plak VvE-namen, één per regel. Datum en tijd worden herkend als je ze tab-gescheiden aanlevert (naam ⇥ d-m-jjjj ⇥ tijd).</p>
+                    <textarea rows={6} value={importText} onChange={e=>setImportText(e.target.value)}
+                      placeholder={"Zwolsestraat 253\t16-4-2026\t15.00\nTak van Poortvlietstraat 9 AB\t1-6-2026\t15:00 uur\n..."}
+                      className="w-full bg-[#FAF8F5] border border-[#E7E2DB] rounded-lg px-3 py-2.5 text-[13px] text-[#2D2D2D] placeholder-[#9B958E] focus:outline-none focus:border-[#991A21] resize-none font-mono transition-colors"/>
+                    <div className="flex gap-2">
+                      <button onClick={handleImport} className="px-4 h-9 bg-[#991A21] hover:bg-[#7A1419] text-white text-[13px] font-semibold rounded-lg transition-colors">Importeer</button>
+                      <button onClick={()=>setShowImport(false)} className="px-4 h-9 text-[13px] font-medium text-[#6B6560] hover:text-[#2D2D2D] transition-colors">Annuleer</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Zoeken / sorteren / verbergen */}
+                <div className="flex gap-2 items-center flex-wrap">
+                  {data.vves.length>5 && (
+                    <div className="relative flex-1 min-w-48">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[15px] h-[15px] absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9B958E] pointer-events-none">
+                        <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+                      </svg>
+                      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Zoek VvE…"
+                        className="w-full bg-white border border-[#E7E2DB] rounded-lg pl-10 pr-4 h-10 text-[13.5px] text-[#2D2D2D] placeholder-[#9B958E] focus:outline-none focus:border-[#991A21] transition-colors"/>
+                    </div>
+                  )}
+                  <button onClick={handleSorteer} title="Sorteer VvE's op vergaderdatum. VvE's met voorkeursdatum volgend jaar komen onderaan."
+                    className="flex items-center gap-2 px-3.5 h-10 bg-white hover:bg-[#FAF8F5] border border-[#E7E2DB] text-[#6B6560] hover:text-[#2D2D2D] text-[13px] font-medium rounded-lg transition-colors whitespace-nowrap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[15px] h-[15px]">
+                      <path d="M7 3v18M3 7l4-4 4 4M17 21V3M13 17l4 4 4-4"/>
+                    </svg>
+                    Sorteer
+                  </button>
+                  <label className="flex items-center gap-2 cursor-pointer shrink-0 group px-1" onClick={()=>setHideAfgerond(h=>!h)}>
+                    <div className={`w-[18px] h-[18px] rounded border flex items-center justify-center transition-colors ${hideAfgerond?"bg-[#991A21] border-[#991A21]":"bg-white border-[#C9BEB2] group-hover:border-[#991A21]"}`}>
+                      {hideAfgerond && <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className="w-[11px] h-[11px]"><path d="M20 6 9 17l-5-5"/></svg>}
+                    </div>
+                    <span className="text-[12.5px] text-[#6B6560] group-hover:text-[#2D2D2D] transition-colors whitespace-nowrap">
+                      Verberg afgerond {afgerond > 0 && <span className="text-[#9B958E] tabular-nums">({afgerond})</span>}
+                    </span>
+                  </label>
+                </div>
+
+                {/* Selectie */}
+                {filtered.length > 0 && (
+                  <div className="flex items-center gap-3 px-4 h-11 bg-white border border-[#E7E2DB] rounded-xl">
+                    <label className="flex items-center gap-2 cursor-pointer group" onClick={()=> selectie.size === filtered.length ? deselecteerAlles() : selecteerAlles()}>
+                      <div className={`w-[18px] h-[18px] rounded border flex items-center justify-center transition-colors ${
+                        selectie.size === filtered.length && filtered.length > 0 ? "bg-[#991A21] border-[#991A21]"
+                        : selectie.size > 0 ? "bg-white border-[#991A21]"
+                        : "bg-white border-[#C9BEB2] group-hover:border-[#991A21]"}`}>
+                        {selectie.size === filtered.length && filtered.length > 0 && <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className="w-[11px] h-[11px]"><path d="M20 6 9 17l-5-5"/></svg>}
+                        {selectie.size > 0 && selectie.size < filtered.length && <span className="w-[8px] h-[2px] rounded-sm bg-[#991A21]" />}
+                      </div>
+                      <span className="text-[12.5px] text-[#6B6560] group-hover:text-[#2D2D2D] transition-colors">
+                        {selectie.size === 0 ? "Selecteer alles" : selectie.size === filtered.length ? "Alles geselecteerd" : `${selectie.size} geselecteerd`}
                       </span>
+                    </label>
+                    {selectie.size > 0 && (
+                      <button onClick={verwijderSelectie} className="ml-auto px-3 h-8 bg-[#F6ECEC] hover:bg-[#EFDCDC] border border-[#E3C9C9] text-[#991A21] text-[12.5px] font-semibold rounded-lg transition-colors">
+                        Verwijder {selectie.size} VvE{selectie.size > 1 ? "'s" : ""}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {loading && <p className="text-[13px] text-[#9B958E] text-center py-10">Laden…</p>}
+
+                {!loading && filtered.length===0 && (
+                  <div className="bg-white border border-[#E7E2DB] rounded-xl px-6 py-12 text-center">
+                    <p className="text-[13.5px] font-semibold text-[#2D2D2D]">
+                      {data.vves.length===0 ? "Nog geen VvE's"
+                        : hideAfgerond && afgerond===data.vves.length ? "Alle VvE's zijn afgerond"
+                        : "Geen resultaten"}
+                    </p>
+                    <p className="text-[12.5px] text-[#6B6560] mt-1">
+                      {data.vves.length===0 ? "Voeg er hierboven een toe, of gebruik Bulk import."
+                        : hideAfgerond && afgerond===data.vves.length ? "Zet ‘Verberg afgerond’ uit om ze te tonen."
+                        : statFilter ? "Geen VvE's in dit filter."
+                        : geselecteerdeFilterMaanden.size > 0 ? "Geen VvE's in de geselecteerde maanden."
+                        : "Pas je zoekopdracht aan."}
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  {filtered.map(vve=>(
+                    <div key={vve.id} className="flex items-center gap-2">
+                      <div
+                        onClick={()=>toggleSelectie(vve.id)}
+                        className={`w-[18px] h-[18px] rounded border flex items-center justify-center transition-colors cursor-pointer shrink-0 ${selectie.has(vve.id)?"bg-[#991A21] border-[#991A21]":"bg-white border-[#C9BEB2] hover:border-[#991A21]"}`}
+                      >
+                        {selectie.has(vve.id) && <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className="w-[11px] h-[11px]"><path d="M20 6 9 17l-5-5"/></svg>}
+                      </div>
                       <div className="flex-1 min-w-0">
-                        {/* FIX 3: klikbare naam → scroll + open VvE kaart */}
-                        <button
-                          onClick={() => {
-                            setForceOpenId(item.vveId);
-                            // zorg dat de VvE zichtbaar is (verberg afgerond uitzetten indien nodig)
-                            const vve = data.vves.find(v => v.id === item.vveId);
-                            if (vve && isAfgerond(vve) && hideAfgerond) setHideAfgerond(false);
-                            // verwijder maandfilter als VvE erdoor gefilterd wordt
-                            if (geselecteerdeFilterMaanden.size > 0) setGeselecteerdeFilterMaanden(new Set());
-                          }}
-                          className="font-semibold underline underline-offset-2 hover:opacity-70 transition-opacity cursor-pointer text-inherit"
-                        >
-                          {item.naam}
-                        </button>
-                        {item.is2e && <span className="ml-1 opacity-80">(2e reglementaire vergadering)</span>}
-                        {item.isExtra && <span className="ml-1 opacity-80">(extra vergadering)</span>}
-                        <span className="ml-2 opacity-90">
-                          {item.type==="overdue"      ? `— uitnodigingstermijn verlopen, vergadering ${fmtDate(item.datum)}` :
-                           item.type==="nietVerwerkt" ? `— vergadering was op ${fmtDate(item.datum)}, uitkomst nog niet vastgelegd` :
-                           `— uitnodigen vóór ${fmtDate(item.deadline)} (vergadering ${fmtDate(item.datum)})`}
-                        </span>
+                        <VveRow
+                          vve={vve}
+                          vakanties={data.vakanties}
+                          onUpdate={planningPreview ? (u) => setPlanningPreview(prev => prev.map(v=>v.id===u.id?u:v)) : updateVve}
+                          onDelete={planningPreview ? ()=>{} : deleteVve}
+                          onAdd2nd={planningPreview ? ()=>{} : add2nd}
+                          forceOpen={forceOpenId === vve.id}
+                          onForceOpenHandled={() => setForceOpenId(null)}
+                          vveHeeftLod={vveHeeftLod}
+                        />
                       </div>
                     </div>
                   ))}
                 </div>
-              )}
 
-              {/* Planning preview banner */}
-              {planningPreview && (
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-semibold text-blue-800">Voorgestelde planning</p>
-                      <p className="text-xs text-blue-600 mt-0.5">
-                        {planningPreview.filter(v=>v.datum1).length - data.vves.filter(v=>v.datum1).length} VvE's automatisch ingepland. Controleer de datums en bevestig.
-                      </p>
-                    </div>
-                    <div className="flex gap-2 shrink-0">
-                      <button onClick={handleConfirmPlanning} className="px-4 py-1.5 bg-[#991A21] hover:bg-[#7a1419] text-white text-xs rounded-lg transition-colors font-medium">Bevestigen</button>
-                      <button onClick={handleRejectPlanning} className="px-4 py-1.5 bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 text-xs rounded-lg transition-colors">Annuleren</button>
-                    </div>
-                  </div>
-                  <div className="pt-1">
-                    <p className="text-[10px] text-blue-600 mb-1.5 uppercase tracking-wide font-semibold">Spreiding na planning</p>
-                    <MonthBar counts={spreadScore(planningPreview)} vakanties={data.vakanties}/>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex gap-2 flex-wrap">
-                <input value={newVveName} onChange={e=>setNewVveName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addVve()} placeholder="VvE naam toevoegen…"
-                  className="flex-1 min-w-48 bg-white border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none focus:border-[#991A21] transition-colors"/>
-                <button onClick={addVve} className="px-4 py-2 bg-[#991A21] hover:bg-[#7a1419] text-white text-sm font-semibold rounded-xl transition-colors shadow-sm">+</button>
-                <button onClick={()=>setShowImport(i=>!i)} className="px-4 py-2 bg-white hover:bg-gray-50 text-gray-600 text-sm border border-gray-200 rounded-xl transition-colors whitespace-nowrap">Bulk import</button>
-                {ongepland > 0 && !planningPreview && (
-                  <button onClick={handleGeneratePlanning} className="px-4 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-sm rounded-xl transition-colors whitespace-nowrap font-medium">
-                    ✦ Stel planning voor ({ongepland} ongepland)
-                  </button>
-                )}
-                {/* FIX 1: Sorteerknop */}
-                {statFilter && (
-                  <button
-                    onClick={() => setStatFilter(null)}
-                    className="px-3 py-2 bg-[#fef2f2] hover:bg-red-100 border border-red-200 text-[#991A21] text-xs rounded-xl transition-colors whitespace-nowrap font-medium"
-                  >
-                    ✕ Filter: {statFilter === 'afgerond' ? 'Afgerond' : statFilter === 'uitgenodigd' ? 'Uitgenodigd' : statFilter === 'niet-uitgenodigd' ? 'Niet uitgenodigd' : statFilter === 'uitnodiging' ? 'Uitnodiging urgent' : 'In vakantie'}
-                  </button>
-                )}
-                <button
-                  onClick={handleSorteer}
-                  className="px-4 py-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-600 text-sm rounded-xl transition-colors whitespace-nowrap"
-                  title="Sorteer VvE's op vergaderdatum. VvE's met voorkeursdatum volgend jaar komen onderaan."
-                >
-                  ↕ Sorteer
-                </button>
-              </div>
-
-              {showImport && (
-                <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3 shadow-sm">
-                  <p className="text-xs text-gray-500">Plak VvE-namen, één per regel. Datum en tijd worden automatisch herkend als je ze tab-gescheiden aanlevert (naam ⇥ d-m-jjjj ⇥ tijd).</p>
-                  <textarea rows={6} value={importText} onChange={e=>setImportText(e.target.value)}
-                    placeholder={"Zwolsestraat 253\t16-4-2026\t15.00\nTak van Poortvlietstraat 9 AB\t1-6-2026\t15:00 uur\n..."}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none resize-none font-mono focus:border-[#991A21] transition-colors"/>
-                  <div className="flex gap-2">
-                    <button onClick={handleImport} className="px-4 py-2 bg-[#991A21] hover:bg-[#7a1419] text-white text-sm rounded-lg transition-colors font-medium">Importeer</button>
-                    <button onClick={()=>setShowImport(false)} className="text-sm text-gray-400 hover:text-gray-600">Annuleer</button>
-                  </div>
-                </div>
-              )}
-
-              {/* Search + hide toggle */}
-              <div className="flex gap-3 items-center flex-wrap">
-                {data.vves.length>5 && (
-                  <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Zoek VvE…"
-                    className="flex-1 min-w-40 bg-white border-2 border-gray-200 rounded-xl px-4 py-2 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none focus:border-[#991A21] transition-colors"/>
-                )}
-                <label className="flex items-center gap-2 cursor-pointer shrink-0 group" onClick={()=>setHideAfgerond(h=>!h)}>
-                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${hideAfgerond?"bg-[#991A21] border-[#991A21]":"border-gray-300 hover:border-[#991A21]"}`}>
-                    {hideAfgerond && <span className="text-white text-xs font-bold">✓</span>}
-                  </div>
-                  <span className="text-xs text-gray-600 group-hover:text-[#2D2D2D] transition-colors whitespace-nowrap">
-                    Verberg afgerond {afgerond > 0 && <span className="text-gray-400">({afgerond})</span>}
-                  </span>
-                </label>
-              </div>
-
-              {/* Selectie toolbar */}
-              {filtered.length > 0 && (
-                <div className="flex items-center gap-3 px-3 py-2 bg-white border border-gray-200 rounded-xl shadow-sm">
-                  <label className="flex items-center gap-2 cursor-pointer group" onClick={()=> selectie.size === filtered.length ? deselecteerAlles() : selecteerAlles()}>
-                    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${selectie.size === filtered.length && filtered.length > 0 ? "bg-[#991A21] border-[#991A21]" : selectie.size > 0 ? "bg-[#991A21]/60 border-[#991A21]/60" : "border-gray-300 hover:border-[#991A21]"}`}>
-                      {selectie.size === filtered.length && filtered.length > 0 && <span className="text-white text-xs font-bold">✓</span>}
-                      {selectie.size > 0 && selectie.size < filtered.length && <span className="text-zinc-300 text-xs font-bold">−</span>}
-                    </div>
-                    <span className="text-xs text-gray-600 group-hover:text-[#2D2D2D] transition-colors">
-                      {selectie.size === 0 ? "Selecteer alles" : selectie.size === filtered.length ? "Alles geselecteerd" : `${selectie.size} geselecteerd`}
-                    </span>
-                  </label>
-                  {selectie.size > 0 && (
-                    <button onClick={verwijderSelectie} className="ml-auto px-3 py-1 bg-red-50 hover:bg-red-100 border border-red-200 text-[#991A21] text-xs rounded-lg transition-colors font-medium">
-                      Verwijder {selectie.size} VvE{selectie.size > 1 ? "'s" : ""}
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {loading && <p className="text-sm text-zinc-500">Laden…</p>}
-              {!loading && filtered.length===0 && (
-                <p className="text-sm text-gray-400 text-center py-12">
-                  {data.vves.length===0 ? "Nog geen VvE's. Voeg er een toe."
-                    : hideAfgerond && afgerond===data.vves.length ? "Alle VvE's zijn afgerond. 🎉"
-                    : geselecteerdeFilterMaanden.size > 0 ? "Geen VvE's gevonden voor de geselecteerde maanden."
-                    : "Geen resultaten."}
-                </p>
-              )}
-
-              <div className="space-y-2">
-                {filtered.map(vve=>(
-                  <div key={vve.id} className="flex items-center gap-2">
-                    <div
-                      onClick={()=>toggleSelectie(vve.id)}
-                      className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all cursor-pointer shrink-0 ${selectie.has(vve.id)?"bg-[#991A21] border-[#991A21]":"border-gray-300 hover:border-[#991A21]"}`}
-                    >
-                      {selectie.has(vve.id) && <span className="text-white text-xs font-bold">✓</span>}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <VveRow
-                        vve={vve}
-                        vakanties={data.vakanties}
-                        onUpdate={planningPreview ? (u) => setPlanningPreview(prev => prev.map(v=>v.id===u.id?u:v)) : updateVve}
-                        onDelete={planningPreview ? ()=>{} : deleteVve}
-                        onAdd2nd={planningPreview ? ()=>{} : add2nd}
-                        forceOpen={forceOpenId === vve.id}
-                        onForceOpenHandled={() => setForceOpenId(null)}
-                        vveHeeftLod={vveHeeftLod}
-                      />
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
           </div>
         )}
-
         {/* ── SPREIDING ── */}
         {tab==="overzicht" && (
           <div className="space-y-6">
