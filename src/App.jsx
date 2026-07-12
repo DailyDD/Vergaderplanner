@@ -4296,6 +4296,69 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
         kleur: v.vergaderd1 ? "#1a7a45" : v.uitgenodigd1 ? "#991A21" : "#1a4f7a",
       }));
 
+    // ── Afgeleide weergavewaarden (puur, alleen voor presentatie) ──────────
+    // Geen state, geen handlers, geen fetches. urgentItems/afgerond/yearPct e.d.
+    // worden hierboven in de App-component al berekend; hier worden ze alleen
+    // gesorteerd en gegroepeerd voor weergave.
+    const vandaag = today();
+    const dagenTot = (iso) => iso
+      ? Math.round((new Date(iso + "T00:00:00") - new Date(vandaag + "T00:00:00")) / 86400000)
+      : null;
+    const opDatum = (a, b) => (a.datum || "").localeCompare(b.datum || "");
+    const actieGeen2e = urgentItems.filter(i => i.type === "geen2e").sort(opDatum);
+    const actieTeLaat = urgentItems.filter(i => i.type === "overdue").sort(opDatum);
+    const actieNadert = urgentItems.filter(i => i.type === "warning").sort(opDatum);
+
+    const dagTekst = (d) => d === null ? "" : d > 0 ? `over ${d} ${d === 1 ? "dag" : "dagen"}` : d === 0 ? "vandaag" : `${-d} ${-d === 1 ? "dag" : "dagen"} geleden`;
+    const deadlineTekst = (d) => d === null ? "" : d < 0 ? `${-d} ${-d === 1 ? "dag" : "dagen"} te laat` : d === 0 ? "vandaag" : `nog ${d} ${d === 1 ? "dag" : "dagen"}`;
+
+    const ArrowIcon = (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-[#C9BEB2] group-hover:text-[#991A21] group-hover:translate-x-0.5 transition-all">
+        <path d="M5 12h14M12 5l7 7-7 7"/>
+      </svg>
+    );
+
+    // Eén rij in de actie-wachtrij
+    const ActieRij = ({ item, ernst }) => {
+      const dMeeting = dagenTot(item.datum);
+      const dDeadline = item.deadline ? dagenTot(item.deadline) : null;
+      const streep = ernst === 3 ? "#991A21" : ernst === 2 ? "#C97A70" : "#B07414";
+      const soort = item.is2e ? "2e vergadering" : item.isExtra ? "Extra vergadering" : "1e vergadering";
+      return (
+        <div
+          onClick={()=>setScreen("vergaderingen")}
+          className="relative grid grid-cols-1 sm:grid-cols-[1fr_150px_150px] gap-2 sm:gap-3 items-center px-5 py-3 border-b border-[#EFEBE4] last:border-b-0 cursor-pointer hover:bg-[#FAF8F5] transition-colors"
+        >
+          <span className="absolute left-0 top-0 bottom-0 w-[3px]" style={{background: streep}} />
+          <div className="min-w-0">
+            <p className="text-[13.5px] font-semibold text-[#2D2D2D] truncate">{item.naam}</p>
+            <p className="text-[11.5px] text-[#9B958E] mt-0.5">{soort}</p>
+          </div>
+          <div>
+            <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#9B958E]">Vergadering</p>
+            <p className={`text-[12.5px] mt-0.5 ${dMeeting !== null && dMeeting <= 7 ? "font-semibold text-[#991A21]" : "text-[#3f3d3b]"}`}>
+              {fmtDate(item.datum)} · {dagTekst(dMeeting)}
+            </p>
+          </div>
+          <div>
+            {item.type === "geen2e" ? (
+              <>
+                <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#9B958E]">Vervolg</p>
+                <p className="text-[12.5px] mt-0.5 font-semibold text-[#991A21]">Geen 2e gepland</p>
+              </>
+            ) : (
+              <>
+                <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#9B958E]">Uitnodigen vóór</p>
+                <p className={`text-[12.5px] mt-0.5 font-semibold ${dDeadline !== null && dDeadline < 0 ? "text-[#991A21]" : "text-[#B07414]"}`}>
+                  {fmtDate(item.deadline)} · {deadlineTekst(dDeadline)}
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      );
+    };
+
     return (
       <div className="min-h-screen bg-[#F2EFEC]">
         <style>{CSS_FONT}</style>
@@ -4311,7 +4374,6 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
               <p className="text-[11px] text-[#9B958E]">Totaal VvE Beheer</p>
             </div>
           </div>
-
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-lg bg-[#2D2D2D] flex items-center justify-center">
@@ -4334,10 +4396,10 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
           </div>
         </div>
 
-        <div className="px-7 py-9 max-w-5xl mx-auto">
+        <div className="px-7 py-9 max-w-6xl mx-auto">
 
           {/* ── Begroeting ───────────────────────────────────────── */}
-          <div className="mb-8">
+          <div className="mb-7">
             <h1 className="text-[26px] font-semibold text-[#2D2D2D] tracking-tight leading-tight">
               {(() => { const h = new Date().getHours(); return h < 12 ? "Goedemorgen" : h < 18 ? "Goedemiddag" : "Goedenavond"; })()} {beheerder}
             </h1>
@@ -4346,23 +4408,209 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
             </p>
           </div>
 
-          {/* ── Tegels ───────────────────────────────────────────── */}
+          {data.vves.length === 0 ? (
+
+            /* ── Lege staat — nog geen VvE's ────────────────────── */
+            <div className="bg-white border border-[#E7E2DB] rounded-xl px-8 py-10 mb-8 text-center">
+              <div className="w-12 h-12 rounded-xl bg-[#F6ECEC] text-[#991A21] flex items-center justify-center mx-auto mb-4">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[22px] h-[22px]">
+                  <rect x="3" y="4" width="18" height="18" rx="2.5"/><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4"/>
+                </svg>
+              </div>
+              <h2 className="text-[17px] font-semibold text-[#2D2D2D] mb-2">Je hebt nog geen VvE's</h2>
+              <p className="text-[13.5px] text-[#6B6560] max-w-md mx-auto mb-6 leading-relaxed">
+                Voeg je VvE's toe in de Vergaderplanner — één voor één of via een bulkimport.
+                Zodra ze erin staan, zie je hier je actiepunten en je voortgang over het jaar.
+              </p>
+              <button
+                onClick={()=>setScreen("vergaderingen")}
+                className="inline-flex items-center gap-2 h-11 px-5 bg-[#991A21] hover:bg-[#7A1419] text-white text-[13.5px] font-semibold rounded-xl transition-colors"
+              >
+                Naar de Vergaderplanner
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                  <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+              </button>
+            </div>
+
+          ) : (
+            <>
+              {/* ── Statusbalk ─────────────────────────────────────── */}
+              <div className="bg-white border border-[#E7E2DB] rounded-xl p-5 mb-4">
+                <div className="flex items-baseline justify-between mb-3.5 flex-wrap gap-2">
+                  <p className="text-[13px] font-semibold text-[#2D2D2D]">
+                    Status van je {data.vves.length} VvE's <span className="text-[#9B958E] font-normal">· planjaar {new Date().getFullYear()}</span>
+                  </p>
+                  {metWaarschuwing > 0 && (
+                    <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-[#991A21]">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[14px] h-[14px]">
+                        <path d="m10.3 3.2-8.5 14.6A2 2 0 0 0 3.5 21h17a2 2 0 0 0 1.7-3.2L13.7 3.2a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>
+                      </svg>
+                      {metWaarschuwing} {metWaarschuwing === 1 ? "VvE vraagt" : "VvE's vragen"} nu actie
+                    </span>
+                  )}
+                </div>
+                <div className="flex h-3 gap-[3px]">
+                  {afgerond > 0 && <span className="rounded-[3px] bg-[#3B7A57]" style={{flex: afgerond}} />}
+                  {uitgenodigd > 0 && <span className="rounded-[3px] bg-[#4A6B8A]" style={{flex: uitgenodigd}} />}
+                  {nietUitgenodigd > 0 && <span className="rounded-[3px] bg-[#E7E2DB]" style={{flex: nietUitgenodigd}} />}
+                </div>
+                <div className="flex gap-5 mt-3 flex-wrap">
+                  <span className="flex items-center gap-2 text-[12.5px] text-[#6B6560]"><span className="w-2 h-2 rounded-sm bg-[#3B7A57]" /><b className="text-[#2D2D2D] font-semibold">{afgerond}</b> afgerond</span>
+                  <span className="flex items-center gap-2 text-[12.5px] text-[#6B6560]"><span className="w-2 h-2 rounded-sm bg-[#4A6B8A]" /><b className="text-[#2D2D2D] font-semibold">{uitgenodigd}</b> uitgenodigd</span>
+                  <span className="flex items-center gap-2 text-[12.5px] text-[#6B6560]"><span className="w-2 h-2 rounded-sm bg-[#E7E2DB]" /><b className="text-[#2D2D2D] font-semibold">{nietUitgenodigd}</b> nog niet uitgenodigd</span>
+                  {ongepland > 0 && (
+                    <span className="flex items-center gap-2 text-[12.5px] text-[#6B6560]"><span className="w-2 h-2 rounded-sm border border-[#C9BEB2]" /><b className="text-[#2D2D2D] font-semibold">{ongepland}</b> zonder datum</span>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Voortgang + Actie vereist ──────────────────────── */}
+              <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4 mb-8 items-start">
+
+                {/* Voortgang */}
+                <div className="bg-white border border-[#E7E2DB] rounded-xl overflow-hidden">
+                  <div className="flex items-center gap-2.5 px-5 py-4 border-b border-[#EFEBE4]">
+                    <span className="w-[3px] h-[15px] rounded-sm bg-[#991A21]" />
+                    <p className="text-[14px] font-semibold text-[#2D2D2D]">Voortgang {new Date().getFullYear()}</p>
+                  </div>
+                  <div className="p-5">
+                    <div className="mb-3.5">
+                      <div className="flex justify-between text-[12.5px] mb-1.5">
+                        <span className="text-[#6B6560]">Jaar verstreken</span>
+                        <b className="font-semibold text-[#2D2D2D]">{yearPct}%</b>
+                      </div>
+                      <div className="h-2 rounded-full bg-[#FAF8F5] overflow-hidden">
+                        <span className="block h-full rounded-full bg-[#2D2D2D] opacity-30" style={{width: `${Math.min(yearPct,100)}%`}} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-[12.5px] mb-1.5">
+                        <span className="text-[#6B6560]">Vergaderingen afgerond</span>
+                        <b className="font-semibold text-[#2D2D2D]">{afgerondPct}%</b>
+                      </div>
+                      <div className="h-2 rounded-full bg-[#FAF8F5] overflow-hidden">
+                        <span className="block h-full rounded-full bg-[#3B7A57]" style={{width: `${Math.min(afgerondPct,100)}%`}} />
+                      </div>
+                    </div>
+
+                    <div className={`mt-4 flex gap-2.5 items-start rounded-lg px-3 py-2.5 ${
+                      onTrackDiff >= 0 ? "bg-[#EAF2EC]" : onTrackDiff >= -10 ? "bg-[#F7EEDD]" : "bg-[#F6ECEC]"
+                    }`}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"
+                        className={`w-4 h-4 shrink-0 mt-0.5 ${onTrackDiff >= 0 ? "text-[#3B7A57]" : onTrackDiff >= -10 ? "text-[#B07414]" : "text-[#991A21]"}`}>
+                        {onTrackDiff >= 0
+                          ? <path d="M20 6 9 17l-5-5"/>
+                          : <><path d="m10.3 3.2-8.5 14.6A2 2 0 0 0 3.5 21h17a2 2 0 0 0 1.7-3.2L13.7 3.2a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></>
+                        }
+                      </svg>
+                      <div>
+                        <p className={`text-[13px] font-semibold leading-tight ${onTrackDiff >= 0 ? "text-[#3B7A57]" : onTrackDiff >= -10 ? "text-[#B07414]" : "text-[#991A21]"}`}>
+                          {onTrackDiff >= 0 ? "Je loopt voor op schema" : onTrackDiff >= -10 ? "Je loopt licht achter" : "Je loopt achter op schema"}
+                        </p>
+                        <p className="text-[12px] text-[#3f3d3b] mt-0.5 leading-snug">
+                          {afgerond} van {data.vves.length} afgerond, terwijl {yearPct}% van het jaar voorbij is.
+                        </p>
+                      </div>
+                    </div>
+
+                    {ongepland > 0 && (
+                      <div className="flex justify-between text-[12.5px] pt-3.5 mt-3.5 border-t border-[#EFEBE4]">
+                        <span className="text-[#6B6560]">Nog in te plannen</span>
+                        <b className="font-semibold text-[#2D2D2D]">{ongepland} {ongepland === 1 ? "VvE" : "VvE's"}</b>
+                      </div>
+                    )}
+                    {inVakantie > 0 && (
+                      <div className="flex justify-between text-[12.5px] pt-2.5 mt-2.5">
+                        <span className="text-[#6B6560]">Valt in een vakantie</span>
+                        <b className="font-semibold text-[#B07414]">{inVakantie}</b>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actie vereist */}
+                <div className="bg-white border border-[#E7E2DB] rounded-xl overflow-hidden">
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-[#EFEBE4]">
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-[3px] h-[15px] rounded-sm bg-[#991A21]" />
+                      <p className="text-[14px] font-semibold text-[#2D2D2D]">Actie vereist</p>
+                    </div>
+                    {urgentItems.length > 0 && (
+                      <span className="text-[12px] font-semibold text-[#9B958E]">{urgentItems.length} openstaand · op urgentie</span>
+                    )}
+                  </div>
+
+                  {urgentItems.length === 0 ? (
+                    <div className="px-5 py-10 text-center">
+                      <div className="w-10 h-10 rounded-lg bg-[#EAF2EC] text-[#3B7A57] flex items-center justify-center mx-auto mb-3">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[19px] h-[19px]">
+                          <path d="M20 6 9 17l-5-5"/>
+                        </svg>
+                      </div>
+                      <p className="text-[13.5px] font-semibold text-[#2D2D2D]">Geen actiepunten</p>
+                      <p className="text-[12.5px] text-[#6B6560] mt-1">Alle uitnodigingen zijn op tijd verstuurd.</p>
+                    </div>
+                  ) : (
+                    <>
+                      {actieGeen2e.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2.5 px-5 py-2.5 bg-[#FAF8F5] border-b border-[#EFEBE4] text-[#991A21]">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[15px] h-[15px]">
+                              <path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>
+                            </svg>
+                            <span className="text-[12px] font-semibold uppercase tracking-[0.04em]">Vergadering geweest — geen 2e gepland</span>
+                            <span className="ml-auto text-[11.5px] font-semibold bg-[#991A21] text-white px-2 py-0.5 rounded-full">{actieGeen2e.length}</span>
+                          </div>
+                          {actieGeen2e.map(item => <ActieRij key={item.id} item={item} ernst={3} />)}
+                        </div>
+                      )}
+
+                      {actieTeLaat.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2.5 px-5 py-2.5 bg-[#FAF8F5] border-b border-t border-[#EFEBE4] text-[#991A21]">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[15px] h-[15px]">
+                              <path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>
+                            </svg>
+                            <span className="text-[12px] font-semibold uppercase tracking-[0.04em]">Uitnodiging te laat</span>
+                            <span className="ml-auto text-[11.5px] font-semibold bg-[#F6ECEC] text-[#991A21] px-2 py-0.5 rounded-full">{actieTeLaat.length}</span>
+                          </div>
+                          {actieTeLaat.map(item => <ActieRij key={item.id} item={item} ernst={2} />)}
+                        </div>
+                      )}
+
+                      {actieNadert.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2.5 px-5 py-2.5 bg-[#FAF8F5] border-b border-t border-[#EFEBE4] text-[#B07414]">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[15px] h-[15px]">
+                              <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
+                            </svg>
+                            <span className="text-[12px] font-semibold uppercase tracking-[0.04em]">Deadline nadert</span>
+                            <span className="ml-auto text-[11.5px] font-semibold bg-[#F7EEDD] text-[#B07414] px-2 py-0.5 rounded-full">{actieNadert.length}</span>
+                          </div>
+                          {actieNadert.map(item => <ActieRij key={item.id} item={item} ernst={1} />)}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ── Modules ──────────────────────────────────────────── */}
+          <p className="text-[11px] font-semibold uppercase tracking-[0.07em] text-[#9B958E] mb-3">Modules</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
 
-            {/* Vergaderplanner — primaire tool */}
-            <div
-              onClick={()=>setScreen("vergaderingen")}
-              className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors"
-            >
+            {/* Vergaderplanner */}
+            <div onClick={()=>setScreen("vergaderingen")} className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors">
               <div className="flex items-start justify-between mb-4">
                 <div className="w-10 h-10 rounded-lg bg-[#F6ECEC] text-[#991A21] flex items-center justify-center">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[19px] h-[19px]">
                     <rect x="3" y="4" width="18" height="18" rx="2.5"/><path d="M16 2v4M8 2v4M3 10h18"/>
                   </svg>
                 </div>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-[#C9BEB2] group-hover:text-[#991A21] group-hover:translate-x-0.5 transition-all">
-                  <path d="M5 12h14M12 5l7 7-7 7"/>
-                </svg>
+                {ArrowIcon}
               </div>
               <h3 className="text-[15px] font-semibold text-[#2D2D2D] mb-1.5">Vergaderplanner</h3>
               <p className="text-[12.5px] text-[#6B6560] leading-relaxed mb-5">Plan en beheer alle VvE-vergaderingen, uitnodigingen en voortgang.</p>
@@ -4375,19 +4623,14 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
             </div>
 
             {/* VvE Calculator */}
-            <div
-              onClick={()=>setScreen("calculator")}
-              className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors"
-            >
+            <div onClick={()=>setScreen("calculator")} className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors">
               <div className="flex items-start justify-between mb-4">
                 <div className="w-10 h-10 rounded-lg bg-[#FAF8F5] text-[#6B6560] flex items-center justify-center">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[19px] h-[19px]">
                     <rect x="4" y="2" width="16" height="20" rx="2.5"/><path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 19h4"/>
                   </svg>
                 </div>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-[#C9BEB2] group-hover:text-[#991A21] group-hover:translate-x-0.5 transition-all">
-                  <path d="M5 12h14M12 5l7 7-7 7"/>
-                </svg>
+                {ArrowIcon}
               </div>
               <h3 className="text-[15px] font-semibold text-[#2D2D2D] mb-1.5">VvE Calculator</h3>
               <p className="text-[12.5px] text-[#6B6560] leading-relaxed mb-5">Bereken bijdragen, reservefondsen en financiële overzichten.</p>
@@ -4398,19 +4641,14 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
 
             {/* E-mail Configurator — alleen voor hoofd_admin */}
             {isHoofdAdmin && (
-              <div
-                onClick={()=>setScreen("mail")}
-                className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors"
-              >
+              <div onClick={()=>setScreen("mail")} className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors">
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-10 h-10 rounded-lg bg-[#FAF8F5] text-[#6B6560] flex items-center justify-center">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[19px] h-[19px]">
                       <rect x="2" y="4" width="20" height="16" rx="2.5"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
                     </svg>
                   </div>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-[#C9BEB2] group-hover:text-[#991A21] group-hover:translate-x-0.5 transition-all">
-                    <path d="M5 12h14M12 5l7 7-7 7"/>
-                  </svg>
+                  {ArrowIcon}
                 </div>
                 <h3 className="text-[15px] font-semibold text-[#2D2D2D] mb-1.5">E-mail Configurator</h3>
                 <p className="text-[12.5px] text-[#6B6560] leading-relaxed mb-5">Herschrijf e-mails naar professionele correspondentie in de schrijfstijl van Totaal VvE Beheer.</p>
@@ -4420,21 +4658,16 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
               </div>
             )}
 
-            {/* Verduurzaming & Subsidies — voor hoofd_admin en aangewezen beheerders */}
+            {/* Verduurzaming & Subsidies */}
             {heeftVerduurzamingToegang && (
-              <div
-                onClick={()=>setScreen("verduurzaming")}
-                className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors"
-              >
+              <div onClick={()=>setScreen("verduurzaming")} className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors">
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-10 h-10 rounded-lg bg-[#EAF2EC] text-[#3B7A57] flex items-center justify-center">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[19px] h-[19px]">
                       <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/>
                     </svg>
                   </div>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-[#C9BEB2] group-hover:text-[#991A21] group-hover:translate-x-0.5 transition-all">
-                    <path d="M5 12h14M12 5l7 7-7 7"/>
-                  </svg>
+                  {ArrowIcon}
                 </div>
                 <h3 className="text-[15px] font-semibold text-[#2D2D2D] mb-1.5">Verduurzaming &amp; Subsidies</h3>
                 <p className="text-[12.5px] text-[#6B6560] leading-relaxed mb-5">Beheer verduurzamingstrajecten, subsidieaanvragen en isolatieacties per VvE.</p>
@@ -4444,21 +4677,16 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
               </div>
             )}
 
-            {/* Notulen Assistent — alleen voor hoofd_admin */}
+            {/* Notulen Assistent */}
             {isHoofdAdmin && (
-              <div
-                onClick={()=>setScreen("notulen")}
-                className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors"
-              >
+              <div onClick={()=>setScreen("notulen")} className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors">
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-10 h-10 rounded-lg bg-[#FAF8F5] text-[#6B6560] flex items-center justify-center">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[19px] h-[19px]">
                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M15 13H9M15 17H9M11 9H9"/>
                     </svg>
                   </div>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-[#C9BEB2] group-hover:text-[#991A21] group-hover:translate-x-0.5 transition-all">
-                    <path d="M5 12h14M12 5l7 7-7 7"/>
-                  </svg>
+                  {ArrowIcon}
                 </div>
                 <h3 className="text-[15px] font-semibold text-[#2D2D2D] mb-1.5">Notulen Assistent</h3>
                 <p className="text-[12.5px] text-[#6B6560] leading-relaxed mb-5">Stel professionele vergadernotulen samen op basis van vaste tekstblokken en schrijfstijl.</p>
@@ -4468,21 +4696,16 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
               </div>
             )}
 
-            {/* Kennisbank — alleen voor hoofd_admin */}
+            {/* Kennisbank */}
             {isHoofdAdmin && (
-              <div
-                onClick={()=>setScreen("kennisbank")}
-                className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors"
-              >
+              <div onClick={()=>setScreen("kennisbank")} className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors">
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-10 h-10 rounded-lg bg-[#FAF8F5] text-[#6B6560] flex items-center justify-center">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[19px] h-[19px]">
                       <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
                     </svg>
                   </div>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-[#C9BEB2] group-hover:text-[#991A21] group-hover:translate-x-0.5 transition-all">
-                    <path d="M5 12h14M12 5l7 7-7 7"/>
-                  </svg>
+                  {ArrowIcon}
                 </div>
                 <h3 className="text-[15px] font-semibold text-[#2D2D2D] mb-1.5">Kennisbank</h3>
                 <p className="text-[12.5px] text-[#6B6560] leading-relaxed mb-5">Doorzoek vragen en antwoorden over de dagelijkse werkzaamheden van een VvE-beheerder.</p>
@@ -4492,21 +4715,16 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
               </div>
             )}
 
-            {/* Admin dashboard — voor admin en hoofd_admin */}
+            {/* Admin Dashboard */}
             {(isAdmin || isHoofdAdmin) && (
-              <div
-                onClick={()=>setScreen("admin")}
-                className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors"
-              >
+              <div onClick={()=>setScreen("admin")} className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors">
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-10 h-10 rounded-lg bg-[#FAF8F5] text-[#6B6560] flex items-center justify-center">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[19px] h-[19px]">
                       <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>
                     </svg>
                   </div>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-[#C9BEB2] group-hover:text-[#991A21] group-hover:translate-x-0.5 transition-all">
-                    <path d="M5 12h14M12 5l7 7-7 7"/>
-                  </svg>
+                  {ArrowIcon}
                 </div>
                 <h3 className="text-[15px] font-semibold text-[#2D2D2D] mb-1.5">Admin Dashboard</h3>
                 <p className="text-[12.5px] text-[#6B6560] leading-relaxed mb-5">Overzicht van alle beheerders, voortgang en leaderboard.</p>
@@ -4516,12 +4734,9 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
               </div>
             )}
 
-            {/* LOD Beheer — voor admin, hoofd_admin en beheerder_plus */}
+            {/* LOD Beheer */}
             {heeftLodToegang && (
-              <div
-                onClick={()=>setScreen("lod")}
-                className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors"
-              >
+              <div onClick={()=>setScreen("lod")} className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors">
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-10 h-10 rounded-lg bg-[#F7EEDD] text-[#B07414] flex items-center justify-center">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[19px] h-[19px]">
