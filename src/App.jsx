@@ -4299,118 +4299,171 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
     return (
       <div className="min-h-screen bg-[#F2EFEC]">
         <style>{CSS_FONT}</style>
-        {/* Topbar */}
-        <div className="border-b border-gray-200 px-6 h-14 flex items-center justify-between bg-white shadow-sm">
+
+        {/* ── Topbar ─────────────────────────────────────────────── */}
+        <div className="border-b border-[#E7E2DB] bg-white px-7 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex gap-1">
-              <div className="w-7 h-7 bg-[#991A21] rounded-md flex items-center justify-center"><span className="text-white text-xs">🏠</span></div>
-              <div className="w-7 h-7 bg-[#2D2D2D] rounded-md flex items-center justify-center"><span className="text-white text-xs">📋</span></div>
+            <div className="w-9 h-9 rounded-lg bg-[#991A21] flex items-center justify-center">
+              <span className="text-white text-[13px] font-bold tracking-wide">VP</span>
             </div>
-            <div className="w-px h-5 bg-gray-200" />
-            <span className="text-sm font-bold text-[#2D2D2D]">Totaal VvE Beheer</span>
+            <div>
+              <p className="text-[14px] font-semibold text-[#2D2D2D] leading-tight">VvE Planner</p>
+              <p className="text-[11px] text-[#9B958E]">Totaal VvE Beheer</p>
+            </div>
           </div>
+
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-[#991A21] rounded-full flex items-center justify-center">
-              <span className="text-white text-xs font-bold">{beheerder.charAt(0)}</span>
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-lg bg-[#2D2D2D] flex items-center justify-center">
+                <span className="text-white text-[13px] font-semibold">{beheerder.charAt(0)}</span>
+              </div>
+              <div className="text-right">
+                <p className="text-[13px] font-semibold text-[#2D2D2D] leading-tight">{beheerder}</p>
+                <p className="text-[11px] text-[#9B958E]">
+                  {isHoofdAdmin ? "Hoofdbeheerder" : isAdmin ? "Administrator" : isLodBeheerder ? "Beheerder +" : "Beheerder"}
+                </p>
+              </div>
             </div>
-            <span className="text-sm font-medium text-[#2D2D2D]">{beheerder}</span>
-            <button onClick={async ()=>{ await signOut(); setScreen("login"); setLoginNaam(""); setLoginPw(""); setBeheerder(""); setUserRol("beheerder"); setData(defaultData()); }}
-              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-[#991A21] hover:border-red-200 hover:bg-red-50 transition-colors">
+            <div className="w-px h-7 bg-[#E7E2DB]" />
+            <button
+              onClick={async ()=>{ await signOut(); setScreen("login"); setLoginNaam(""); setLoginPw(""); setBeheerder(""); setUserRol("beheerder"); setData(defaultData()); }}
+              className="text-[12.5px] font-medium px-3.5 h-9 rounded-lg border border-[#E7E2DB] text-[#6B6560] hover:text-[#991A21] hover:border-[#E3C9C9] transition-colors"
+            >
               Uitloggen
             </button>
           </div>
         </div>
 
-        <div className="p-8 max-w-4xl mx-auto">
-          {/* Welkom */}
+        <div className="px-7 py-9 max-w-5xl mx-auto">
+
+          {/* ── Begroeting ───────────────────────────────────────── */}
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-[#2D2D2D] mb-1">
+            <h1 className="text-[26px] font-semibold text-[#2D2D2D] tracking-tight leading-tight">
               {(() => { const h = new Date().getHours(); return h < 12 ? "Goedemorgen" : h < 18 ? "Goedemiddag" : "Goedenavond"; })()} {beheerder}
             </h1>
-            <p className="text-sm text-gray-500">{new Date().toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} — kies een tool om te beginnen</p>
+            <p className="text-[13.5px] text-[#6B6560] mt-1.5">
+              {new Date().toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
           </div>
 
-          {/* Tool tegels */}
-          <div className="grid grid-cols-3 gap-5 mb-8">
-            {/* Vergaderplanner */}
+          {/* ── Tegels ───────────────────────────────────────────── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+
+            {/* Vergaderplanner — primaire tool */}
             <div
               onClick={()=>setScreen("vergaderingen")}
-              className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
+              className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors"
             >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-[#991A21] rounded-t-2xl" />
-              <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-2xl mb-4">📅</div>
-              <h3 className="text-base font-bold text-[#2D2D2D] mb-2">Vergaderplanner</h3>
-              <p className="text-xs text-gray-500 mb-4 leading-relaxed">Plan en beheer alle VvE-vergaderingen, uitnodigingen en voortgang.</p>
-              <div className="flex items-center justify-between">
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-10 h-10 rounded-lg bg-[#F6ECEC] text-[#991A21] flex items-center justify-center">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[19px] h-[19px]">
+                    <rect x="3" y="4" width="18" height="18" rx="2.5"/><path d="M16 2v4M8 2v4M3 10h18"/>
+                  </svg>
+                </div>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-[#C9BEB2] group-hover:text-[#991A21] group-hover:translate-x-0.5 transition-all">
+                  <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+              </div>
+              <h3 className="text-[15px] font-semibold text-[#2D2D2D] mb-1.5">Vergaderplanner</h3>
+              <p className="text-[12.5px] text-[#6B6560] leading-relaxed mb-5">Plan en beheer alle VvE-vergaderingen, uitnodigingen en voortgang.</p>
+              <div className="mt-auto">
                 {data.vves.length > 0
-                  ? <span className="text-xs bg-red-50 text-[#991A21] px-2 py-1 rounded-full font-semibold border border-red-100">{data.vves.length} VvE's actief</span>
-                  : <span className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full font-semibold border border-gray-200">Openen</span>
+                  ? <span className="text-[11.5px] font-semibold bg-[#F6ECEC] text-[#991A21] px-2.5 py-1 rounded-md">{data.vves.length} VvE's actief</span>
+                  : <span className="text-[11.5px] font-semibold bg-[#FAF8F5] text-[#9B958E] px-2.5 py-1 rounded-md border border-[#EFEBE4]">Nog geen VvE's</span>
                 }
-                <span className="text-[#991A21] font-bold group-hover:translate-x-1 transition-transform">→</span>
               </div>
             </div>
 
             {/* VvE Calculator */}
             <div
               onClick={()=>setScreen("calculator")}
-              className="bg-white border-2 border-gray-200 hover:border-[#2D2D2D] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
+              className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors"
             >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-[#2D2D2D] rounded-t-2xl" />
-              <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center text-2xl mb-4">🧮</div>
-              <h3 className="text-base font-bold text-[#2D2D2D] mb-2">VvE Calculator</h3>
-              <p className="text-xs text-gray-500 mb-4 leading-relaxed">Bereken bijdragen, reservefondsen en financiële overzichten.</p>
-              <div className="flex items-center justify-between">
-                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full font-semibold border border-gray-200">Beschikbaar</span>
-                <span className="text-[#2D2D2D] font-bold group-hover:translate-x-1 transition-transform">→</span>
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-10 h-10 rounded-lg bg-[#FAF8F5] text-[#6B6560] flex items-center justify-center">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[19px] h-[19px]">
+                    <rect x="4" y="2" width="16" height="20" rx="2.5"/><path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 19h4"/>
+                  </svg>
+                </div>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-[#C9BEB2] group-hover:text-[#991A21] group-hover:translate-x-0.5 transition-all">
+                  <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+              </div>
+              <h3 className="text-[15px] font-semibold text-[#2D2D2D] mb-1.5">VvE Calculator</h3>
+              <p className="text-[12.5px] text-[#6B6560] leading-relaxed mb-5">Bereken bijdragen, reservefondsen en financiële overzichten.</p>
+              <div className="mt-auto">
+                <span className="text-[11.5px] font-semibold bg-[#FAF8F5] text-[#6B6560] px-2.5 py-1 rounded-md border border-[#EFEBE4]">Rekentool</span>
               </div>
             </div>
-            {/* E-mail Configurator — alleen voor admin */}
+
+            {/* E-mail Configurator — alleen voor hoofd_admin */}
             {isHoofdAdmin && (
-            <div
-              onClick={()=>setScreen("mail")}
-              className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
-            >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-[#991A21] rounded-t-2xl" />
-              <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-2xl mb-4">✉️</div>
-              <h3 className="text-base font-bold text-[#2D2D2D] mb-2">E-mail Configurator</h3>
-              <p className="text-xs text-gray-500 mb-4 leading-relaxed">Herschrijf e-mails naar professionele correspondentie in de schrijfstijl van Totaal VvE Beheer.</p>
-              <div className="flex items-center justify-between">
-                <span className="text-xs bg-red-50 text-[#991A21] px-2 py-1 rounded-full font-semibold border border-red-100">Beschikbaar</span>
-                <span className="text-[#991A21] font-bold group-hover:translate-x-1 transition-transform">→</span>
+              <div
+                onClick={()=>setScreen("mail")}
+                className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-10 h-10 rounded-lg bg-[#FAF8F5] text-[#6B6560] flex items-center justify-center">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[19px] h-[19px]">
+                      <rect x="2" y="4" width="20" height="16" rx="2.5"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                    </svg>
+                  </div>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-[#C9BEB2] group-hover:text-[#991A21] group-hover:translate-x-0.5 transition-all">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </div>
+                <h3 className="text-[15px] font-semibold text-[#2D2D2D] mb-1.5">E-mail Configurator</h3>
+                <p className="text-[12.5px] text-[#6B6560] leading-relaxed mb-5">Herschrijf e-mails naar professionele correspondentie in de schrijfstijl van Totaal VvE Beheer.</p>
+                <div className="mt-auto">
+                  <span className="text-[11.5px] font-semibold bg-[#FAF8F5] text-[#9B958E] px-2.5 py-1 rounded-md border border-[#EFEBE4]">Hoofdbeheerder</span>
+                </div>
               </div>
-            </div>
             )}
 
             {/* Verduurzaming & Subsidies — voor hoofd_admin en aangewezen beheerders */}
             {heeftVerduurzamingToegang && (
-            <div
-              onClick={()=>setScreen("verduurzaming")}
-              className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
-            >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-[#991A21] rounded-t-2xl" />
-              <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-2xl mb-4">🌿</div>
-              <h3 className="text-base font-bold text-[#2D2D2D] mb-2">Verduurzaming & Subsidies</h3>
-              <p className="text-xs text-gray-500 mb-4 leading-relaxed">Beheer verduurzamingstrajecten, subsidieaanvragen en isolatieacties per VvE.</p>
-              <div className="flex items-center justify-between">
-                <span className="text-xs bg-red-50 text-[#991A21] px-2 py-1 rounded-full font-semibold border border-red-100">Beschikbaar</span>
-                <span className="text-[#991A21] font-bold group-hover:translate-x-1 transition-transform">→</span>
+              <div
+                onClick={()=>setScreen("verduurzaming")}
+                className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-10 h-10 rounded-lg bg-[#EAF2EC] text-[#3B7A57] flex items-center justify-center">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[19px] h-[19px]">
+                      <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/>
+                    </svg>
+                  </div>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-[#C9BEB2] group-hover:text-[#991A21] group-hover:translate-x-0.5 transition-all">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </div>
+                <h3 className="text-[15px] font-semibold text-[#2D2D2D] mb-1.5">Verduurzaming &amp; Subsidies</h3>
+                <p className="text-[12.5px] text-[#6B6560] leading-relaxed mb-5">Beheer verduurzamingstrajecten, subsidieaanvragen en isolatieacties per VvE.</p>
+                <div className="mt-auto">
+                  <span className="text-[11.5px] font-semibold bg-[#EAF2EC] text-[#3B7A57] px-2.5 py-1 rounded-md">Module-toegang</span>
+                </div>
               </div>
-            </div>
             )}
 
             {/* Notulen Assistent — alleen voor hoofd_admin */}
             {isHoofdAdmin && (
               <div
                 onClick={()=>setScreen("notulen")}
-                className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
+                className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors"
               >
-                <div className="absolute top-0 left-0 right-0 h-1 bg-[#991A21] rounded-t-2xl" />
-                <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-2xl mb-4">📋</div>
-                <h3 className="text-base font-bold text-[#2D2D2D] mb-2">Notulen Assistent</h3>
-                <p className="text-xs text-gray-500 mb-4 leading-relaxed">Stel professionele vergadernotulen samen op basis van vaste tekstblokken en schrijfstijl.</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs bg-red-50 text-[#991A21] px-2 py-1 rounded-full font-semibold border border-red-100">Beschikbaar</span>
-                  <span className="text-[#991A21] font-bold group-hover:translate-x-1 transition-transform">→</span>
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-10 h-10 rounded-lg bg-[#FAF8F5] text-[#6B6560] flex items-center justify-center">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[19px] h-[19px]">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M15 13H9M15 17H9M11 9H9"/>
+                    </svg>
+                  </div>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-[#C9BEB2] group-hover:text-[#991A21] group-hover:translate-x-0.5 transition-all">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </div>
+                <h3 className="text-[15px] font-semibold text-[#2D2D2D] mb-1.5">Notulen Assistent</h3>
+                <p className="text-[12.5px] text-[#6B6560] leading-relaxed mb-5">Stel professionele vergadernotulen samen op basis van vaste tekstblokken en schrijfstijl.</p>
+                <div className="mt-auto">
+                  <span className="text-[11.5px] font-semibold bg-[#FAF8F5] text-[#9B958E] px-2.5 py-1 rounded-md border border-[#EFEBE4]">Hoofdbeheerder</span>
                 </div>
               </div>
             )}
@@ -4419,15 +4472,22 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
             {isHoofdAdmin && (
               <div
                 onClick={()=>setScreen("kennisbank")}
-                className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
+                className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors"
               >
-                <div className="absolute top-0 left-0 right-0 h-1 bg-[#991A21] rounded-t-2xl" />
-                <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-2xl mb-4">💡</div>
-                <h3 className="text-base font-bold text-[#2D2D2D] mb-2">Kennisbank</h3>
-                <p className="text-xs text-gray-500 mb-4 leading-relaxed">Doorzoek vragen en antwoorden over de dagelijkse werkzaamheden van een VvE beheerder.</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs bg-red-50 text-[#991A21] px-2 py-1 rounded-full font-semibold border border-red-100">Beschikbaar</span>
-                  <span className="text-[#991A21] font-bold group-hover:translate-x-1 transition-transform">→</span>
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-10 h-10 rounded-lg bg-[#FAF8F5] text-[#6B6560] flex items-center justify-center">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[19px] h-[19px]">
+                      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                    </svg>
+                  </div>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-[#C9BEB2] group-hover:text-[#991A21] group-hover:translate-x-0.5 transition-all">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </div>
+                <h3 className="text-[15px] font-semibold text-[#2D2D2D] mb-1.5">Kennisbank</h3>
+                <p className="text-[12.5px] text-[#6B6560] leading-relaxed mb-5">Doorzoek vragen en antwoorden over de dagelijkse werkzaamheden van een VvE-beheerder.</p>
+                <div className="mt-auto">
+                  <span className="text-[11.5px] font-semibold bg-[#FAF8F5] text-[#9B958E] px-2.5 py-1 rounded-md border border-[#EFEBE4]">Hoofdbeheerder</span>
                 </div>
               </div>
             )}
@@ -4436,62 +4496,72 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
             {(isAdmin || isHoofdAdmin) && (
               <div
                 onClick={()=>setScreen("admin")}
-                className="bg-white border-2 border-gray-200 hover:border-[#991A21] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
+                className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors"
               >
-                <div className="absolute top-0 left-0 right-0 h-1 bg-[#991A21] rounded-t-2xl" />
-                <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center text-2xl mb-4">🛡️</div>
-                <h3 className="text-base font-bold text-[#2D2D2D] mb-2">Admin Dashboard</h3>
-                <p className="text-xs text-gray-500 mb-4 leading-relaxed">Overzicht alle beheerders, voortgang en leaderboard.</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs bg-red-50 text-[#991A21] px-2 py-1 rounded-full font-semibold border border-red-100">Beheerder</span>
-                  <span className="text-[#991A21] font-bold group-hover:translate-x-1 transition-transform">→</span>
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-10 h-10 rounded-lg bg-[#FAF8F5] text-[#6B6560] flex items-center justify-center">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[19px] h-[19px]">
+                      <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>
+                    </svg>
+                  </div>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-[#C9BEB2] group-hover:text-[#991A21] group-hover:translate-x-0.5 transition-all">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </div>
+                <h3 className="text-[15px] font-semibold text-[#2D2D2D] mb-1.5">Admin Dashboard</h3>
+                <p className="text-[12.5px] text-[#6B6560] leading-relaxed mb-5">Overzicht van alle beheerders, voortgang en leaderboard.</p>
+                <div className="mt-auto">
+                  <span className="text-[11.5px] font-semibold bg-[#FAF8F5] text-[#9B958E] px-2.5 py-1 rounded-md border border-[#EFEBE4]">Beheer</span>
                 </div>
               </div>
             )}
 
-            {/* LOD Beheer — voor admin en beheerder_plus */}
+            {/* LOD Beheer — voor admin, hoofd_admin en beheerder_plus */}
             {heeftLodToegang && (
               <div
                 onClick={()=>setScreen("lod")}
-                className="bg-white border-2 border-gray-200 hover:border-[#92550A] rounded-2xl p-6 cursor-pointer transition-all hover:shadow-md relative overflow-hidden group"
+                className="group flex flex-col bg-white border border-[#E7E2DB] hover:border-[#C9BEB2] rounded-xl p-5 cursor-pointer transition-colors"
               >
-                <div className="absolute top-0 left-0 right-0 h-1 bg-[#92550A] rounded-t-2xl" />
-                <div className="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center text-2xl mb-4">⚠️</div>
-                <h3 className="text-base font-bold text-[#2D2D2D] mb-2">LOD Beheer</h3>
-                <p className="text-xs text-gray-500 mb-4 leading-relaxed">Registreer en monitor LOD's van de gemeente — onderhoudspunten, offertes en deadlines.</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs bg-amber-50 text-[#92550A] px-2 py-1 rounded-full font-semibold border border-amber-200">{(isAdmin || isHoofdAdmin) ? "Admin" : "LOD Beheerder"}</span>
-                  <span className="text-[#92550A] font-bold group-hover:translate-x-1 transition-transform">→</span>
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-10 h-10 rounded-lg bg-[#F7EEDD] text-[#B07414] flex items-center justify-center">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[19px] h-[19px]">
+                      <path d="m10.3 3.2-8.5 14.6A2 2 0 0 0 3.5 21h17a2 2 0 0 0 1.7-3.2L13.7 3.2a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>
+                    </svg>
+                  </div>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-[#C9BEB2] group-hover:text-[#B07414] group-hover:translate-x-0.5 transition-all">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
                 </div>
-              </div>
-            )}
-
-            {/* Toekomstige tool placeholder */}
-            {!isAdmin && !isHoofdAdmin && !isLodBeheerder && (
-              <div className="bg-white border-2 border-dashed border-gray-200 rounded-2xl p-6 opacity-50 relative overflow-hidden">
-                <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center text-2xl mb-4">＋</div>
-                <h3 className="text-base font-bold text-gray-400 mb-2">Nieuwe tool</h3>
-                <p className="text-xs text-gray-400 leading-relaxed">Toekomstige tools verschijnen hier automatisch.</p>
+                <h3 className="text-[15px] font-semibold text-[#2D2D2D] mb-1.5">LOD Beheer</h3>
+                <p className="text-[12.5px] text-[#6B6560] leading-relaxed mb-5">Registreer en monitor LOD's van de gemeente — onderhoudspunten, offertes en deadlines.</p>
+                <div className="mt-auto">
+                  <span className="text-[11.5px] font-semibold bg-[#F7EEDD] text-[#B07414] px-2.5 py-1 rounded-md">{(isAdmin || isHoofdAdmin) ? "Admin" : "LOD-beheerder"}</span>
+                </div>
               </div>
             )}
           </div>
 
-          {/* Recente activiteit */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Recente activiteit</p>
-            {recenteActiviteit.length === 0 ? (
-              <p className="text-sm text-gray-400">Nog geen activiteit. Open de vergaderplanner om te beginnen.</p>
-            ) : (
-              <div className="space-y-3">
-                {recenteActiviteit.map((item, i) => (
-                  <div key={i} className="flex items-center gap-3 text-sm">
-                    <div className="w-2 h-2 rounded-full shrink-0" style={{background: item.kleur}} />
-                    <span className="font-medium text-[#2D2D2D]">{item.naam}</span>
-                    <span className="text-gray-400">— {item.tekst}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+          {/* ── Recente activiteit ───────────────────────────────── */}
+          <div className="bg-white border border-[#E7E2DB] rounded-xl overflow-hidden">
+            <div className="flex items-center gap-2.5 px-5 py-4 border-b border-[#EFEBE4]">
+              <span className="w-[3px] h-[15px] rounded-sm bg-[#991A21]" />
+              <p className="text-[14px] font-semibold text-[#2D2D2D]">Recente activiteit</p>
+            </div>
+            <div className="px-5 py-4">
+              {recenteActiviteit.length === 0 ? (
+                <p className="text-[13px] text-[#9B958E]">Nog geen activiteit. Open de Vergaderplanner om te beginnen.</p>
+              ) : (
+                <div className="space-y-3.5">
+                  {recenteActiviteit.map((item, i) => (
+                    <div key={i} className="flex items-center gap-3 text-[13px]">
+                      <span className="w-[9px] h-[9px] rounded-full shrink-0 border-2 bg-white" style={{borderColor: item.kleur}} />
+                      <span className="font-semibold text-[#2D2D2D]">{item.naam}</span>
+                      <span className="text-[#9B958E]">— {item.tekst}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
