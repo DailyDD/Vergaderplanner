@@ -4109,69 +4109,130 @@ if (screen==="admin") return <AdminDashboard beheerderList={beheerderList} onBac
   );
 
   if (screen==="login") return (
-    <div className="min-h-screen grid grid-cols-2">
+    <div className="min-h-screen grid grid-cols-1 md:grid-cols-2 bg-[#F2EFEC]">
       <style>{CSS_FONT}</style>
-      {/* Links — merkpaneel */}
-      <div className="bg-[#2D2D2D] flex flex-col justify-center items-center p-12 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-[#991A21] rounded-full opacity-10 -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#991A21] rounded-full opacity-8 translate-y-1/2 -translate-x-1/2" />
-        <div className="relative z-10 flex flex-col items-center gap-8">
-          <div className="bg-white rounded-2xl px-8 py-6 shadow-2xl">
-            <div className="flex items-center gap-3">
-              <div className="flex gap-1">
-                <div className="w-10 h-10 bg-[#991A21] rounded-md flex items-center justify-center">
-                  <span className="text-white text-lg">🏠</span>
-                </div>
-                <div className="w-10 h-10 bg-[#2D2D2D] rounded-md flex items-center justify-center">
-                  <span className="text-white text-lg">📋</span>
-                </div>
-              </div>
-              <div>
-                <p className="text-sm font-bold text-[#2D2D2D] leading-tight">Totaal VvE Beheer</p>
-                <p className="text-xs text-gray-500">Den Haag en omstreken B.V.</p>
-              </div>
-            </div>
+
+      {/* ── Links — merkpaneel ─────────────────────────────────── */}
+      <div className="relative hidden md:flex flex-col justify-between bg-[#2D2D2D] p-12 overflow-hidden">
+        {/* Fijn bouwkundig raster i.p.v. decoratieve cirkels */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            opacity: 0.05,
+            backgroundImage:
+              "linear-gradient(#ffffff 1px, transparent 1px), linear-gradient(90deg, #ffffff 1px, transparent 1px)",
+            backgroundSize: "36px 36px",
+          }}
+        />
+
+        {/* Merk */}
+        <div className="relative z-10 flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-[#991A21] flex items-center justify-center">
+            <span className="text-white text-base font-bold tracking-wide">VP</span>
           </div>
-          <div className="text-center">
-            <p className="text-white text-xl font-bold mb-2">Vergaderplanner</p>
-            <p className="text-gray-400 text-sm leading-relaxed max-w-xs">Plan, beheer en monitor alle VvE-vergaderingen</p>
-            <div className="w-8 h-px bg-white/20 mx-auto my-4"></div>
-            <p className="text-white text-xl font-bold mb-2">VvE Calculator</p>
-            <p className="text-gray-400 text-sm leading-relaxed max-w-xs">Bereken maandelijkse bijdragen en reservefondsen conform art. 5:126 BW</p>
+          <div>
+            <p className="text-white text-[15px] font-semibold leading-tight">VvE Planner</p>
+            <p className="text-[11px] text-white/45 tracking-wide">Totaal VvE Beheer</p>
           </div>
         </div>
+
+        {/* Propositie */}
+        <div className="relative z-10 max-w-sm">
+          <div className="w-10 h-[3px] bg-[#991A21] rounded-full mb-6" />
+          <h2 className="text-white text-[26px] font-semibold leading-snug tracking-tight">
+            Alle VvE-vergaderingen,<br />op één plek gepland.
+          </h2>
+          <p className="text-white/50 text-sm leading-relaxed mt-4">
+            Vergaderplanning, calculaties en verduurzaming — het interne portaal voor de beheerders van Totaal VvE Beheer.
+          </p>
+        </div>
+
+        {/* Voet */}
+        <div className="relative z-10 text-[11px] text-white/35 leading-relaxed">
+          Totaal VvE Beheer Den Haag en omstreken B.V.<br />
+          Volmerlaan 5, 2288 GC Rijswijk
+        </div>
       </div>
-      {/* Rechts — loginformulier */}
-      <div className="bg-[#F2EFEC] flex flex-col justify-center px-16 py-12">
-        <div className="max-w-sm w-full mx-auto">
-          <h1 className="text-2xl font-bold text-[#2D2D2D] mb-1">Welkom terug</h1>
-          <p className="text-sm text-gray-500 mb-8">Log in met je account om door te gaan</p>
+
+      {/* ── Rechts — loginformulier ────────────────────────────── */}
+      <div className="flex flex-col justify-center px-8 sm:px-16 py-12">
+        <div className="max-w-[380px] w-full mx-auto">
+
+          {/* Merk op smalle schermen, waar het linkerpaneel verborgen is */}
+          <div className="flex md:hidden items-center gap-3 mb-10">
+            <div className="w-10 h-10 rounded-xl bg-[#991A21] flex items-center justify-center">
+              <span className="text-white text-sm font-bold tracking-wide">VP</span>
+            </div>
+            <div>
+              <p className="text-[#2D2D2D] text-sm font-semibold leading-tight">VvE Planner</p>
+              <p className="text-[11px] text-[#9B958E]">Totaal VvE Beheer</p>
+            </div>
+          </div>
+
+          <h1 className="text-[26px] font-semibold text-[#2D2D2D] tracking-tight leading-tight">Inloggen</h1>
+          <p className="text-sm text-[#6B6560] mt-1.5 mb-8">Gebruik je Totaal VvE Beheer-account.</p>
+
           {resetMelding && (
-            <div className={`mb-5 rounded-xl border px-4 py-3 text-sm font-medium ${
+            <div className={`mb-6 rounded-xl border px-4 py-3 text-sm font-medium ${
               resetMelding.type === "succes"
                 ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                : "bg-red-50 border-red-200 text-[#991A21]"
+                : "bg-[#F6ECEC] border-[#E3C9C9] text-[#991A21]"
             }`}>
               {resetMelding.tekst}
             </div>
           )}
-          <div className="space-y-4">
+
+          <div className="space-y-5">
             <div>
-              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide block mb-1.5">E-mailadres</label>
-              <input autoFocus value={loginNaam} onChange={e=>{ setLoginNaam(e.target.value); setLoginError(""); }} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="naam@totaalvve.nl"
-                className={`w-full bg-white border-2 rounded-xl px-4 py-3 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none transition-colors ${loginError?"border-[#991A21]":"border-gray-200 focus:border-[#991A21]"}`}/>
+              <label className="block text-[11px] font-semibold text-[#9B958E] uppercase tracking-[0.06em] mb-2">
+                E-mailadres
+              </label>
+              <input
+                autoFocus
+                type="email"
+                autoComplete="username"
+                value={loginNaam}
+                onChange={e=>{ setLoginNaam(e.target.value); setLoginError(""); }}
+                onKeyDown={e=>e.key==="Enter"&&handleLogin()}
+                placeholder="naam@totaalvve.nl"
+                className={`w-full h-12 bg-white rounded-xl px-4 text-sm text-[#2D2D2D] placeholder-gray-400 border transition-colors focus:outline-none ${
+                  loginError ? "border-[#991A21]" : "border-[#E7E2DB] focus:border-[#991A21]"
+                }`}
+              />
             </div>
+
             <div>
-              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide block mb-1.5">Wachtwoord</label>
-              <input type="password" value={loginPw} onChange={e=>{ setLoginPw(e.target.value); setLoginError(""); }} onKeyDown={e=>e.key==="Enter"&&handleLogin()} placeholder="••••••••"
-                className={`w-full bg-white border-2 rounded-xl px-4 py-3 text-sm text-[#2D2D2D] placeholder-gray-400 focus:outline-none transition-colors ${loginError?"border-[#991A21]":"border-gray-200 focus:border-[#991A21]"}`}/>
+              <label className="block text-[11px] font-semibold text-[#9B958E] uppercase tracking-[0.06em] mb-2">
+                Wachtwoord
+              </label>
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={loginPw}
+                onChange={e=>{ setLoginPw(e.target.value); setLoginError(""); }}
+                onKeyDown={e=>e.key==="Enter"&&handleLogin()}
+                className={`w-full h-12 bg-white rounded-xl px-4 text-sm text-[#2D2D2D] placeholder-gray-400 border transition-colors focus:outline-none ${
+                  loginError ? "border-[#991A21]" : "border-[#E7E2DB] focus:border-[#991A21]"
+                }`}
+              />
             </div>
-            {loginError && <p className="text-xs text-[#991A21] font-medium">{loginError}</p>}
-            <button onClick={handleLogin} disabled={loading}
-              className="w-full py-3 bg-[#991A21] hover:bg-[#7a1419] disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors shadow-lg shadow-red-900/20 mt-2">
-              {loading ? "Laden…" : "Inloggen →"}
+
+            {loginError && (
+              <p className="text-xs text-[#991A21] font-medium -mt-1">{loginError}</p>
+            )}
+
+            <button
+              onClick={handleLogin}
+              disabled={loading}
+              className="w-full h-12 bg-[#991A21] hover:bg-[#7A1419] disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors"
+            >
+              {loading ? "Bezig met inloggen…" : "Inloggen"}
             </button>
           </div>
+
+          <p className="text-[11px] text-[#9B958E] mt-8 leading-relaxed">
+            Problemen met inloggen? Neem contact op met de beheerder van het portaal.
+          </p>
         </div>
       </div>
     </div>
