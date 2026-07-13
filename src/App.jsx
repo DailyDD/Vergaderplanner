@@ -564,7 +564,7 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
   // uitnodigen kán niet meer. De enige actie is de uitkomst vastleggen. Zelfde
   // regel als in urgentItems en het filter "Actie vereist" in de lijst.
   const vandaagIso = today();
-  const open1 = !!vve.datum1     && vve.datum1     < vandaagIso && !vergaderd1;
+  const open1 = !!vve.datum1     && vve.datum1     < vandaagIso && !vergaderd1 && !vve.needs2e;
   const open2 = !!vve.datum2     && vve.datum2     < vandaagIso && !vergaderd2;
   const invE  = inviteStatus(vve.datumExtra, vve.uitgenodigdExtra);
   const openE = !!vve.datumExtra && vve.datumExtra < vandaagIso && !vve.vergaderdExtra;
@@ -3942,7 +3942,7 @@ useEffect(() => {
       items.push({ id: v.id+"_uE", vveId: v.id, naam: v.naam, type: sE==="overdue"?"overdue":"warning", datum: v.datumExtra, deadline: addDays(v.datumExtra,-INVITE_DAYS), isExtra: true });
 
     // Verstreken vergaderingen waarvan de uitkomst nog niet is vastgelegd
-    if (v.datum1 && v.datum1 < t && !v.vergaderd1)
+    if (v.datum1 && v.datum1 < t && !v.vergaderd1 && !v.needs2e)
       items.push({ id: v.id+"_open1", vveId: v.id, naam: v.naam, type: "nietVerwerkt", datum: v.datum1 });
     if (v.needs2e && v.datum2 && v.datum2 < t && !v.vergaderd2)
       items.push({ id: v.id+"_open2", vveId: v.id, naam: v.naam, type: "nietVerwerkt", datum: v.datum2, is2e: true });
