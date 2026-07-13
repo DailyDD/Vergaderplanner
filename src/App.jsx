@@ -163,8 +163,15 @@ async function updatePassword(recoveryToken, nieuwWachtwoord) {
 // zodat een recovery-link nooit per ongeluk naar het portaal leidt.
 const RECOVERY = parseRecoveryHash();
 
+function getUid() {
+  try { return JSON.parse(atob(_accessToken.split('.')[1])).sub; }
+  catch { return null; }
+}
+
 async function getUserRole() {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/user_roles?select=naam,rol,welkomstscherm_gezien`, {
+  const uid = getUid();
+  const filter = uid ? `&id=eq.${uid}` : '';
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/user_roles?select=naam,rol,welkomstscherm_gezien${filter}`, {
     headers: getAuthHeaders(),
   });
   if (!res.ok) throw new Error("Rol ophalen mislukt");
