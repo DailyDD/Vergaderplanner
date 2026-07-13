@@ -820,37 +820,90 @@ function WerkdagenSelector({ werkdagen, onChange }) {
 }
 
 // ── Admin stats ──────────────────────────────────────────────────
-function calcStats(data) {
-  if (!data) return null;
-  const vves = data.vves||[];
-  const vakanties = data.vakanties||[];
-  const total = vves.length;
-  // FIX 4 in admin too
-  const afgerond = vves.filter(v => isAfgerond(v)).length;
-  const uitgenodigd = vves.filter(v => (v.uitgenodigd1 || v.uitgenodigd2) && !isAfgerond(v)).length;
-  const nietUitgenodigd = total - uitgenodigd - afgerond;
-  const uitnodigingUrgent = vves.filter(v => {
-    const s1 = inviteStatus(v.datum1, v.uitgenodigd1);
-    const s2 = inviteStatus(v.datum2, v.uitgenodigd2);
-    return (!v.vergaderd1 && (s1==="warning"||s1==="overdue")) ||
-           (!v.vergaderd2 && (s2==="warning"||s2==="overdue"));
-  }).length;
-  const voorbijZonder2e = vves.filter(v=>v.datum1&&v.datum1<today()&&!v.datum2&&!v.vergaderd1).length;
-  const inVakantie = vves.filter(v=>(v.datum1&&isInVakantie(v.datum1,vakanties))||(v.datum2&&isInVakantie(v.datum2,vakanties))).length;
-  const pctAfgerond = total===0?0:Math.round((afgerond/total)*100);
-  const pctUitgenodigd = total===0?0:Math.round((uitgenodigd/total)*100);
-  const year = new Date().getFullYear();
-  const q4 = vves.filter(v=>{ const k=monthKey(v.datum1); return k&&k>=`${year}-10`; }).length;
-  return { total, afgerond, uitgenodigd, nietUitgenodigd, uitnodigingUrgent, inVakantie, voorbijZonder2e, pctAfgerond, pctUitgenodigd, q4 };
-}
-function riskLevel(stats) {
-  if (!stats||stats.total===0) return "gray";
-  if (stats.uitnodigingUrgent>0||stats.voorbijZonder2e>2) return "red";
-  if (stats.pctAfgerond<40||stats.q4>20||stats.inVakantie>0) return "orange";
-  if (stats.pctAfgerond<70) return "blue";
-  return "green";
+// ── Werktoestand per VvE ─────────────────────────────────────────
+// Vier elkaar uitsluitende toestanden; de som is altijd het totaal.
+//
+//   afgerond     → isAfgerond()
+//   achterstand  → beslissende vergaderdatum verstreken, niet afgerond
+//   tekomen      → beslissende vergaderdatum ligt nog in de toekomst
+//   nietGepland  → er staat geen vergaderdatum
+//
+// De beslissende datum is datum2 zodra een 2e reglementaire nodig is: dan
+// bepaalt de 2e de afronding. Is die 2e nog niet gepland, dan valt de VvE
+// terug op datum1 — die is verstreken, en het plannen van de 2e ís het werk.
+function beslissendeDatum(v) {
+  if (v.needs2e) return v.datum2 || v.datum1 || "";
+  return v.datum1 || "";
 }
 
+// Uitnodigen is alleen een uitvoerbare actie zolang de vergadering nog moet
+// plaatsvinden. inviteStatus() geeft ook "overdue" wanneer de vergaderDATUM
+// zelf al verstreken is — uitnodigen is dan geen actie meer maar geschiedenis.
+// Zelfde regel als urgentItems op het portaal, zodat beide schermen hetzelfde
+// getal tonen in plaats van elkaar tegen te spreken.
+function heeftUitnodigingActie(v, t) {
+  const nodig = (datum, uitgenodigd, gehouden) => {
+    if (!datum || datum < t || uitgenodigd || gehouden) return false;
+    const s = inviteStatus(datum, uitgenodigd);
+    return s === "warning" || s === "overdue";
+  };
+  return nodig(v.datum1, v.uitgenodigd1, v.vergaderd1)
+      || (!!v.needs2e && nodig(v.datum2, v.uitgenodigd2, v.vergaderd2))
+      || (!!v.extraVergadering && nodig(v.datumExtra, v.uitgenodigdExtra, v.vergaderdExtra));
+}
+
+function calcStats(data) {
+  if (!data) return null;
+  const vves = data.vves || [];
+  const vakanties = data.vakanties || [];
+  const t = today();
+  const total = vves.length;
+
+  let afgerond = 0, achterstand = 0, tekomen = 0, nietGepland = 0;
+  for (const v of vves) {
+    if (isAfgerond(v)) { afgerond++; continue; }
+    const d = beslissendeDatum(v);
+    if (!d) nietGepland++;
+    else if (d < t) achterstand++;
+    else tekomen++;
+  }
+
+  // Verwerkingsgraad: van de vergaderingen waarvan de datum al is verstreken,
+  // hoeveel zijn er afgerond? Dit is onafhankelijk van hoe het jaar is
+  // ingedeeld — een vergelijking met "% van het kalenderjaar verstreken"
+  // veronderstelt dat vergaderingen gelijkmatig over het jaar liggen, en dat
+  // doen ze niet (het zwaartepunt ligt in de eerste jaarhelft).
+  const verstreken = afgerond + achterstand;
+  const pctVerwerkt = verstreken === 0 ? null : Math.round((afgerond / verstreken) * 100);
+
+  const uitnodigingUrgent = vves.filter(v => heeftUitnodigingActie(v, t)).length;
+  const inVakantie = vves.filter(v =>
+    (v.datum1 && isInVakantie(v.datum1, vakanties)) ||
+    (v.datum2 && isInVakantie(v.datum2, vakanties))
+  ).length;
+  const year = new Date().getFullYear();
+  const q4 = vves.filter(v => { const k = monthKey(v.datum1); return k && k >= `${year}-10`; }).length;
+
+  return { total, afgerond, achterstand, tekomen, nietGepland, verstreken, pctVerwerkt, uitnodigingUrgent, inVakantie, q4 };
+}
+
+// Kleuraccent per beheerder — één streepje links, geen ingekleurde kaart.
+// Achterstand weegt het zwaarst: dat is werk dat al te laat is.
+function riskLevel(stats) {
+  if (!stats || stats.total === 0) return "leeg";
+  if (stats.achterstand > 0) return "achterstand";
+  if (stats.uitnodigingUrgent > 0) return "urgent";
+  if (stats.nietGepland > 0) return "ongepland";
+  return "bij";
+}
+
+const RISK_KLEUR = {
+  achterstand: "#991A21",
+  urgent:      "#B07414",
+  ongepland:   "#4A6B8A",
+  bij:         "#3B7A57",
+  leeg:        "#E7E2DB",
+};
 // ── Admin Dashboard ──────────────────────────────────────────────
 function exportTotaalExcel(allData, beheerderList) {
   const year = new Date().getFullYear();
@@ -3247,7 +3300,38 @@ function exportAdminPDF(allData, beheerderList) {
   win.print();
 }
 
-function AdminDashboard({ beheerderList, onBack }) {
+// Lijnicoon-helper — zelfde vormtaal als de sidebar (1.75 stroke, 24×24).
+function AdmIco({ path, className = "w-[15px] h-[15px]" }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"
+         strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      {path}
+    </svg>
+  );
+}
+
+const ICO_DOWNLOAD = <><path d="M12 3v11"/><path d="m8 11 4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></>;
+const ICO_ALERT    = <><path d="m10.3 3.2-8.5 14.6A2 2 0 0 0 3.5 21h17a2 2 0 0 0 1.7-3.2L13.7 3.2a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></>;
+const ICO_MAIL     = <><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></>;
+const ICO_CAL      = <><rect x="3" y="4" width="18" height="18" rx="2.5"/><path d="M16 2v4M8 2v4M3 10h18"/></>;
+const ICO_CHECK    = <path d="M20 6 9 17l-5-5"/>;
+const ICO_CHEVRON  = <path d="m6 9 6 6 6-6"/>;
+const ICO_SWAP     = <><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></>;
+
+// Paneelkop — het 3px-streepje draagt de betekenis, niet de kaart.
+function AdmKop({ kleur = "#991A21", children, sub }) {
+  return (
+    <div className="mb-3">
+      <div className="flex items-center gap-2.5">
+        <span className="w-[3px] h-[14px] rounded-sm shrink-0" style={{ backgroundColor: kleur }} />
+        <h2 className="text-[10.5px] uppercase tracking-[0.05em] text-[#9B958E] font-semibold">{children}</h2>
+      </div>
+      {sub && <p className="text-[12.5px] text-[#6B6560] mt-1.5 pl-[11px]">{sub}</p>}
+    </div>
+  );
+}
+
+function AdminDashboard({ beheerderList }) {
   const [allData, setAllData] = useState({});
   const [allRoles, setAllRoles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -3256,11 +3340,6 @@ function AdminDashboard({ beheerderList, onBack }) {
   const [herindelenVve, setHerindelenVve] = useState(null);
   const [herindelenNaar, setHerindelenNaar] = useState("");
   const [herindelenMsg, setHerindelenMsg] = useState("");
-
-  const now = new Date();
-  const yearStart = new Date(now.getFullYear(), 0, 1);
-  const yearEnd = new Date(now.getFullYear(), 11, 31);
-  const yearPct = Math.round(((now - yearStart) / (yearEnd - yearStart)) * 100);
 
   const herindelen = async (vve, vanNaam, naarNaam) => {
     if (!naarNaam || naarNaam === vanNaam) return;
@@ -3310,257 +3389,359 @@ function AdminDashboard({ beheerderList, onBack }) {
     fetchAll();
   }, [beheerderList]);
 
-  const allVves = Object.values(allData).flatMap(d=>d?.vves||[]);
-  const totaalAfgerond = allVves.filter(v => isAfgerond(v)).length;
-  const totaalUitgenodigd = allVves.filter(v => (v.uitgenodigd1 || v.uitgenodigd2) && !isAfgerond(v)).length;
-  const totaalNietUitgenodigd = allVves.length - totaalUitgenodigd - totaalAfgerond;
-  const totaalUitnodiging = allVves.filter(v => {
-    const s1 = inviteStatus(v.datum1, v.uitgenodigd1);
-    const s2 = inviteStatus(v.datum2, v.uitgenodigd2);
-    return (!v.vergaderd1 && (s1==="warning"||s1==="overdue")) ||
-           (!v.vergaderd2 && v.datum2 && (s2==="warning"||s2==="overdue"));
-  }).length;
-  const globalCounts = spreadScore(allVves);
-  const riskBorder = { red:"border-red-200 bg-red-50", orange:"border-amber-200 bg-amber-50", blue:"border-blue-200 bg-blue-50", green:"border-gray-200 bg-white", gray:"border-gray-200 bg-white" };
+  const t = today();
+  const jaar = new Date().getFullYear();
+
+  // Eén keer rekenen, overal hergebruiken
+  const rijen = beheerderList.map(naam => ({ naam, stats: calcStats(allData[naam]) }));
+  const metData  = rijen.filter(r => r.stats && r.stats.total > 0);
+  const zonderData = rijen.filter(r => !r.stats || r.stats.total === 0);
+
+  // Sortering = triage. Wie de meeste achterstand heeft staat bovenaan.
+  const gesorteerd = [...metData].sort((a, b) =>
+    (b.stats.achterstand - a.stats.achterstand) ||
+    (b.stats.uitnodigingUrgent - a.stats.uitnodigingUrgent) ||
+    (b.stats.total - a.stats.total)
+  );
+
+  const som = (veld) => metData.reduce((s, r) => s + r.stats[veld], 0);
+  const totaal        = som("total");
+  const totAfgerond   = som("afgerond");
+  const totAchterstand= som("achterstand");
+  const totUitnodiging= som("uitnodigingUrgent");
+  const totNietGepland= som("nietGepland");
+  const totVerstreken = totAfgerond + totAchterstand;
+  const pctVerwerkt   = totVerstreken === 0 ? null : Math.round((totAfgerond / totVerstreken) * 100);
+
+  const globalCounts = spreadScore(Object.values(allData).flatMap(d => d?.vves || []));
+
+  // Accountstatus — met 24 accounts waarvan de meeste nooit hebben ingelogd
+  // is dít het cijfer dat vóór livegang telt.
+  const nu = new Date();
+  const nooitIngelogd = allRoles.filter(r => !r.laatste_login);
+  const inactief = allRoles
+    .filter(r => r.laatste_login && (nu - new Date(r.laatste_login)) / 86400000 >= 10)
+    .sort((a, b) => new Date(a.laatste_login) - new Date(b.laatste_login));
+
+  const kpis = [
+    { val: totaal,         label: "VvE's totaal",       kleur: "#2D2D2D", alarm: false },
+    { val: totAfgerond,    label: "Afgerond",           kleur: "#3B7A57", alarm: false },
+    { val: totAchterstand, label: "Achterstand",        kleur: "#991A21", alarm: totAchterstand > 0, tint: "#F6ECEC", rand: "#E3C9C9" },
+    { val: totUitnodiging, label: "Uitnodiging urgent", kleur: "#B07414", alarm: false },
+    { val: totNietGepland, label: "Niet gepland",       kleur: "#4A6B8A", alarm: false },
+  ];
+
+  const knopStijl = "flex items-center gap-1.5 text-[12.5px] font-medium px-3 h-8 rounded-lg border border-[#E7E2DB] text-[#6B6560] hover:text-[#991A21] hover:border-[#C9BEB2] transition-colors";
 
   return (
     <div className="min-h-screen bg-[#F2EFEC] text-[#2D2D2D]">
-      <div className="border-b border-gray-200 px-6 py-3.5 flex items-center justify-between bg-white shadow-sm">
-        <div className="flex items-center gap-3">
-          <span className="text-lg">🛡️</span>
-          <div>
-            <h1 className="text-sm font-bold text-[#2D2D2D]">Admin Dashboard</h1>
-            <p className="text-xs text-gray-500">Overzicht alle beheerders — {new Date().getFullYear()}</p>
-          </div>
+
+      {/* ── Modulekop ─────────────────────────────────────────────── */}
+      <div className="bg-white border-b border-[#E7E2DB] px-7 h-16 flex items-center justify-between sticky top-0 z-30">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="w-[3px] h-[16px] rounded-sm bg-[#991A21] shrink-0" />
+          <h1 className="text-[15px] font-semibold text-[#2D2D2D] shrink-0">Admin Dashboard</h1>
+          <span className="text-[12.5px] text-[#9B958E] truncate">
+            {loading
+              ? "laden…"
+              : `${totaal} VvE's · ${metData.length} van ${beheerderList.length} beheerders met data · planjaar ${jaar}`}
+          </span>
         </div>
-        <div className="flex items-center gap-3">
-          <button onClick={()=>exportTotaalExcel(allData, beheerderList)} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 border-2 border-gray-400 hover:border-[#991A21] text-gray-700 font-medium rounded-lg transition-colors">⬇ Excel</button>
-          <button onClick={()=>exportAdminPDF(allData, beheerderList)} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 border-2 border-gray-400 hover:border-[#991A21] text-gray-700 font-medium rounded-lg transition-colors">⬇ PDF</button>
-          <button onClick={onBack} className="text-xs px-3 py-1.5 bg-white hover:bg-red-50 border-2 border-gray-300 hover:border-[#991A21] text-gray-600 hover:text-[#991A21] rounded-lg transition-colors font-medium">Uitloggen</button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button onClick={() => exportTotaalExcel(allData, beheerderList)} className={knopStijl}>
+            <AdmIco path={ICO_DOWNLOAD} /> Excel
+          </button>
+          <button onClick={() => exportAdminPDF(allData, beheerderList)} className={knopStijl}>
+            <AdmIco path={ICO_DOWNLOAD} /> PDF
+          </button>
         </div>
       </div>
-      <div className="border-b border-gray-200 px-6 py-4 grid grid-cols-4 gap-3 bg-white">
-        {[
-          [allVves.length, "Totaal VvE's", "text-[#2D2D2D]", false],
-          [totaalAfgerond, "Afgerond", "text-emerald-600", false],
-          [totaalUitgenodigd, "Uitgenodigd", "text-blue-600", false],
-          [totaalUitnodiging, "Uitnodiging urgent", totaalUitnodiging>0?"text-[#991A21]":"text-gray-400", totaalUitnodiging>0],
-        ].map(([val,label,color,ring])=>(
-          <div key={label} className={`bg-white rounded-xl p-3 text-center border-2 shadow-sm ${ring?"border-[#991A21]":"border-gray-400"}`}>
-            <div className={`text-2xl font-mono font-bold ${color}`}>{val}</div>
-            <div className="text-[10px] text-gray-500 uppercase tracking-wide mt-0.5 font-medium">{label}</div>
+
+      <div className="px-7 py-6 max-w-[1180px] mx-auto space-y-5">
+
+        {loading ? (
+          <div className="bg-white border border-[#E7E2DB] rounded-xl p-8 text-center">
+            <p className="text-[13px] text-[#6B6560]">Gegevens van {beheerderList.length} beheerders ophalen…</p>
           </div>
-        ))}
-      </div>
-      <div className="p-6 max-w-6xl mx-auto">
-        <div className="flex gap-6 items-start">
+        ) : (
+        <>
 
-          {/* ── Leaderboard zijbalk ── */}
-          <div className="w-52 shrink-0 sticky top-4 bg-white border-2 border-gray-400 rounded-xl p-4 space-y-3 shadow-sm">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">🏆 Voortgang ranking</p>
-            {(() => {
-              const ranking = beheerderList
-                .map(naam => {
-                  const stats = calcStats(allData[naam]);
-                  return { naam, pct: stats?.pctAfgerond || 0, afgerond: stats?.afgerond || 0, total: stats?.total || 0 };
-                })
-                .filter(r => r.total > 0)
-                .sort((a, b) => b.pct - a.pct);
+        {herindelenMsg && (
+          <div className="bg-[#EAF2EC] border border-[#CFE0D5] rounded-xl px-4 py-2.5 text-[12.5px] text-[#3B7A57] font-medium">
+            {herindelenMsg}
+          </div>
+        )}
 
-              if (ranking.length === 0) return <p className="text-[10px] text-gray-400">Nog geen data.</p>;
-
-              const medals = ["🥇","🥈","🥉"];
-              return (
-                <div className="space-y-2">
-                  {ranking.map((r, i) => {
-                    const opSchema = r.pct >= yearPct - 5;
-                    const kleur = i === 0 ? "text-amber-600" : i === 1 ? "text-gray-500" : i === 2 ? "text-amber-700" : "text-gray-400";
-                    const barKleur = r.pct >= yearPct + 5 ? "bg-emerald-500" : r.pct >= yearPct - 5 ? "bg-sky-500" : "bg-red-500";
-                    return (
-                      <div key={r.naam} className={`rounded-lg p-2 ${i < 3 ? "bg-gray-50" : ""}`}>
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <span className="text-sm shrink-0">{medals[i] || <span className="text-[10px] text-zinc-600 w-4 text-center">{i+1}</span>}</span>
-                          <span className={`text-xs font-semibold truncate flex-1 ${kleur}`}>{r.naam}</span>
-                          <span className={`text-[10px] font-mono shrink-0 ${kleur}`}>{r.pct}%</span>
-                        </div>
-                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden relative">
-                          <div className={`h-full rounded-full ${barKleur}`} style={{width:`${r.pct}%`}}/>
-                          <div className="absolute top-0 bottom-0 w-px bg-gray-400/60" style={{left:`${yearPct}%`}}/>
-                        </div>
-                        <p className="text-[9px] text-gray-400 mt-0.5">{r.afgerond}/{r.total} afgerond</p>
-                      </div>
-                    );
-                  })}
-                  <div className="border-t border-gray-100 pt-2 mt-1">
-                    <p className="text-[9px] text-gray-400">Streepje = {yearPct}% van jaar verstreken</p>
-                    <div className="flex gap-2 mt-1">
-                      <span className="text-[9px] text-emerald-500">■ Voor</span>
-                      <span className="text-[9px] text-sky-500">■ Op schema</span>
-                      <span className="text-[9px] text-red-500">■ Achter</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-          {/* Inactieve beheerders */}
-          {(() => {
-            const nu = new Date();
-            const inactief = allRoles.filter(r => {
-              if (r.rol === "admin") return false;
-              if (!r.laatste_login) return true;
-              const diff = (nu - new Date(r.laatste_login)) / 86400000;
-              return diff >= 10;
-            }).sort((a, b) => {
-              if (!a.laatste_login) return -1;
-              if (!b.laatste_login) return 1;
-              return new Date(a.laatste_login) - new Date(b.laatste_login);
-            });
-            if (inactief.length === 0) return null;
-            return (
-              <div className="bg-white border border-gray-200 border-l-4 border-l-[#991A21] rounded-xl p-4 space-y-2 shadow-sm">
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">⚠ Inactief ≥10 dagen</p>
-                {inactief.map(r => {
-                  const dagen = r.laatste_login
-                    ? Math.floor((nu - new Date(r.laatste_login)) / 86400000)
-                    : null;
-                  return (
-                    <div key={r.naam} className="flex items-center justify-between text-xs bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">
-                      <span className="text-[#2D2D2D] font-semibold">{r.naam}</span>
-                      <span className="text-orange-600 font-mono font-semibold">
-                        {dagen === null ? "Nooit ingelogd" : `${dagen}d geleden`}
-                      </span>
-                    </div>
-                  );
-                })}
+        {/* ── KPI's ───────────────────────────────────────────────── */}
+        <div className="grid grid-cols-5 gap-3">
+          {kpis.map(k => (
+            <div
+              key={k.label}
+              className="rounded-xl border px-4 py-3.5"
+              style={{
+                backgroundColor: k.alarm ? k.tint : "#FFFFFF",
+                borderColor:     k.alarm ? k.rand : "#E7E2DB",
+              }}
+            >
+              <div className="text-[26px] leading-none font-semibold tabular-nums" style={{ color: k.kleur }}>
+                {k.val}
               </div>
-            );
-          })()}
-          </div>
-
-          {/* ── Hoofdinhoud ── */}
-          <div className="flex-1 space-y-6">
-        {allVves.length > 0 && (() => {
-          const avgAfgerondPct = Math.round((totaalAfgerond / allVves.length) * 100);
-          const diff = avgAfgerondPct - yearPct;
-          const color = diff >= 0 ? "emerald" : diff >= -10 ? "amber" : "red";
-          const label = diff >= 5 ? "Voorloopt op schema" : diff >= -5 ? "Loopt op schema" : diff >= -15 ? "Loopt licht achter" : "Loopt achter op schema";
-          return (
-            <div className={`rounded-xl border p-4 flex items-center gap-4 shadow-sm ${color==="emerald"?"border-emerald-200 bg-emerald-50":color==="amber"?"border-amber-200 bg-amber-50":"border-red-200 bg-red-50"}`}>
-              <div className={`text-2xl font-mono font-bold ${color==="emerald"?"text-emerald-600":color==="amber"?"text-amber-600":"text-red-600"}`}>{avgAfgerondPct}%</div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-1">
-                  <span className={`text-sm font-semibold ${color==="emerald"?"text-emerald-700":color==="amber"?"text-amber-700":"text-red-700"}`}>{label}</span>
-                  <span className="text-xs text-gray-500">{yearPct}% van het jaar verstreken</span>
-                </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden relative">
-                  <div className={`h-full rounded-full ${color==="emerald"?"bg-emerald-600":color==="amber"?"bg-amber-500":"bg-red-600"}`} style={{width:`${avgAfgerondPct}%`}}/>
-                  <div className="absolute top-0 bottom-0 w-0.5 bg-gray-500/50" style={{left:`${yearPct}%`}}/>
-                </div>
-                <p className="text-[10px] text-gray-500 mt-1">Streepje = huidig punt in het jaar · Balk = % afgerond</p>
+              <div className="text-[10.5px] uppercase tracking-[0.05em] text-[#9B958E] font-semibold mt-1.5">
+                {k.label}
               </div>
             </div>
-          );
-        })()}
-
-        {herindelenMsg && <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2 text-xs text-emerald-700 font-medium">{herindelenMsg}</div>}
-
-        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
-          <h2 className="text-xs font-bold text-[#991A21] uppercase tracking-wider mb-3">Totale spreiding alle beheerders</h2>
-          <MonthBar counts={globalCounts} vakanties={[]}/>
+          ))}
         </div>
+
+        {/* ── Verwerkingsgraad ────────────────────────────────────── */}
+        <div className="bg-white border border-[#E7E2DB] rounded-xl p-5">
+          <AdmKop>Verwerkingsgraad</AdmKop>
+          {pctVerwerkt === null ? (
+            <p className="text-[13px] text-[#6B6560]">
+              Er zijn nog geen vergaderingen waarvan de datum is verstreken.
+            </p>
+          ) : (
+            <>
+              <div className="flex items-end gap-4 mb-3.5">
+                <span className="text-[34px] leading-none font-semibold tabular-nums text-[#2D2D2D] shrink-0">
+                  {pctVerwerkt}%
+                </span>
+                <p className="text-[13px] text-[#6B6560] pb-1">
+                  Van de <span className="font-semibold text-[#2D2D2D] tabular-nums">{totVerstreken}</span> vergaderingen
+                  waarvan de datum is verstreken, zijn er{" "}
+                  <span className="font-semibold text-[#2D2D2D] tabular-nums">{totAfgerond}</span> afgerond.
+                </p>
+              </div>
+              <div className="h-2 rounded-full overflow-hidden flex bg-[#EFEBE4]">
+                <div className="h-full bg-[#3B7A57]" style={{ width: `${pctVerwerkt}%` }} />
+                <div className="h-full bg-[#991A21]" style={{ width: `${100 - pctVerwerkt}%` }} />
+              </div>
+              <div className="flex items-center gap-5 mt-2.5">
+                <span className="text-[11.5px] text-[#6B6560] flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-sm bg-[#3B7A57]" />
+                  <span className="tabular-nums">{totAfgerond}</span> afgerond
+                </span>
+                <span className="text-[11.5px] text-[#6B6560] flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-sm bg-[#991A21]" />
+                  <span className="tabular-nums">{totAchterstand}</span> nog te verwerken
+                </span>
+                <span className="text-[11.5px] text-[#9B958E] ml-auto">
+                  Los van het kalenderjaar — vergaderingen liggen niet gelijkmatig verdeeld.
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* ── Spreiding ───────────────────────────────────────────── */}
+        <div className="bg-white border border-[#E7E2DB] rounded-xl p-5">
+          <AdmKop>Spreiding over {jaar} — alle beheerders</AdmKop>
+          <MonthBar counts={globalCounts} vakanties={[]} />
+        </div>
+
+        {/* ── Beheerders, gesorteerd op openstaand werk ───────────── */}
         <div>
-          <h2 className="text-xs font-bold text-[#991A21] uppercase tracking-wider mb-3">Status per beheerder</h2>
-          {loading && <p className="text-sm text-zinc-600">Laden…</p>}
-          <div className="space-y-3">
-            {beheerderList.map(naam => {
-              const stats = calcStats(allData[naam]);
-              const risk = riskLevel(stats);
-              const isOpen = expanded===naam;
+          <AdmKop sub="Gesorteerd op achterstand — bovenaan staat waar het werk ligt.">
+            Beheerders met portefeuille — {metData.length}
+          </AdmKop>
+
+          <div className="space-y-2">
+            {gesorteerd.map(({ naam, stats }) => {
+              const isOpen = expanded === naam;
+              const streep = RISK_KLEUR[riskLevel(stats)];
+              const pct = n => (stats.total === 0 ? 0 : (n / stats.total) * 100);
+              const vves = allData[naam]?.vves || [];
+
               return (
-                <div key={naam} className={`rounded-xl border overflow-hidden ${riskBorder[risk]}`}>
-                  <div className="px-5 py-4 cursor-pointer hover:bg-gray-50 transition-colors" onClick={()=>setExpanded(isOpen?null:naam)}>
-                    <div className="flex items-center gap-4">
-                      <div className="w-36 shrink-0"><span className="text-sm font-semibold text-[#2D2D2D]">{naam}</span></div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] text-gray-500">{stats?.afgerond||0} afgerond · {stats?.uitgenodigd||0} uitgenodigd / {stats?.total||0}</span>
-                          <span className="text-[10px] font-mono text-gray-600 font-semibold">{stats?.pctAfgerond||0}%</span>
+                <div
+                  key={naam}
+                  className="bg-white border border-[#E7E2DB] rounded-xl overflow-hidden"
+                  style={{ borderLeft: `3px solid ${streep}` }}
+                >
+                  <button
+                    onClick={() => setExpanded(isOpen ? null : naam)}
+                    className="w-full text-left px-5 py-4 hover:bg-[#FAF8F5] transition-colors"
+                  >
+                    <div className="flex items-center gap-5">
+                      <div className="w-[120px] shrink-0">
+                        <p className="text-[13.5px] font-semibold text-[#2D2D2D]">{naam}</p>
+                        <p className="text-[11px] text-[#9B958E] tabular-nums">{stats.total} VvE's</p>
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="h-2 rounded-full overflow-hidden flex bg-[#EFEBE4]">
+                          <div className="h-full bg-[#3B7A57]" style={{ width: `${pct(stats.afgerond)}%` }} />
+                          <div className="h-full bg-[#991A21]" style={{ width: `${pct(stats.achterstand)}%` }} />
+                          <div className="h-full bg-[#4A6B8A]" style={{ width: `${pct(stats.tekomen)}%` }} />
                         </div>
-                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden flex">
-                          <div className="h-full transition-all duration-700 bg-emerald-600" style={{width:`${stats?.pctAfgerond||0}%`}}/>
-                          <div className="h-full transition-all duration-700 bg-sky-600" style={{width:`${stats?.pctUitgenodigd||0}%`}}/>
-                        </div>
-                        <div className="flex gap-3 mt-1">
-                          <span className="text-[9px] text-emerald-700">■ Afgerond</span>
-                          <span className="text-[9px] text-sky-700">■ Uitgenodigd</span>
-                          <span className="text-[9px] text-gray-400">■ Niet uitgenodigd</span>
+                        <div className="flex items-center gap-3.5 mt-1.5">
+                          <span className="text-[10.5px] text-[#6B6560] flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-sm bg-[#3B7A57]" />
+                            <span className="tabular-nums">{stats.afgerond}</span> afgerond
+                          </span>
+                          {stats.achterstand > 0 && (
+                            <span className="text-[10.5px] text-[#6B6560] flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-sm bg-[#991A21]" />
+                              <span className="tabular-nums">{stats.achterstand}</span> achterstand
+                            </span>
+                          )}
+                          <span className="text-[10.5px] text-[#6B6560] flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-sm bg-[#4A6B8A]" />
+                            <span className="tabular-nums">{stats.tekomen}</span> te komen
+                          </span>
+                          {stats.nietGepland > 0 && (
+                            <span className="text-[10.5px] text-[#6B6560] flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-sm bg-[#EFEBE4] border border-[#E7E2DB]" />
+                              <span className="tabular-nums">{stats.nietGepland}</span> niet gepland
+                            </span>
+                          )}
                         </div>
                       </div>
-                      <div className="flex gap-1.5 flex-wrap justify-end w-56 shrink-0">
-                        {stats?.nietUitgenodigd>0 && <Badge color="gray">{stats.nietUitgenodigd} niet uitgenodigd</Badge>}
-                        {stats?.uitgenodigd>0 && !stats?.uitnodigingUrgent && <Badge color="blue">{stats.uitgenodigd} uitgenodigd</Badge>}
-                        {stats?.uitnodigingUrgent>0 && <Badge color="red">⚠ {stats.uitnodigingUrgent} uitnodiging</Badge>}
-                        {stats?.voorbijZonder2e>0 && <Badge color="orange">{stats.voorbijZonder2e} geen 2e</Badge>}
-                        {stats?.inVakantie>0 && <Badge color="orange">{stats.inVakantie} vakantie</Badge>}
-                        {stats?.q4>15 && <Badge color="orange">Q4: {stats.q4}</Badge>}
-                        {risk==="green"&&stats?.total>0 && <Badge color="green">Op schema</Badge>}
-                        {(!stats||stats.total===0) && <Badge color="gray">Geen data</Badge>}
+
+                      <div className="w-[180px] shrink-0 flex flex-wrap gap-1.5 justify-end">
+                        {stats.achterstand > 0     && <Badge color="red">{stats.achterstand} achterstand</Badge>}
+                        {stats.uitnodigingUrgent > 0 && <Badge color="orange">{stats.uitnodigingUrgent} uitnodiging</Badge>}
+                        {stats.nietGepland > 0     && <Badge color="blue">{stats.nietGepland} niet gepland</Badge>}
+                        {riskLevel(stats) === "bij" && <Badge color="green">Bij</Badge>}
                       </div>
-                      <span className="text-zinc-600 text-xs ml-1">{isOpen?"▲":"▼"}</span>
+
+                      <span className={`text-[#9B958E] shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`}>
+                        <AdmIco path={ICO_CHEVRON} />
+                      </span>
                     </div>
-                  </div>
-                  {isOpen && stats && (
-                    <div className="border-t border-gray-200 px-5 py-4 space-y-4 bg-[#F2EFEC]">
+                  </button>
+
+                  {isOpen && (
+                    <div className="border-t border-[#EFEBE4] bg-[#FAF8F5] px-5 py-5 space-y-5">
+
                       <div>
-                        <p className="text-[10px] text-gray-500 mb-2 uppercase tracking-wide font-semibold">Spreiding {naam}</p>
-                        <MonthBar counts={spreadScore(allData[naam]?.vves||[])} vakanties={allData[naam]?.vakanties||[]}/>
+                        <AdmKop kleur="#E7E2DB">Spreiding {naam}</AdmKop>
+                        <MonthBar counts={spreadScore(vves)} vakanties={allData[naam]?.vakanties || []} />
                       </div>
-                      {(stats.uitnodigingUrgent>0||stats.voorbijZonder2e>0||stats.nietUitgenodigd>0) && (
-                        <div className="space-y-1.5">
-                          <p className="text-[10px] text-zinc-600 uppercase tracking-wide mb-2">Aandachtspunten</p>
-                          {(allData[naam]?.vves||[]).filter(v => {
-                            const s = inviteStatus(v.datum1, v.uitgenodigd1);
-                            return !v.vergaderd1 && (s==="warning"||s==="overdue");
-                          }).map(v=>(
-                            <div key={v.id} className="flex items-center gap-2 text-xs text-[#991A21] bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
-                              <span>✉</span><span className="font-medium">{v.naam}</span>
-                              <span className="text-red-500">— uitnodigen vóór {fmtDate(addDays(v.datum1,-INVITE_DAYS))}</span>
+
+                      {(() => {
+                        const achter = vves.filter(v => !isAfgerond(v) && beslissendeDatum(v) && beslissendeDatum(v) < t);
+                        const uitn   = vves.filter(v => heeftUitnodigingActie(v, t));
+                        const ongepl = vves.filter(v => !isAfgerond(v) && !beslissendeDatum(v));
+
+                        if (!achter.length && !uitn.length && !ongepl.length) {
+                          return (
+                            <div className="flex items-center gap-2 text-[13px] text-[#3B7A57] font-medium">
+                              <AdmIco path={ICO_CHECK} />
+                              Alles bij. Geen openstaand werk.
                             </div>
-                          ))}
-                          {(allData[naam]?.vves||[]).filter(v=>v.datum1&&v.datum1<today()&&!v.datum2&&!v.vergaderd1).map(v=>(
-                            <div key={v.id} className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
-                              <span>↩</span><span className="font-medium">{v.naam}</span><span className="text-amber-500">— 1e voorbij, geen 2e gepland</span>
-                            </div>
-                          ))}
-                          {(allData[naam]?.vves||[]).filter(v=>!v.uitgenodigd1&&!v.uitgenodigd2&&!v.vergaderd1).slice(0,5).map(v=>(
-                            <div key={v.id} className="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
-                              <span className="text-gray-400">·</span><span className="font-medium">{v.naam}</span><span className="text-gray-400">— nog niet uitgenodigd</span>
-                            </div>
-                          ))}
-                          {stats.nietUitgenodigd>5 && <p className="text-[10px] text-zinc-600 pl-3">… en {stats.nietUitgenodigd-5} andere niet-uitgenodigde VvE's</p>}
-                        </div>
-                      )}
-                      {risk==="green" && <p className="text-xs text-emerald-700 font-medium">✓ Alles op schema. Geen actie vereist.</p>}
-                      <div className="border-t border-gray-200 pt-3 mt-2">
-                        <p className="text-[10px] text-zinc-600 uppercase tracking-wide mb-2">VvE herindelen naar andere beheerder</p>
+                          );
+                        }
+
+                        const reden = (v) => {
+                          if (v.needs2e && !v.datum2)      return "2e reglementaire nog plannen";
+                          if (v.needs2e && !v.vergaderd2)  return "uitkomst 2e vastleggen";
+                          return "uitkomst 1e vastleggen";
+                        };
+
+                        return (
+                          <div className="space-y-4">
+                            {achter.length > 0 && (
+                              <div>
+                                <AdmKop kleur="#991A21">Achterstand — {achter.length}</AdmKop>
+                                <div className="space-y-1.5">
+                                  {achter.slice(0, 6).map(v => (
+                                    <div key={v.id} className="flex items-center gap-2.5 text-[12.5px] bg-[#F6ECEC] border border-[#E3C9C9] rounded-lg px-3 py-2">
+                                      <span className="text-[#991A21] shrink-0"><AdmIco path={ICO_ALERT} /></span>
+                                      <span className="font-medium text-[#2D2D2D] truncate">{v.naam}</span>
+                                      <span className="text-[#991A21] ml-auto shrink-0 tabular-nums">
+                                        {reden(v)} · {fmtDate(beslissendeDatum(v))}
+                                      </span>
+                                    </div>
+                                  ))}
+                                  {achter.length > 6 && (
+                                    <p className="text-[11px] text-[#9B958E] pl-1">… en {achter.length - 6} andere</p>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {uitn.length > 0 && (
+                              <div>
+                                <AdmKop kleur="#B07414">Uitnodiging urgent — {uitn.length}</AdmKop>
+                                <div className="space-y-1.5">
+                                  {uitn.slice(0, 6).map(v => (
+                                    <div key={v.id} className="flex items-center gap-2.5 text-[12.5px] bg-[#F7EEDD] border border-[#E8D5B0] rounded-lg px-3 py-2">
+                                      <span className="text-[#B07414] shrink-0"><AdmIco path={ICO_MAIL} /></span>
+                                      <span className="font-medium text-[#2D2D2D] truncate">{v.naam}</span>
+                                      <span className="text-[#B07414] ml-auto shrink-0 tabular-nums">
+                                        uitnodigen vóór {fmtDate(addDays(v.datum1, -INVITE_DAYS))}
+                                      </span>
+                                    </div>
+                                  ))}
+                                  {uitn.length > 6 && (
+                                    <p className="text-[11px] text-[#9B958E] pl-1">… en {uitn.length - 6} andere</p>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {ongepl.length > 0 && (
+                              <div>
+                                <AdmKop kleur="#4A6B8A">Niet gepland — {ongepl.length}</AdmKop>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {ongepl.slice(0, 12).map(v => (
+                                    <span key={v.id} className="text-[12px] px-2.5 py-1 rounded-lg bg-[#EAEFF4] text-[#4A6B8A] border border-[#C4D2DE]">
+                                      {v.naam}
+                                    </span>
+                                  ))}
+                                  {ongepl.length > 12 && (
+                                    <span className="text-[11px] text-[#9B958E] self-center">… en {ongepl.length - 12} andere</span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Herindelen */}
+                      <div className="border-t border-[#EFEBE4] pt-4">
+                        <AdmKop kleur="#E7E2DB">VvE herindelen</AdmKop>
                         {herindelenVan === naam && herindelenVve ? (
                           <div className="flex gap-2 items-center flex-wrap">
-                            <span className="text-xs text-zinc-400 shrink-0">"{herindelenVve.naam}" →</span>
-                            <select value={herindelenNaar} onChange={e=>setHerindelenNaar(e.target.value)}
-                              className="flex-1 bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-[#2D2D2D] focus:outline-none focus:border-[#991A21] transition-colors">
+                            <span className="text-[12.5px] text-[#6B6560] shrink-0 flex items-center gap-1.5">
+                              <AdmIco path={ICO_SWAP} className="w-[14px] h-[14px] text-[#9B958E]" />
+                              {herindelenVve.naam} →
+                            </span>
+                            <select
+                              value={herindelenNaar}
+                              onChange={e => setHerindelenNaar(e.target.value)}
+                              className="flex-1 min-w-[160px] bg-white border border-[#E7E2DB] rounded-lg px-2.5 h-8 text-[12.5px] text-[#2D2D2D] focus:outline-none focus:border-[#991A21] transition-colors"
+                            >
                               <option value="">Kies beheerder…</option>
-                              {beheerderList.filter(n=>n!==naam).map(n=><option key={n} value={n}>{n}</option>)}
+                              {beheerderList.filter(n => n !== naam).map(n => <option key={n} value={n}>{n}</option>)}
                             </select>
-                            <button onClick={()=>herindelen(herindelenVve, naam, herindelenNaar)} disabled={!herindelenNaar} className="px-3 py-1.5 bg-[#991A21] hover:bg-[#7a1419] disabled:opacity-40 text-white text-xs rounded-lg transition-colors">Verplaats</button>
-                            <button onClick={()=>{setHerindelenVve(null);setHerindelenVan(null);}} className="text-xs text-zinc-500 hover:text-zinc-400">Annuleer</button>
+                            <button
+                              onClick={() => herindelen(herindelenVve, naam, herindelenNaar)}
+                              disabled={!herindelenNaar}
+                              className="px-3 h-8 bg-[#991A21] hover:bg-[#7A1419] disabled:opacity-40 disabled:cursor-not-allowed text-white text-[12.5px] font-medium rounded-lg transition-colors"
+                            >
+                              Verplaats
+                            </button>
+                            <button
+                              onClick={() => { setHerindelenVve(null); setHerindelenVan(null); }}
+                              className="text-[12.5px] text-[#9B958E] hover:text-[#2D2D2D] px-2 transition-colors"
+                            >
+                              Annuleer
+                            </button>
                           </div>
                         ) : (
-                          <select value="" onChange={e=>{
-                            const vve = (allData[naam]?.vves||[]).find(v=>v.id===e.target.value);
-                            if (vve) { setHerindelenVve(vve); setHerindelenVan(naam); setHerindelenNaar(""); }
-                          }} className="bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-500 focus:outline-none focus:border-[#991A21] transition-colors">
+                          <select
+                            value=""
+                            onChange={e => {
+                              const vve = vves.find(v => v.id === e.target.value);
+                              if (vve) { setHerindelenVve(vve); setHerindelenVan(naam); setHerindelenNaar(""); }
+                            }}
+                            className="bg-white border border-[#E7E2DB] rounded-lg px-2.5 h-8 text-[12.5px] text-[#6B6560] focus:outline-none focus:border-[#991A21] transition-colors"
+                          >
                             <option value="">Selecteer VvE om te herindelen…</option>
-                            {(allData[naam]?.vves||[]).map(v=><option key={v.id} value={v.id}>{v.naam}</option>)}
+                            {vves.map(v => <option key={v.id} value={v.id}>{v.naam}</option>)}
                           </select>
                         )}
                       </div>
@@ -3571,8 +3752,70 @@ function AdminDashboard({ beheerderList, onBack }) {
             })}
           </div>
         </div>
+
+        {/* ── Beheerders zonder portefeuille ──────────────────────── */}
+        {zonderData.length > 0 && (
+          <div className="bg-white border border-[#E7E2DB] rounded-xl p-5">
+            <AdmKop
+              kleur="#4A6B8A"
+              sub="Deze accounts bestaan, maar hebben nog geen VvE's in het systeem. Zij openen een leeg scherm."
+            >
+              Nog geen portefeuille — {zonderData.length}
+            </AdmKop>
+            <div className="flex flex-wrap gap-1.5 pl-[11px]">
+              {zonderData.map(({ naam }) => (
+                <span key={naam} className="text-[12px] px-2.5 py-1 rounded-lg bg-[#EAEFF4] text-[#4A6B8A] border border-[#C4D2DE]">
+                  {naam}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* ── Accountstatus ───────────────────────────────────────── */}
+        {(nooitIngelogd.length > 0 || inactief.length > 0) && (
+          <div className="bg-white border border-[#E7E2DB] rounded-xl p-5 space-y-5">
+            <AdmKop kleur="#B07414">Accountstatus</AdmKop>
+
+            {nooitIngelogd.length > 0 && (
+              <div className="pl-[11px]">
+                <p className="text-[12.5px] text-[#6B6560] mb-2">
+                  <span className="font-semibold text-[#2D2D2D] tabular-nums">{nooitIngelogd.length}</span>{" "}
+                  {nooitIngelogd.length === 1 ? "account heeft" : "accounts hebben"} nog nooit ingelogd.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {nooitIngelogd.map(r => (
+                    <span key={r.naam} className="text-[12px] px-2.5 py-1 rounded-lg bg-[#F7EEDD] text-[#B07414] border border-[#E8D5B0]">
+                      {r.naam}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {inactief.length > 0 && (
+              <div className="pl-[11px]">
+                <p className="text-[10.5px] uppercase tracking-[0.05em] text-[#9B958E] font-semibold mb-2">
+                  Inactief ≥ 10 dagen
+                </p>
+                <div>
+                  {inactief.map(r => {
+                    const dagen = Math.floor((nu - new Date(r.laatste_login)) / 86400000);
+                    return (
+                      <div key={r.naam} className="flex items-center justify-between text-[12.5px] border-b border-[#EFEBE4] py-2 last:border-0">
+                        <span className="text-[#2D2D2D] font-medium">{r.naam}</span>
+                        <span className="text-[#B07414] tabular-nums">{dagen} dagen geleden</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        </>
+        )}
       </div>
     </div>
   );
@@ -4191,7 +4434,7 @@ useEffect(() => {
   if (screen==="verduurzaming") return metShell(<VerduurzamingBeheer onTerug={()=>setScreen("portaal")} beheerder={beheerder} beheerderList={beheerderList}/>);
   if (screen==="notulen") return metShell(<NotulenAssistent onTerug={()=>setScreen("portaal")} />);
   if (screen==="kennisbank") return metShell(<KennisBank onTerug={()=>setScreen("portaal")} />);
-  if (screen==="admin") return metShell(<AdminDashboard beheerderList={beheerderList} onBack={()=>setScreen("portaal")}/>);
+  if (screen==="admin") return metShell(<AdminDashboard beheerderList={beheerderList}/>);
   if (screen==="lod") return metShell(<LodBeheer onTerug={()=>setScreen("portaal")} beheerderList={beheerderList}/>);
   if (screen==="calculator") return metShell(<VveCalculator onTerug={()=>setScreen("portaal")}/>);
 
