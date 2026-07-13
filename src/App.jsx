@@ -323,7 +323,7 @@ function newVve(naam, datum1 = "") {
 // Een VvE is afgerond als vergadering 1 heeft plaatsgevonden
 // én er geen 2e nodig is, of de 2e ook heeft plaatsgevonden.
 function isAfgerond(vve) {
-  return !!vve.vergaderd1 && (!vve.needs2e || !!vve.vergaderd2);
+  return (!!vve.vergaderd1 || !!vve.needs2e) && (!vve.needs2e || !!vve.vergaderd2);
 }
 
 // ── Import line parser ────────────────────────────────────────────
