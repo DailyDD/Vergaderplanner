@@ -270,9 +270,15 @@ async function loadAllData(beheerderList) {
   } catch(e) { console.error("loadAllData", e); return {}; }
 }
 
-// Beheerderlijst komt uit Supabase user_roles
-const BEHEERDER_NAMEN = ["Jeffrey","Daley","Jan-Jaap","Tahir","Diana","Fred","Laura","Isaac","Kelvin","Martijn","Bryan","Alwart","Radjesh","Rob","Jaap","Vinny","Brian","Pascalle","Joerie","Jasper","Frank","Janette"];
-function getBeheerderList() { return BEHEERDER_NAMEN; }
+// Beheerderlijst uit Supabase — via SECURITY DEFINER functie zodat
+// elke ingelogde gebruiker de volledige namenlijst krijgt zonder dat
+// rol/modules lekt via RLS.
+async function fetchBeheerderNamen() {
+  try {
+    const rows = await sbFetch("rpc/beheerder_namen");
+    return rows ? rows.map(r => r.naam) : [];
+  } catch(e) { console.error("beheerder_namen", e); return []; }
+}
 
 // ── Date helpers ─────────────────────────────────────────────────
 function fmtDate(iso) {
@@ -3579,7 +3585,7 @@ export default function App() {
   const [userRol, setUserRol] = useState("beheerder"); // beheerder | beheerder_plus | admin
   const [showWelkomst, setShowWelkomst] = useState(false);
   const [eigenNaam, setEigenNaam] = useState("");
-  const [beheerderList] = useState(getBeheerderList());
+  const [beheerderList, setBeheerderList] = useState([]);
   const [data, setData] = useState(defaultData());
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState("vergaderingen");
@@ -3622,8 +3628,9 @@ useEffect(() => {
   const token = sessionStorage.getItem(TOKEN_KEY);
   if (!token) return;
   _accessToken = token;
-  getUserRole().then(rol => {
+  getUserRole().then(async rol => {
     if (!rol) { setToken(null); return; }
+    setBeheerderList(await fetchBeheerderNamen());
     if (rol.welkomstscherm_gezien === false) setShowWelkomst(true);
     setEigenNaam(rol.naam);
     if (rol.rol === "admin") {
@@ -3683,6 +3690,7 @@ useEffect(() => {
       await signIn(loginNaam.trim(), loginPw.trim());
       const rol = await getUserRole();
       if (!rol) throw new Error("Geen rol gevonden voor dit account.");
+      setBeheerderList(await fetchBeheerderNamen());
       if (rol.welkomstscherm_gezien === false) setShowWelkomst(true);
       setEigenNaam(rol.naam);
       if (rol.rol === "admin") {
