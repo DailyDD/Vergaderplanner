@@ -280,14 +280,20 @@ function fmtDate(iso) {
   const d = new Date(iso+"T00:00:00");
   return `${d.getDate()} ${NL_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
+// Lokale ISO-datum. NIET toISOString() gebruiken voor datum-only waarden:
+// die zet om naar UTC, waardoor lokale middernacht een dag terugvalt.
+const pad2 = n => String(n).padStart(2, "0");
+function isoLokaal(d) {
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+}
 function addDays(iso, n) {
   if (!iso) return "";
   const d = new Date(iso+"T00:00:00");
   if (isNaN(d.getTime())) return "";
   d.setDate(d.getDate()+n);
-  return d.toISOString().slice(0,10);
+  return isoLokaal(d);
 }
-function today() { return new Date().toISOString().slice(0,10); }
+function today() { return isoLokaal(new Date()); }
 function monthKey(iso) { return iso ? iso.slice(0,7) : null; }
 function isInVakantie(iso, vakanties) {
   return vakanties.some(v => v.van && v.tot && iso >= v.van && iso <= v.tot);
@@ -341,7 +347,7 @@ function generatePlanning(vves, vakanties, werkdagen) {
   const start = new Date(`${year}-01-01T00:00:00`);
   const end = new Date(`${year}-12-31T00:00:00`);
   for (let d = new Date(start); d <= end; d.setDate(d.getDate()+1)) {
-    const iso = d.toISOString().slice(0,10);
+    const iso = isoLokaal(d);
     const dow = d.getDay();
     if (!werkdagen[dow]) continue;
     if (isInVakantie(iso, vakanties)) continue;
@@ -2961,7 +2967,7 @@ function LodBeheer({ onTerug, beheerderList }) {
 
   const addLod = async () => {
     const n = {id:lodUid(),vveNaam:'',gemeenteReferentie:'',status:'nieuw',behandelaar:'',
-      ontvangstdatum:new Date().toISOString().slice(0,10),deadlineAlgemeen:'',boeteMax:'',
+      ontvangstdatum:today(),deadlineAlgemeen:'',boeteMax:'',
       notitie:'',contactpersoon:'',contactGemeente:'',
       vveGenotificeerd:false,vergaderingUitgeschreven:false,gemeenteBevestigd:false,
       onderdelen:[],offertes:[],tijdlijn:{ontvangen:lodNow()}};
@@ -3206,7 +3212,7 @@ function exportAdminPDF(allData, beheerderList) {
     @media print{body{margin:10px}}
   </style></head><body>`;
   html += `<h1>VvE Vergaderplanning ${year} — Beheerdersoverzicht</h1>`;
-  html += `<p class="sub">Gegenereerd op ${fmtDate(new Date().toISOString().slice(0,10))}</p>`;
+  html += `<p class="sub">Gegenereerd op ${fmtDate(today())}</p>`;
   html += `<table><tr><th>Beheerder</th><th>Totaal VvE's</th><th>Gepland</th><th>Uitgenodigd</th><th>Afgerond</th><th>Voortgang</th></tr>`;
   for (const naam of beheerderList) {
     const vves = allData[naam]?.vves || [];
@@ -3870,7 +3876,7 @@ useEffect(() => {
   const exportPDF = () => {
     const year = new Date().getFullYear();
     let html = `<html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a;margin:20px}h1{font-size:16px;color:#991A21;margin-bottom:4px}h2{font-size:12px;color:#991A21;margin:16px 0 6px;border-bottom:1px solid #991A21;padding-bottom:2px}table{width:100%;border-collapse:collapse;margin-bottom:8px}th{background:#991A21;color:white;padding:4px 6px;text-align:left;font-size:10px}td{padding:3px 6px;border-bottom:1px solid #eee;vertical-align:top}tr:nth-child(even) td{background:#faf7f7}.ok{color:#059669}.warn{color:#d97706}.sub{color:#888;font-size:9px}</style></head><body>`;
-    html += `<h1>VvE Vergaderplanning ${year} — ${beheerder}</h1><p class="sub">Gegenereerd op ${fmtDate(new Date().toISOString().slice(0,10))}</p>`;
+    html += `<h1>VvE Vergaderplanning ${year} — ${beheerder}</h1><p class="sub">Gegenereerd op ${fmtDate(today())}</p>`;
     NL_MONTHS_FULL.forEach((maand, mi) => {
       const key = `${year}-${String(mi+1).padStart(2,"0")}`;
       const vves = data.vves.filter(v => (v.datum1&&v.datum1.startsWith(key))||(v.datum2&&v.datum2.startsWith(key))||(v.datumExtra&&v.datumExtra.startsWith(key)));
