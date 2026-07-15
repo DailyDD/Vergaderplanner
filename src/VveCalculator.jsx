@@ -1,6 +1,9 @@
 import React, { useState } from "react";
 
 // ── VvE Calculator ───────────────────────────────────────────────
+const CSS_FONT = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
+* { font-family: 'DM Sans', sans-serif !important; }`;
+
 const CALC_S = {
   bordeaux: '#991A21', bordeauxDark: '#6B1217', bordeauxLight: '#F5E6E7',
   cream: '#FAF7F2', ink: '#1A1614', muted: '#8A7E7B', border: '#E5DEDA',
