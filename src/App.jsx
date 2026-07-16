@@ -988,9 +988,8 @@ async function lodSupaLoad() {
     if (!rows || !rows.length) return [];
     return rows.map(r => ({ id: r.id, ...r.data }));
   } catch {
-    showToast("LOD opslaan mislukt — lokaal opgeslagen als backup.");
-    // Fallback naar localStorage als tabel nog niet bestaat
-    try { const r = localStorage.getItem('lod_data_v3'); return r ? JSON.parse(r) : []; } catch { return []; }
+    showToast("LOD laden mislukt — controleer je verbinding.");
+    return [];
   }
 }
 
@@ -1010,41 +1009,17 @@ async function lodSupaSave(lod) {
         body: JSON.stringify({ id: lod.id, data: lod })
       });
     }
-    // Ook lokaal opslaan als backup
-    try {
-      const all = JSON.parse(localStorage.getItem('lod_data_v3')||'[]');
-      const idx = all.findIndex(l=>l.id===lod.id);
-      if (idx>=0) all[idx]=lod; else all.unshift(lod);
-      localStorage.setItem('lod_data_v3', JSON.stringify(all));
-    } catch {}
   } catch {
-    // Fallback naar localStorage
-    try {
-      const all = JSON.parse(localStorage.getItem('lod_data_v3')||'[]');
-      const idx = all.findIndex(l=>l.id===lod.id);
-      if (idx>=0) all[idx]=lod; else all.unshift(lod);
-      localStorage.setItem('lod_data_v3', JSON.stringify(all));
-    } catch {}
+    showToast("LOD opslaan mislukt — controleer je verbinding.");
   }
 }
 
 async function lodSupaDelete(id) {
   try {
     await sbFetch(`${LOD_TABLE}?id=eq.${id}`, { method: 'DELETE' });
-    try {
-      const all = JSON.parse(localStorage.getItem('lod_data_v3')||'[]');
-      localStorage.setItem('lod_data_v3', JSON.stringify(all.filter(l=>l.id!==id)));
-    } catch {}
   } catch {
-    try {
-      const all = JSON.parse(localStorage.getItem('lod_data_v3')||'[]');
-      localStorage.setItem('lod_data_v3', JSON.stringify(all.filter(l=>l.id!==id)));
-    } catch {}
+    showToast("LOD verwijderen mislukt — controleer je verbinding.");
   }
-}
-
-function lodLocalLoad() {
-  try { const r = localStorage.getItem('lod_data_v3'); return r ? JSON.parse(r) : []; } catch { return []; }
 }
 
 function lodDagenTot(deadline) {
@@ -1879,7 +1854,7 @@ function exportTotaalLodPDF(lods) {
 
 // ── LodBeheer ─────────────────────────────────────────────────────
 function LodBeheer({ onTerug, beheerderList }) {
-  const [lods, setLods] = useState(()=>lodLocalLoad());
+  const [lods, setLods] = useState([]);
   const [openId, setOpenId] = useState(null);
   const [zoek, setZoek] = useState('');
   const [filterStatus, setFilterStatus] = useState('alle');
@@ -2728,6 +2703,9 @@ export default function App() {
       : null
   );
   const [planningPreview, setPlanningPreview] = useState(null);
+  // LOD data voor vergaderplanner koppeling (geen localStorage meer)
+  const [appLods, setAppLods] = useState([]);
+  useEffect(() => { lodSupaLoad().then(d => setAppLods(d || [])).catch(() => {}); }, [screen]);
   // FIX 1: gesorteerde volgorde staat los van data
   // We bewaren een gesorteerde ID-volgorde en passen die toe bij weergave
   const [sortedOrder, setSortedOrder] = useState(null); // null = nog niet gesorteerd
@@ -3872,8 +3850,8 @@ useEffect(() => {
   // Safety: vergaderplanner is de enige resterende screen
   if (screen !== "vergaderingen") return null;
 
-  // LOD koppeling: laad actieve LODs voor vergaderplanner notitie
-  const activeLods = lodLocalLoad().filter(l=>l.status!=='afgerond');
+  // LOD koppeling: actieve LODs voor vergaderplanner notitie
+  const activeLods = appLods.filter(l=>l.status!=='afgerond');
   const vveHeeftLod = (vveNaam) => activeLods.some(l =>
     l.vveNaam && vveNaam && l.vveNaam.toLowerCase().includes(vveNaam.toLowerCase().trim().substring(0,8))
   );
