@@ -13,12 +13,15 @@ export function initLodDeps({ sbFetch, showToast, today }) {
   _today = today;
 }
 
-// Calculator constanten (gedeeld met VveCalculator.jsx)
-const CALC_S = {
-  bordeaux: '#991A21', bordeauxDark: '#6B1217', bordeauxLight: '#F5E6E7',
-  cream: '#FAF7F2', ink: '#1A1614', muted: '#8A7E7B', border: '#E5DEDA',
-  green: '#2D6A4F', greenBg: '#EAF4EE', amber: '#92550A', amberBg: '#FEF3E2',
-  redBg: '#FDEAEB', blue: '#1A4D7A', blueBg: '#EAF1F8',
+// Warme kleurconstanten (C-ramp)
+const C = {
+  ink: "#2D2D2D", inkSoft: "#3f3d3b", tekst2: "#6B6560", tekst3: "#9B958E",
+  bordeaux: "#991A21", bordeauxDonker: "#7A1419", bordeauxTint: "#F6ECEC", bordeauxRand: "#E3C9C9",
+  papier: "#F2EFEC", wit: "#FFFFFF", inset: "#FAF8F5",
+  lijn: "#E7E2DB", lijnZacht: "#EFEBE4", randHover: "#C9BEB2",
+  groen: "#3B7A57", groenTint: "#EAF2EC", groenRand: "#CFE0D5",
+  amber: "#B07414", amberTint: "#F7EEDD", amberRand: "#E8D5B0",
+  blauw: "#4A6B8A", blauwTint: "#EAEFF4", blauwRand: "#C4D2DE",
 }
 const calcFmt = (n) => {
   if (n === null || n === undefined || isNaN(n)) return '—'
@@ -30,25 +33,44 @@ const calcUid = () => ++_calcId
 const CSS_FONT = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
 * { font-family: 'DM Sans', sans-serif !important; }`;
 
+// Inline input styling (vervangt calc-inp className)
+const lodInpStyle = {
+  width:'100%', padding:'8px 11px', border:'1.5px solid '+C.lijn, borderRadius:10,
+  fontFamily:"'DM Sans',sans-serif", fontSize:14, color:C.ink, background:C.wit,
+  outline:'none', boxSizing:'border-box', MozAppearance:'textfield', appearance:'textfield',
+};
+
+// SVG-iconen (fill=none, stroke=currentColor, strokeWidth=1.75)
+const Icn = {
+  shield: (sz=16,clr="currentColor") => <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke={clr} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
+  clipboard: (sz=16,clr="currentColor") => <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke={clr} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>,
+  check: (sz=16,clr="currentColor") => <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke={clr} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+  x: (sz=16,clr="currentColor") => <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke={clr} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+  clock: (sz=16,clr="currentColor") => <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke={clr} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  arrowLeft: (sz=16,clr="currentColor") => <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke={clr} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>,
+  printer: (sz=16,clr="currentColor") => <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke={clr} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>,
+  calendar: (sz=16,clr="currentColor") => <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke={clr} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+};
+
 // ── LOD Beheer ───────────────────────────────────────────────────
 
 let _lodId = 0;
 const lodUid = () => 'lod_' + (++_lodId) + '_' + Date.now();
 
-const LOD_ROOD     = '#991A21';
-const LOD_ROOD_BG  = '#FDEAEB';
-const LOD_ROOD_DRK = '#7a1419';
+// Kleuren via C-ramp
+
+
 
 const LOD_STATUS = {
-  nieuw:            { label: 'Nieuw ontvangen',         color: '#1A4D7A', bg: '#EAF1F8', dot: '#1A4D7A' },
-  in_behandeling:   { label: 'In behandeling',           color: LOD_ROOD,  bg: LOD_ROOD_BG, dot: LOD_ROOD },
-  offertes_afwacht: { label: 'Offerte in afwachting',    color: '#92400E', bg: '#FEF3E2', dot: '#B45309' },
-  offertes_lopen:   { label: 'Offertes lopen',           color: '#5B3FA6', bg: '#F3EFFD', dot: '#7C3AED' },
-  vve_afwachting:   { label: 'In afwachting van VvE',    color: '#065F46', bg: '#D1FAE5', dot: '#059669' },
-  vve_akkoord:      { label: 'VvE akkoord',              color: '#2D6A4F', bg: '#EAF4EE', dot: '#2D6A4F' },
-  opdracht_uit:     { label: 'Opdracht verstrekt',       color: '#1E3A5F', bg: '#DBEAFE', dot: '#1E40AF' },
-  afgerond:         { label: 'Afgerond',                 color: '#374151', bg: '#F3F4F6', dot: '#6B7280' },
-  overschreden:     { label: 'Deadline overschreden',    color: LOD_ROOD,  bg: LOD_ROOD_BG, dot: LOD_ROOD },
+  nieuw:            { label: 'Nieuw ontvangen',         color: C.blauw, bg: C.blauwTint, dot: C.blauw },
+  in_behandeling:   { label: 'In behandeling',           color: C.bordeaux,  bg: C.bordeauxTint, dot: C.bordeaux },
+  offertes_afwacht: { label: 'Offerte in afwachting',    color: C.amber, bg: C.amberTint, dot: C.amber },
+  offertes_lopen:   { label: 'Offertes lopen',           color: C.blauw, bg: C.blauwTint, dot: C.blauw },
+  vve_afwachting:   { label: 'In afwachting van VvE',    color: C.groen, bg: C.groenTint, dot: C.groen },
+  vve_akkoord:      { label: 'VvE akkoord',              color: C.groen, bg: C.groenTint, dot: C.groen },
+  opdracht_uit:     { label: 'Opdracht verstrekt',       color: C.blauw, bg: C.blauwTint, dot: C.blauw },
+  afgerond:         { label: 'Afgerond',                 color: C.ink, bg: C.lijnZacht, dot: C.tekst2 },
+  overschreden:     { label: 'Deadline overschreden',    color: C.bordeaux,  bg: C.bordeauxTint, dot: C.bordeaux },
 };
 
 // Supabase opslag voor LOD data
@@ -100,11 +122,11 @@ function lodDagenTot(deadline) {
   return Math.ceil((new Date(deadline) - now) / 86400000);
 }
 function lodDeadlineKleur(dagen) {
-  if (dagen===null) return '';
-  if (dagen<0) return 'text-red-600 font-bold';
-  if (dagen<=14) return 'text-red-500 font-semibold';
-  if (dagen<=30) return 'text-red-400 font-semibold';
-  return 'text-gray-600';
+  if (dagen===null) return {};
+  if (dagen<0) return {color:C.bordeaux,fontWeight:700};
+  if (dagen<=14) return {color:C.bordeaux,fontWeight:600};
+  if (dagen<=30) return {color:'#C0392B',fontWeight:600};
+  return {color:C.tekst2};
 }
 function lodFmt(n) {
   if (!n||isNaN(n)) return '-';
@@ -112,7 +134,7 @@ function lodFmt(n) {
 }
 function lodNow() { return new Date().toISOString(); }
 function lodFmtDt(iso) {
-  if (!iso) return '';
+  if (!iso) return {};
   return new Date(iso).toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
 }
 
@@ -148,20 +170,20 @@ function LodStatusBadge({ status }) {
 function buildTijdlijn(lod) {
   const events = [];
   const add = (ts,tekst,kleur) => { if(ts) events.push({ts,tekst,kleur}); };
-  add(lod.tijdlijn?.vveGenotificeerd,          'VvE in kennis gesteld',                '#1A4D7A');
-  add(lod.tijdlijn?.vergaderingUitgeschreven,  'Vergadering uitgeschreven',            LOD_ROOD);
+  add(lod.tijdlijn?.vveGenotificeerd,          'VvE in kennis gesteld',                C.blauw);
+  add(lod.tijdlijn?.vergaderingUitgeschreven,  'Vergadering uitgeschreven',            C.bordeaux);
   (lod.offertes||[]).forEach(o=>{
-    add(o.tijdlijn?.aangevraagd,`Offerte aangevraagd bij ${o.partij||'onbekend'}`,    '#1A4D7A');
-    add(o.tijdlijn?.ontvangen,  `Offerte ontvangen van ${o.partij||'onbekend'}`,      '#5B3FA6');
-    add(o.tijdlijn?.vveVoorlegd,`Offerte voorgelegd aan VvE (${o.partij||'onbekend'})`,'#92400E');
-    add(o.tijdlijn?.vveAkkoord, `VvE akkoord op offerte ${o.partij||'onbekend'}`,     '#2D6A4F');
-    add(o.tijdlijn?.opdracht,         `Opdracht verstrekt aan ${o.partij||'onbekend'}`,  '#1E3A5F');
-    add(o.tijdlijn?.opdrachtAfgerond, `Opdracht afgerond door ${o.partij||'onbekend'}`,   '#2D6A4F');
+    add(o.tijdlijn?.aangevraagd,`Offerte aangevraagd bij ${o.partij||'onbekend'}`,    C.blauw);
+    add(o.tijdlijn?.ontvangen,  `Offerte ontvangen van ${o.partij||'onbekend'}`,      C.blauw);
+    add(o.tijdlijn?.vveVoorlegd,`Offerte voorgelegd aan VvE (${o.partij||'onbekend'})`,C.amber);
+    add(o.tijdlijn?.vveAkkoord, `VvE akkoord op offerte ${o.partij||'onbekend'}`,     C.groen);
+    add(o.tijdlijn?.opdracht,         `Opdracht verstrekt aan ${o.partij||'onbekend'}`,  C.blauw);
+    add(o.tijdlijn?.opdrachtAfgerond, `Opdracht afgerond door ${o.partij||'onbekend'}`,   C.groen);
   });
-  add(lod.tijdlijn?.uitstelAangevraagd,'Uitstel aangevraagd bij gemeente',             '#92400E');
-  add(lod.tijdlijn?.uitstelGoedgekeurd,'Uitstel goedgekeurd door gemeente',             '#2D6A4F');
-  add(lod.tijdlijn?.gemeenteBevestigd,'Gemeente bevestigd / gereed gemeld',            '#2D6A4F');
-  add(lod.tijdlijn?.afgerond,         'LOD afgerond',                                  '#374151');
+  add(lod.tijdlijn?.uitstelAangevraagd,'Uitstel aangevraagd bij gemeente',             C.amber);
+  add(lod.tijdlijn?.uitstelGoedgekeurd,'Uitstel goedgekeurd door gemeente',             C.groen);
+  add(lod.tijdlijn?.gemeenteBevestigd,'Gemeente bevestigd / gereed gemeld',            C.groen);
+  add(lod.tijdlijn?.afgerond,         'LOD afgerond',                                  C.ink);
   return events.sort((a,b)=>new Date(a.ts)-new Date(b.ts));
 }
 
@@ -190,16 +212,16 @@ function LodVoortgangBalk({ lod }) {
   return (
     <div style={{minWidth:160,maxWidth:200}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
-        <span style={{fontSize:10,fontWeight:600,color:'#8A7E7B',textTransform:'uppercase',letterSpacing:'0.05em'}}>Voortgang</span>
-        <span style={{fontSize:11,fontWeight:700,color:pct===100?'#2D6A4F':LOD_ROOD}}>{pct}%</span>
+        <span style={{fontSize:10,fontWeight:600,color:C.tekst2,textTransform:'uppercase',letterSpacing:'0.05em'}}>Voortgang</span>
+        <span style={{fontSize:11,fontWeight:700,color:pct===100?C.groen:C.bordeaux}}>{pct}%</span>
       </div>
-      <div style={{height:6,background:'#F3F4F6',borderRadius:3,overflow:'hidden',marginBottom:5}}>
-        <div style={{height:'100%',width:pct+'%',background:pct===100?'#2D6A4F':LOD_ROOD,borderRadius:3,transition:'width .3s'}} />
+      <div style={{height:6,background:C.lijnZacht,borderRadius:3,overflow:'hidden',marginBottom:5}}>
+        <div style={{height:'100%',width:pct+'%',background:pct===100?C.groen:C.bordeaux,borderRadius:3,transition:'width .3s'}} />
       </div>
       <div style={{display:'flex',flexDirection:'column',gap:2}}>
         {stappen.map((s,i)=>(
-          <div key={i} style={{display:'flex',alignItems:'center',gap:4,fontSize:9,color:s.ok?'#2D6A4F':'#9CA3AF'}}>
-            <span style={{width:10,height:10,borderRadius:'50%',background:s.ok?'#2D6A4F':'#E5DEDA',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:7,color:'#fff',flexShrink:0}}>{s.ok?'✓':''}</span>
+          <div key={i} style={{display:'flex',alignItems:'center',gap:4,fontSize:9,color:s.ok?C.groen:C.tekst3}}>
+            <span style={{width:10,height:10,borderRadius:'50%',background:s.ok?C.groen:C.lijn,display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:7,color:'#fff',flexShrink:0}}>{s.ok?Icn.check(7,'#fff'):''}</span>
             {s.lbl}
           </div>
         ))}
@@ -217,7 +239,7 @@ function lodExportPDF(lod, eenmaligResult) {
   const gedaan    = stappen.filter(s=>s.ok).length;
 
   const offerteRijen = (lod.offertes||[]).map((o,i)=>`
-    <tr style="background:${i%2===0?'#fff':'#FAF7F2'}">
+    <tr style="background:${i%2===0?'#fff':C.inset}">
       <td>${o.partij||'-'}</td><td style="text-align:right">${lodFmt(o.bedrag)}</td>
       <td style="text-align:center">${o.aangevraagd?'✓':''}</td>
       <td style="text-align:center">${o.ontvangen?'✓':''}</td>
@@ -227,24 +249,24 @@ function lodExportPDF(lod, eenmaligResult) {
     </tr>`).join('');
 
   const puntenRijen = (lod.onderdelen||[]).map((o,i)=>`
-    <tr style="background:${i%2===0?'#fff':'#FAF7F2'}"><td>${i+1}</td><td>${o.omschrijving||'-'}</td></tr>`).join('');
+    <tr style="background:${i%2===0?'#fff':C.inset}"><td>${i+1}</td><td>${o.omschrijving||'-'}</td></tr>`).join('');
 
   const tijdlijnRijen = tijdlijn.map(e=>`
-    <tr><td style="white-space:nowrap;color:#8A7E7B">${lodFmtDt(e.ts)}</td><td style="color:${e.kleur};font-weight:500">${e.tekst}</td></tr>`).join('');
+    <tr><td style="white-space:nowrap;color:#6B6560">${lodFmtDt(e.ts)}</td><td style="color:${e.kleur};font-weight:500">${e.tekst}</td></tr>`).join('');
 
   const voortgangRijen = stappen.map(s=>`
-    <tr><td style="color:${s.ok?'#2D6A4F':'#9CA3AF'}">${s.ok?'✓':'○'} ${s.lbl}</td></tr>`).join('');
+    <tr><td style="color:${s.ok?C.groen:C.tekst3}">${s.ok?'✓':'○'} ${s.lbl}</td></tr>`).join('');
 
   let eenmaligHTML = '';
   if (eenmaligResult && eenmaligResult.length) {
     eenmaligHTML = '<div class="sec">Eenmalige bijdragen per eigenaar</div>';
     eenmaligResult.forEach(item => {
       eenmaligHTML += `<p style="font-size:9pt;font-weight:600;margin:10px 0 4px">${item.omschrijving} — Offerte: ${lodFmt(item.offerte)}${item.totaleKorting>0?' — Netto: '+lodFmt(item.nettoOfferte):''} — ${item.tekort>0?'Tekort: '+lodFmt(item.tekort):'Volledig gedekt'}</p>`;
-      eenmaligHTML += `<p style="font-size:8pt;color:#8A7E7B;margin-bottom:6px">Reserve: ${lodFmt(item.reserve)} — buffer: ${lodFmt(item.buffer)} — beschikbaar: ${lodFmt(item.beschikbaar)}</p>`;
+      eenmaligHTML += `<p style="font-size:8pt;color:#6B6560;margin-bottom:6px">Reserve: ${lodFmt(item.reserve)} — buffer: ${lodFmt(item.buffer)} — beschikbaar: ${lodFmt(item.beschikbaar)}</p>`;
       if (item.tekort>0 && item.perEigenaar.length) {
         eenmaligHTML += `<table><thead><tr><th>Eigenaar</th><th style="text-align:right">Aandeel</th><th style="text-align:right">Korting</th><th style="text-align:right">Bijdrage</th></tr></thead><tbody>`;
         item.perEigenaar.forEach((e,i)=>{
-          eenmaligHTML += `<tr style="background:${i%2===0?'#fff':'#FAF7F2'}"><td>${e.naam}</td><td style="text-align:right">${(e.aandeel*100).toFixed(2)}%</td><td style="text-align:right;color:#2D6A4F">${e.korting>0?lodFmt(e.korting):'—'}</td><td style="text-align:right;font-weight:600;color:#991A21">${lodFmt(e.bijdrage)}</td></tr>`;
+          eenmaligHTML += `<tr style="background:${i%2===0?'#fff':C.inset}"><td>${e.naam}</td><td style="text-align:right">${(e.aandeel*100).toFixed(2)}%</td><td style="text-align:right;color:#3B7A57">${e.korting>0?lodFmt(e.korting):'—'}</td><td style="text-align:right;font-weight:600;color:#991A21">${lodFmt(e.bijdrage)}</td></tr>`;
         });
         eenmaligHTML += `</tbody><tfoot><tr><td colspan="3"><strong>Totaal tekort</strong></td><td style="text-align:right">${lodFmt(item.tekort)}</td></tr></tfoot></table>`;
       }
@@ -253,30 +275,30 @@ function lodExportPDF(lod, eenmaligResult) {
 
   const html = `<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8">
     <title>LOD Dossier - ${lod.vveNaam||'onbekend'}</title>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-    <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:"DM Sans",Arial,sans-serif;color:#1A1614;font-size:10pt;background:#fff;padding:32px 40px}
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:"DM Sans",Arial,sans-serif;color:#2D2D2D;font-size:10pt;background:#fff;padding:32px 40px}
     .hdr{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:12px;border-bottom:3px solid #991A21;margin-bottom:22px}
-    .hdr h1{font-family:"DM Serif Display",serif;font-size:18pt;color:#991A21;font-weight:400}.hdr .meta{font-size:9pt;color:#8A7E7B;margin-top:3px}
-    .badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:9pt;font-weight:600;background:#FDEAEB;color:#991A21}
-    .sec{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8A7E7B;margin:20px 0 8px;padding-bottom:4px;border-bottom:1px solid #E5DEDA}
+    .hdr h1{font-family:'DM Sans',sans-serif;font-size:18pt;color:#991A21;font-weight:400}.hdr .meta{font-size:9pt;color:#6B6560;margin-top:3px}
+    .badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:9pt;font-weight:600;background:#F6ECEC;color:#991A21}
+    .sec{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6B6560;margin:20px 0 8px;padding-bottom:4px;border-bottom:1px solid #E7E2DB}
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
     .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px}
-    .info-block{background:#FAF7F2;border-left:3px solid #991A21;padding:10px 14px;border-radius:4px}
-    .info-label{font-size:8pt;color:#8A7E7B;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
-    .info-val{font-size:10pt;font-weight:600;color:#1A1614}
+    .info-block{background:#FAF8F5;border-left:3px solid #991A21;padding:10px 14px;border-radius:4px}
+    .info-label{font-size:8pt;color:#6B6560;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+    .info-val{font-size:10pt;font-weight:600;color:#2D2D2D}
     table{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:14px}
     thead tr{background:#991A21;color:#fff}thead th{padding:7px 10px;text-align:left;font-size:8pt;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
-    tbody td{padding:6px 10px;border-bottom:1px solid #E5DEDA}
-    tfoot td{padding:7px 10px;font-weight:600;color:#991A21;border-top:2px solid #991A21;background:#FDEAEB}
-    .voortgang-ok{color:#2D6A4F}.voortgang-nok{color:#9CA3AF}
-    .footer{margin-top:20px;padding-top:8px;border-top:1px solid #E5DEDA;display:flex;justify-content:space-between;font-size:7.5pt;color:#8A7E7B}
+    tbody td{padding:6px 10px;border-bottom:1px solid #E7E2DB}
+    tfoot td{padding:7px 10px;font-weight:600;color:#991A21;border-top:2px solid #991A21;background:#F6ECEC}
+    .voortgang-ok{color:#3B7A57}.voortgang-nok{color:#9B958E}
+    .footer{margin-top:20px;padding-top:8px;border-top:1px solid #E7E2DB;display:flex;justify-content:space-between;font-size:7.5pt;color:#6B6560}
     .print-btn{position:fixed;top:18px;right:18px;padding:9px 18px;background:#991A21;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer}
     @media print{.print-btn{display:none}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
     </head><body>
     <button class="print-btn" onclick="window.print()">Afdrukken / PDF</button>
     <div class="hdr">
       <div><h1>LOD Dossier</h1><div class="meta">${lod.vveNaam||'onbekend'} · Ref: ${lod.gemeenteReferentie||'-'} · Opgesteld op ${new Date().toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric'})}</div></div>
-      <div style="text-align:right"><span class="badge">${statusLbl}</span><div style="font-size:9pt;color:#8A7E7B;margin-top:4px">Voortgang: ${gedaan}/${stappen.length} stappen</div></div>
+      <div style="text-align:right"><span class="badge">${statusLbl}</span><div style="font-size:9pt;color:#6B6560;margin-top:4px">Voortgang: ${gedaan}/${stappen.length} stappen</div></div>
     </div>
     <div class="grid2">
       <div class="info-block"><div class="info-label">VvE</div><div class="info-val">${lod.vveNaam||'-'}</div></div>
@@ -287,17 +309,17 @@ function lodExportPDF(lod, eenmaligResult) {
       <div class="info-block"><div class="info-label">Algehele deadline</div><div class="info-val" style="color:${dagen!==null&&dagen<0?'#991A21':'inherit'}">${lod.deadlineAlgemeen?new Date(lod.deadlineAlgemeen).toLocaleDateString('nl-NL'):'-'}${dagen!==null?' ('+Math.abs(dagen)+(dagen<0?' dagen over':' dagen')+')':''}</div></div>
       <div class="info-block"><div class="info-label">Max. boete totaal</div><div class="info-val">${lodFmt(lod.boeteMax)}</div></div>
     </div>
-    ${lod.notitie?`<div style="margin-bottom:10px;padding:10px 14px;background:#FAF7F2;border-radius:6px;font-size:9pt"><strong>Notitie:</strong> ${lod.notitie}</div>`:''}
-    ${lod.uitstelAangevraagd?`<div style="margin-bottom:16px;padding:10px 14px;background:#FEF3E2;border-left:3px solid #B45309;border-radius:6px;font-size:9pt"><strong style="color:#92400E">Uitstel aangevraagd${lod.uitstelTot?' t/m '+new Date(lod.uitstelTot).toLocaleDateString('nl-NL'):''}</strong>${lod.uitstelReden?' — '+lod.uitstelReden:''}</div>`:''}
+    ${lod.notitie?`<div style="margin-bottom:10px;padding:10px 14px;background:#FAF8F5;border-radius:6px;font-size:9pt"><strong>Notitie:</strong> ${lod.notitie}</div>`:''}
+    ${lod.uitstelAangevraagd?`<div style="margin-bottom:16px;padding:10px 14px;background:#F7EEDD;border-left:3px solid #B07414;border-radius:6px;font-size:9pt"><strong style="color:#B07414">Uitstel aangevraagd${lod.uitstelTot?' t/m '+new Date(lod.uitstelTot).toLocaleDateString('nl-NL'):''}</strong>${lod.uitstelReden?' — '+lod.uitstelReden:''}</div>`:''}
     <div class="sec">Voortgang</div>
     <table style="width:auto"><tbody>${voortgangRijen}</tbody></table>
     <div class="sec">Onderhoudspunten</div>
-    <table><thead><tr><th>#</th><th>Omschrijving</th></tr></thead><tbody>${puntenRijen||'<tr><td colspan=2 style="color:#8A7E7B">Geen onderhoudspunten</td></tr>'}</tbody></table>
+    <table><thead><tr><th>#</th><th>Omschrijving</th></tr></thead><tbody>${puntenRijen||'<tr><td colspan=2 style="color:#6B6560">Geen onderhoudspunten</td></tr>'}</tbody></table>
     <div class="sec">Offertes</div>
-    <table><thead><tr><th>Partij</th><th style="text-align:right">Bedrag</th><th style="text-align:center">Aangevraagd</th><th style="text-align:center">Ontvangen</th><th style="text-align:center">VvE voorgelegd</th><th style="text-align:center">VvE akkoord</th><th style="text-align:center">Opdracht</th></tr></thead><tbody>${offerteRijen||'<tr><td colspan=7 style="color:#8A7E7B">Geen offertes</td></tr>'}</tbody></table>
+    <table><thead><tr><th>Partij</th><th style="text-align:right">Bedrag</th><th style="text-align:center">Aangevraagd</th><th style="text-align:center">Ontvangen</th><th style="text-align:center">VvE voorgelegd</th><th style="text-align:center">VvE akkoord</th><th style="text-align:center">Opdracht</th></tr></thead><tbody>${offerteRijen||'<tr><td colspan=7 style="color:#6B6560">Geen offertes</td></tr>'}</tbody></table>
     ${eenmaligHTML}
     <div class="sec">Tijdlijn dossier</div>
-    <table><thead><tr><th>Datum en tijd</th><th>Actie</th></tr></thead><tbody>${tijdlijnRijen||'<tr><td colspan=2 style="color:#8A7E7B">Geen tijdlijn</td></tr>'}</tbody></table>
+    <table><thead><tr><th>Datum en tijd</th><th>Actie</th></tr></thead><tbody>${tijdlijnRijen||'<tr><td colspan=2 style="color:#6B6560">Geen tijdlijn</td></tr>'}</tbody></table>
     <div class="footer"><span>Totaal VvE Beheer Den Haag en omstreken B.V. · Rijswijk</span><span>Last onder Dwangsom module</span></div>
     </body></html>`;
 
@@ -308,7 +330,7 @@ function lodExportPDF(lod, eenmaligResult) {
 
 // ── Eenmalige bijdrage tab ────────────────────────────────────────
 function LodEenmaligTab({ lod, onUpdate }) {
-  const S   = CALC_S;
+  const S = C;
   const fmt = calcFmt;
 
   // Offertedata overnemen uit het Offertes tabblad
@@ -362,8 +384,8 @@ function LodEenmaligTab({ lod, onUpdate }) {
   return (
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-        <p style={{fontSize:12,color:CALC_S.muted}}>Bereken de eenmalige bijdrage per eigenaar. Offertedata is overgenomen uit het Offertes tabblad.</p>
-        <button onClick={syncOffertes} style={{padding:'5px 12px',background:'#fff',border:`1px solid ${LOD_ROOD}`,borderRadius:7,fontSize:11,color:LOD_ROOD,cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>
+        <p style={{fontSize:12,color:C.tekst2}}>Bereken de eenmalige bijdrage per eigenaar. Offertedata is overgenomen uit het Offertes tabblad.</p>
+        <button onClick={syncOffertes} style={{padding:'5px 12px',background:C.wit,border:`1px solid ${C.bordeaux}`,borderRadius:7,fontSize:11,color:C.bordeaux,cursor:'pointer',fontWeight:600,whiteSpace:'nowrap'}}>
           Offertes syncen
         </button>
       </div>
@@ -372,89 +394,89 @@ function LodEenmaligTab({ lod, onUpdate }) {
       <div style={{marginBottom:14}}>
         <div style={{fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#2D2D2D',marginBottom:8,display:'flex',alignItems:'center',gap:8}}>
           Eigenaren &amp; breukdelen
-          <div style={{flex:1,height:1,background:'#E5DEDA'}} />
-          <label style={{fontSize:10,fontWeight:600,color:CALC_S.muted,display:'flex',alignItems:'center',gap:6}}>
-            Noemer: <input type="number" value={vasteNoemer} onChange={e=>{setVasteNoemer(e.target.value);save({eenmaligNoemer:e.target.value})}} placeholder="totaal" className="calc-inp" style={{width:80,fontSize:12}} />
+          <div style={{flex:1,height:1,background:C.lijn}} />
+          <label style={{fontSize:10,fontWeight:600,color:C.tekst2,display:'flex',alignItems:'center',gap:6}}>
+            Noemer: <input type="number" value={vasteNoemer} onChange={e=>{setVasteNoemer(e.target.value);save({eenmaligNoemer:e.target.value})}} placeholder="totaal" style={{...lodInpStyle,width:80,fontSize:12}} />
           </label>
         </div>
         {eigRows.map((r,i)=>(
           <div key={r.id} style={{display:'grid',gridTemplateColumns:'1fr 100px 36px',gap:8,marginBottom:6,alignItems:'center'}}>
-            <input value={r.naam} onChange={e=>{const nr=[...eigRows];nr[i]={...nr[i],naam:e.target.value};setEigRows(nr);save({eenmaligEigenaren:nr})}} placeholder="Naam eigenaar / appartement" className="calc-inp" style={{fontSize:12}} />
-            <input type="number" value={r.teller} onChange={e=>{const nr=[...eigRows];nr[i]={...nr[i],teller:e.target.value};setEigRows(nr);save({eenmaligEigenaren:nr})}} placeholder="Teller" className="calc-inp" style={{fontSize:12}} />
-            <button onClick={()=>{const nr=eigRows.filter((_,j)=>j!==i);setEigRows(nr);save({eenmaligEigenaren:nr})}} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,color:CALC_S.muted}}>×</button>
+            <input value={r.naam} onChange={e=>{const nr=[...eigRows];nr[i]={...nr[i],naam:e.target.value};setEigRows(nr);save({eenmaligEigenaren:nr})}} placeholder="Naam eigenaar / appartement" style={{...lodInpStyle,fontSize:12}} />
+            <input type="number" value={r.teller} onChange={e=>{const nr=[...eigRows];nr[i]={...nr[i],teller:e.target.value};setEigRows(nr);save({eenmaligEigenaren:nr})}} placeholder="Teller" style={{...lodInpStyle,fontSize:12}} />
+            <button onClick={()=>{const nr=eigRows.filter((_,j)=>j!==i);setEigRows(nr);save({eenmaligEigenaren:nr})}} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,color:C.tekst2}}>×</button>
           </div>
         ))}
-        <button onClick={()=>{const nr=[...eigRows,{id:calcUid(),naam:'',teller:''}];setEigRows(nr);save({eenmaligEigenaren:nr})}} style={{width:'100%',padding:'7px',background:'#fff',border:'1.5px dashed #E5DEDA',borderRadius:8,fontFamily:'inherit',fontSize:12,color:CALC_S.muted,cursor:'pointer'}}>+ Eigenaar toevoegen</button>
+        <button onClick={()=>{const nr=[...eigRows,{id:calcUid(),naam:'',teller:''}];setEigRows(nr);save({eenmaligEigenaren:nr})}} style={{width:'100%',padding:'7px',background:C.wit,border:'1.5px dashed #E7E2DB',borderRadius:8,fontFamily:"'DM Sans',sans-serif",fontSize:12,color:C.tekst2,cursor:'pointer'}}>+ Eigenaar toevoegen</button>
       </div>
 
       {/* Offertes */}
       <div style={{marginBottom:14}}>
         <div style={{fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#2D2D2D',marginBottom:8,display:'flex',alignItems:'center',gap:8}}>
-          Offerte(s) <div style={{flex:1,height:1,background:'#E5DEDA'}} />
+          Offerte(s) <div style={{flex:1,height:1,background:C.lijn}} />
         </div>
         {items.map((item,i)=>(
-          <div key={item.id} style={{background:'#FAF7F2',border:'1px solid #E5DEDA',borderRadius:10,padding:'12px 14px',marginBottom:8,position:'relative'}}>
-            {items.length>1&&<button onClick={()=>{const ni=items.filter((_,j)=>j!==i);setItems(ni);save({eenmaligItems:ni})}} style={{position:'absolute',top:8,right:10,background:'none',border:'none',cursor:'pointer',fontSize:16,color:CALC_S.muted}}>×</button>}
+          <div key={item.id} style={{background:C.inset,border:'1px solid #E7E2DB',borderRadius:10,padding:'12px 14px',marginBottom:8,position:'relative'}}>
+            {items.length>1&&<button onClick={()=>{const ni=items.filter((_,j)=>j!==i);setItems(ni);save({eenmaligItems:ni})}} style={{position:'absolute',top:8,right:10,background:'none',border:'none',cursor:'pointer',fontSize:16,color:C.tekst2}}>×</button>}
             <div style={{display:'grid',gridTemplateColumns:'1fr 160px',gap:10,marginBottom:8}}>
-              <div><label style={{fontSize:10,fontWeight:600,color:CALC_S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Omschrijving / partij</label>
-                <input value={item.omschrijving} onChange={e=>{const ni=[...items];ni[i]={...ni[i],omschrijving:e.target.value};setItems(ni);save({eenmaligItems:ni})}} placeholder="bijv. Bouwbedrijf Jansen" className="calc-inp" style={{fontSize:12}} /></div>
-              <div><label style={{fontSize:10,fontWeight:600,color:CALC_S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Offertebedrag (€)</label>
-                <input type="number" value={item.bedrag} onChange={e=>{const ni=[...items];ni[i]={...ni[i],bedrag:e.target.value};setItems(ni);save({eenmaligItems:ni})}} placeholder="bijv. 38000" className="calc-inp" style={{fontSize:12}} /></div>
+              <div><label style={{fontSize:10,fontWeight:600,color:C.tekst2,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Omschrijving / partij</label>
+                <input value={item.omschrijving} onChange={e=>{const ni=[...items];ni[i]={...ni[i],omschrijving:e.target.value};setItems(ni);save({eenmaligItems:ni})}} placeholder="bijv. Bouwbedrijf Jansen" style={{...lodInpStyle,fontSize:12}} /></div>
+              <div><label style={{fontSize:10,fontWeight:600,color:C.tekst2,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Offertebedrag (€)</label>
+                <input type="number" value={item.bedrag} onChange={e=>{const ni=[...items];ni[i]={...ni[i],bedrag:e.target.value};setItems(ni);save({eenmaligItems:ni})}} placeholder="bijv. 38000" style={{...lodInpStyle,fontSize:12}} /></div>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:8}}>
-              <div><label style={{fontSize:10,fontWeight:600,color:CALC_S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Stand reservefonds (€)</label>
-                <input type="number" value={item.reserveStand} onChange={e=>{const ni=[...items];ni[i]={...ni[i],reserveStand:e.target.value};setItems(ni);save({eenmaligItems:ni})}} placeholder="bijv. 12000" className="calc-inp" style={{fontSize:12}} /></div>
-              <div><label style={{fontSize:10,fontWeight:600,color:CALC_S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Buffer (€)</label>
-                <input type="number" value={item.buffer} onChange={e=>{const ni=[...items];ni[i]={...ni[i],buffer:e.target.value};setItems(ni);save({eenmaligItems:ni})}} placeholder="2500" className="calc-inp" style={{fontSize:12}} /></div>
+              <div><label style={{fontSize:10,fontWeight:600,color:C.tekst2,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Stand reservefonds (€)</label>
+                <input type="number" value={item.reserveStand} onChange={e=>{const ni=[...items];ni[i]={...ni[i],reserveStand:e.target.value};setItems(ni);save({eenmaligItems:ni})}} placeholder="bijv. 12000" style={{...lodInpStyle,fontSize:12}} /></div>
+              <div><label style={{fontSize:10,fontWeight:600,color:C.tekst2,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Buffer (€)</label>
+                <input type="number" value={item.buffer} onChange={e=>{const ni=[...items];ni[i]={...ni[i],buffer:e.target.value};setItems(ni);save({eenmaligItems:ni})}} placeholder="2500" style={{...lodInpStyle,fontSize:12}} /></div>
             </div>
-            <label style={{display:'flex',alignItems:'center',gap:7,cursor:'pointer',fontSize:12,fontWeight:600,color:CALC_S.ink}}>
-              <input type="checkbox" checked={!!item.kortingAan} onChange={e=>{const ni=[...items];ni[i]={...ni[i],kortingAan:e.target.checked};setItems(ni);save({eenmaligItems:ni})}} style={{width:13,height:13,accentColor:LOD_ROOD,cursor:'pointer'}} />
+            <label style={{display:'flex',alignItems:'center',gap:7,cursor:'pointer',fontSize:12,fontWeight:600,color:C.ink}}>
+              <input type="checkbox" checked={!!item.kortingAan} onChange={e=>{const ni=[...items];ni[i]={...ni[i],kortingAan:e.target.checked};setItems(ni);save({eenmaligItems:ni})}} style={{width:13,height:13,accentColor:C.bordeaux,cursor:'pointer'}} />
               Gemeentelijke korting
             </label>
-            {item.kortingAan&&<div style={{marginTop:6}}><label style={{fontSize:10,fontWeight:600,color:CALC_S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Korting per eigenaar (€)</label>
-              <input type="number" value={item.kortingBedrag} onChange={e=>{const ni=[...items];ni[i]={...ni[i],kortingBedrag:e.target.value};setItems(ni);save({eenmaligItems:ni})}} placeholder="bijv. 1000" className="calc-inp" style={{width:160,fontSize:12}} /></div>}
+            {item.kortingAan&&<div style={{marginTop:6}}><label style={{fontSize:10,fontWeight:600,color:C.tekst2,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:3}}>Korting per eigenaar (€)</label>
+              <input type="number" value={item.kortingBedrag} onChange={e=>{const ni=[...items];ni[i]={...ni[i],kortingBedrag:e.target.value};setItems(ni);save({eenmaligItems:ni})}} placeholder="bijv. 1000" style={{...lodInpStyle,width:160,fontSize:12}} /></div>}
           </div>
         ))}
-        <button onClick={()=>{const ni=[...items,{id:calcUid(),omschrijving:'',bedrag:'',reserveStand:'',buffer:'2500',kortingAan:false,kortingBedrag:''}];setItems(ni);save({eenmaligItems:ni})}} style={{width:'100%',padding:'7px',background:'#fff',border:'1.5px dashed #E5DEDA',borderRadius:8,fontFamily:'inherit',fontSize:12,color:CALC_S.muted,cursor:'pointer',marginBottom:10}}>+ Offerte toevoegen</button>
+        <button onClick={()=>{const ni=[...items,{id:calcUid(),omschrijving:'',bedrag:'',reserveStand:'',buffer:'2500',kortingAan:false,kortingBedrag:''}];setItems(ni);save({eenmaligItems:ni})}} style={{width:'100%',padding:'7px',background:C.wit,border:'1.5px dashed #E7E2DB',borderRadius:8,fontFamily:"'DM Sans',sans-serif",fontSize:12,color:C.tekst2,cursor:'pointer',marginBottom:10}}>+ Offerte toevoegen</button>
       </div>
 
-      <button onClick={bereken} style={{width:'100%',padding:12,background:LOD_ROOD,border:'none',borderRadius:10,fontFamily:'Georgia,serif',fontSize:15,color:'#fff',cursor:'pointer'}}>
+      <button onClick={bereken} style={{width:'100%',padding:12,background:C.bordeaux,border:'none',borderRadius:10,fontFamily:"'DM Sans',sans-serif",fontWeight:700,fontSize:15,color:'#fff',cursor:'pointer'}}>
         Bereken eenmalige bijdragen →
       </button>
 
       {result && (
         <>
-          <button onClick={()=>lodExportPDF(lod, result)} style={{width:'100%',marginTop:10,padding:'9px',background:'#fff',border:`1.5px solid ${LOD_ROOD}`,borderRadius:8,fontFamily:'inherit',fontSize:13,color:LOD_ROOD,cursor:'pointer',fontWeight:500}}>
+          <button onClick={()=>lodExportPDF(lod, result)} style={{width:'100%',marginTop:10,padding:'9px',background:C.wit,border:`1.5px solid ${C.bordeaux}`,borderRadius:8,fontFamily:"'DM Sans',sans-serif",fontSize:13,color:C.bordeaux,cursor:'pointer',fontWeight:500}}>
             PDF rapport exporteren (incl. berekening)
           </button>
           {result.map((item,idx)=>(
-            <div key={idx} style={{marginTop:12,background:'#fff',border:'1px solid #E5DEDA',borderRadius:10,overflow:'hidden'}}>
-              <div style={{padding:'10px 14px',background:'#FAF7F2',borderBottom:'1px solid #E5DEDA',display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+            <div key={idx} style={{marginTop:12,background:C.wit,border:'1px solid #E7E2DB',borderRadius:10,overflow:'hidden'}}>
+              <div style={{padding:'10px 14px',background:C.inset,borderBottom:'1px solid #E7E2DB',display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
                 <span style={{fontWeight:600,fontSize:13}}>{item.omschrijving}</span>
-                <span style={{fontFamily:'Georgia,serif',fontSize:16,color:item.tekort>0?LOD_ROOD:'#2D6A4F'}}>{item.tekort>0?'Tekort: '+fmt(item.tekort):'Volledig gedekt'}</span>
+                <span style={{fontFamily:"'DM Sans',sans-serif",fontWeight:700,fontSize:16,color:item.tekort>0?C.bordeaux:C.groen}}>{item.tekort>0?'Tekort: '+fmt(item.tekort):'Volledig gedekt'}</span>
               </div>
-              <div style={{padding:'5px 14px',fontSize:11,color:CALC_S.muted,fontFamily:'monospace',borderBottom:'1px solid #E5DEDA'}}>
+              <div style={{padding:'5px 14px',fontSize:11,color:C.tekst2,fontVariantNumeric:'tabular-nums',borderBottom:'1px solid #E7E2DB'}}>
                 Reserve: {fmt(item.reserve)} — buffer: {fmt(item.buffer)} — beschikbaar: {fmt(item.beschikbaar)}
               </div>
               {item.tekort>0&&(
                 <table style={{width:'100%',borderCollapse:'collapse'}}>
-                  <thead><tr style={{background:'#FAF7F2',borderBottom:'1px solid #E5DEDA'}}>
+                  <thead><tr style={{background:C.inset,borderBottom:'1px solid #E7E2DB'}}>
                     {['Eigenaar','Aandeel','Korting','Bijdrage'].map((h,i)=>(
-                      <th key={i} style={{padding:'6px 12px',textAlign:i>0?'right':'left',fontSize:10,fontWeight:600,color:CALC_S.muted,textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</th>
+                      <th key={i} style={{padding:'6px 12px',textAlign:i>0?'right':'left',fontSize:10,fontWeight:600,color:C.tekst2,textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</th>
                     ))}
                   </tr></thead>
                   <tbody>{item.perEigenaar.map((e,i)=>(
-                    <tr key={i} style={{borderBottom:i<item.perEigenaar.length-1?'1px solid #E5DEDA':'none',background:i%2===0?'#fff':'#FAF7F2'}}>
+                    <tr key={i} style={{borderBottom:i<item.perEigenaar.length-1?'1px solid #E7E2DB':'none',background:i%2===0?'#fff':C.inset}}>
                       <td style={{padding:'6px 12px',fontSize:12,fontWeight:500}}>{e.naam}</td>
-                      <td style={{padding:'6px 12px',fontFamily:'monospace',fontSize:12,textAlign:'right'}}>{(e.aandeel*100).toFixed(2)}%</td>
-                      <td style={{padding:'6px 12px',fontFamily:'monospace',fontSize:12,textAlign:'right',color:e.korting>0?'#2D6A4F':CALC_S.muted}}>{e.korting>0?fmt(e.korting):'—'}</td>
-                      <td style={{padding:'6px 12px',fontFamily:'monospace',fontSize:12,textAlign:'right',color:LOD_ROOD,fontWeight:600}}>{fmt(e.bijdrage)}</td>
+                      <td style={{padding:'6px 12px',fontVariantNumeric:'tabular-nums',fontSize:12,textAlign:'right'}}>{(e.aandeel*100).toFixed(2)}%</td>
+                      <td style={{padding:'6px 12px',fontVariantNumeric:'tabular-nums',fontSize:12,textAlign:'right',color:e.korting>0?C.groen:C.tekst2}}>{e.korting>0?fmt(e.korting):'—'}</td>
+                      <td style={{padding:'6px 12px',fontVariantNumeric:'tabular-nums',fontSize:12,textAlign:'right',color:C.bordeaux,fontWeight:600}}>{fmt(e.bijdrage)}</td>
                     </tr>
                   ))}</tbody>
-                  <tfoot style={{borderTop:`2px solid ${LOD_ROOD}`}}>
-                    <tr style={{background:LOD_ROOD_BG}}>
-                      <td colSpan={3} style={{padding:'7px 12px',fontSize:12,fontWeight:600,color:CALC_S.muted}}>Totaal tekort</td>
-                      <td style={{padding:'7px 12px',fontFamily:'monospace',fontSize:13,fontWeight:600,color:LOD_ROOD,textAlign:'right'}}>{fmt(item.tekort)}</td>
+                  <tfoot style={{borderTop:`2px solid ${C.bordeaux}`}}>
+                    <tr style={{background:C.bordeauxTint}}>
+                      <td colSpan={3} style={{padding:'7px 12px',fontSize:12,fontWeight:600,color:C.tekst2}}>Totaal tekort</td>
+                      <td style={{padding:'7px 12px',fontVariantNumeric:'tabular-nums',fontSize:13,fontWeight:600,color:C.bordeaux,textAlign:'right'}}>{fmt(item.tekort)}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -469,7 +491,7 @@ function LodEenmaligTab({ lod, onUpdate }) {
 
 // ── LodKaart ─────────────────────────────────────────────────────
 function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList }) {
-  const S = CALC_S;
+  const S = C;
   const open = openId===lod.id;
   const dagen = lodDagenTot(lod.deadlineAlgemeen);
   const [tabKaart, setTabKaart] = useState('details');
@@ -519,58 +541,58 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
   };
 
   const tijdlijn = buildTijdlijn(lod);
-  const cardBorder = lod.status==='afgerond'?'#D1D5DB':open?LOD_ROOD:'#E5E0DB';
+  const cardBorder = lod.status==='afgerond'?C.lijn:open?C.bordeaux:C.lijn;
 
   return (
-    <div style={{background:lod.status==='afgerond'?'#FAFAFA':'#fff',border:`1.5px solid ${cardBorder}`,borderRadius:12,overflow:'hidden',marginBottom:10,boxShadow:open?`0 2px 12px rgba(153,26,33,.08)`:'none',transition:'all .2s',opacity:lod.status==='afgerond'?.7:1}}>
+    <div style={{background:lod.status==='afgerond'?C.inset:'#fff',border:`1.5px solid ${cardBorder}`,borderRadius:12,overflow:'hidden',marginBottom:10,boxShadow:open?`0 2px 12px rgba(153,26,33,.08)`:'none',transition:'all .2s',opacity:lod.status==='afgerond'?.7:1}}>
       {/* Header */}
       <div onClick={()=>setOpenId(open?null:lod.id)} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',cursor:'pointer',userSelect:'none'}}>
         <div style={{flex:1}}>
           <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-            <span style={{fontWeight:700,fontSize:14,color:'#2D2D2D'}}>{lod.vveNaam||<span style={{color:'#aaa',fontStyle:'italic'}}>VvE naam</span>}</span>
+            <span style={{fontWeight:700,fontSize:14,color:'#2D2D2D'}}>{lod.vveNaam||<span style={{color:C.tekst3,fontStyle:'italic'}}>VvE naam</span>}</span>
             <LodStatusBadge status={lod.status||'nieuw'} />
-            {lod.behandelaar&&<span style={{fontSize:10,color:'#8A7E7B',background:'#F3F4F6',padding:'2px 7px',borderRadius:8}}>{lod.behandelaar}</span>}
+            {lod.behandelaar&&<span style={{fontSize:10,color:C.tekst2,background:C.lijnZacht,padding:'2px 7px',borderRadius:8}}>{lod.behandelaar}</span>}
 
             {lod.uitstelAangevraagd&&(
-              <span style={{fontSize:10,fontWeight:600,background:lod.uitstelGoedgekeurd?'#EAF4EE':'#FEF3E2',color:lod.uitstelGoedgekeurd?'#2D6A4F':'#92400E',padding:'2px 7px',borderRadius:10,border:`1px solid ${lod.uitstelGoedgekeurd?'#6EE7B7':'#FDE68A'}`}}>
+              <span style={{fontSize:10,fontWeight:600,background:lod.uitstelGoedgekeurd?C.groenTint:C.amberTint,color:lod.uitstelGoedgekeurd?C.groen:C.amber,padding:'2px 7px',borderRadius:10,border:`1px solid ${lod.uitstelGoedgekeurd?C.groenRand:C.amberRand}`}}>
                 {lod.uitstelGoedgekeurd?'Uitstel goedgekeurd':'Uitstel aangevraagd'}{lod.uitstelTot&&lod.uitstelGoedgekeurd?' t/m '+new Date(lod.uitstelTot).toLocaleDateString('nl-NL'):''}
               </span>
             )}
             {lod.status!=='afgerond'&&dagen!==null&&dagen<0&&!lod.uitstelAangevraagd&&(
-              <span style={{fontSize:10,fontWeight:600,background:LOD_ROOD_BG,color:LOD_ROOD,padding:'2px 7px',borderRadius:10}}>Deadline voorbij</span>
+              <span style={{fontSize:10,fontWeight:600,background:C.bordeauxTint,color:C.bordeaux,padding:'2px 7px',borderRadius:10}}>Deadline voorbij</span>
             )}
           </div>
           <div style={{display:'flex',gap:12,marginTop:4,flexWrap:'wrap'}}>
-            {lod.gemeenteReferentie&&<span style={{fontSize:11,color:'#8A7E7B'}}>Ref: {lod.gemeenteReferentie}</span>}
-            {lod.ontvangstdatum&&<span style={{fontSize:11,color:'#8A7E7B'}}>Ontvangen: {new Date(lod.ontvangstdatum).toLocaleDateString('nl-NL')}</span>}
+            {lod.gemeenteReferentie&&<span style={{fontSize:11,color:C.tekst2}}>Ref: {lod.gemeenteReferentie}</span>}
+            {lod.ontvangstdatum&&<span style={{fontSize:11,color:C.tekst2}}>Ontvangen: {new Date(lod.ontvangstdatum).toLocaleDateString('nl-NL')}</span>}
             {lod.deadlineAlgemeen&&(
-              <span style={{fontSize:11}} className={lod.status==='afgerond'?'text-gray-400':lodDeadlineKleur(dagen)}>
+              <span style={{fontSize:11}} style={lod.status==='afgerond'?{color:C.tekst3}:lodDeadlineKleur(dagen)}>
                 Deadline: {new Date(lod.deadlineAlgemeen).toLocaleDateString('nl-NL')}
                 {lod.status==='afgerond'&&lod.tijdlijn?.afgerond&&(
-                  <span style={{marginLeft:8,color:'#2D6A4F',fontWeight:600}}>
+                  <span style={{marginLeft:8,color:C.groen,fontWeight:600}}>
                     Afgerond: {new Date(lod.tijdlijn.afgerond).toLocaleDateString('nl-NL')}
                   </span>
                 )}
               </span>
             )}
-            {lod.boeteMax&&<span style={{fontSize:11,color:LOD_ROOD,fontWeight:600}}>Max. boete: {lodFmt(lod.boeteMax)}</span>}
+            {lod.boeteMax&&<span style={{fontSize:11,color:C.bordeaux,fontWeight:600}}>Max. boete: {lodFmt(lod.boeteMax)}</span>}
           </div>
         </div>
         {/* Voortgangsbalk rechts */}
         <div onClick={e=>e.stopPropagation()}>
           <LodVoortgangBalk lod={lod} />
         </div>
-        <span style={{fontSize:14,color:'#8A7E7B',transform:open?'rotate(180deg)':'none',transition:'transform .2s'}}>▾</span>
+        <span style={{fontSize:14,color:C.tekst2,transform:open?'rotate(180deg)':'none',transition:'transform .2s'}}>▾</span>
       </div>
 
       {/* Body */}
       {open && (
-        <div style={{borderTop:'1.5px solid #E5E0DB',background:'#FDFCFB'}}>
+        <div style={{borderTop:'1.5px solid #E5E0DB',background:C.inset}}>
           {/* Tabs */}
-          <div style={{display:'flex',borderBottom:'1px solid #E5DEDA',background:'#fff',paddingLeft:16,overflowX:'auto'}}>
+          <div style={{display:'flex',borderBottom:'1px solid #E7E2DB',background:C.wit,paddingLeft:16,overflowX:'auto'}}>
             {[['details','Gegevens'],['onderdelen','Onderhoudspunten'],['offertes','Offertes'],['tijdlijn','Tijdlijn'],['eenmalig','Eenmalige bijdrage']].map(([key,lbl])=>(
               <button key={key} onClick={()=>setTabKaart(key)}
-                style={{padding:'9px 14px',border:'none',borderBottom:`2px solid ${tabKaart===key?LOD_ROOD:'transparent'}`,background:'transparent',fontSize:12,fontWeight:tabKaart===key?600:400,color:tabKaart===key?LOD_ROOD:'#6B7280',cursor:'pointer',transition:'all .15s',whiteSpace:'nowrap'}}>
+                style={{padding:'9px 14px',border:'none',borderBottom:`2px solid ${tabKaart===key?C.bordeaux:'transparent'}`,background:'transparent',fontSize:12,fontWeight:tabKaart===key?600:400,color:tabKaart===key?C.bordeaux:C.tekst2,cursor:'pointer',transition:'all .15s',whiteSpace:'nowrap'}}>
                 {lbl}
               </button>
             ))}
@@ -594,17 +616,17 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
                     <div key={field}>
                       <label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>{label}</label>
                       {type==='select'?(
-                        <select value={lod[field]||'nieuw'} onChange={e=>update({[field]:e.target.value})} className="calc-inp" style={{fontSize:13,cursor:'pointer'}}>
+                        <select value={lod[field]||'nieuw'} onChange={e=>update({[field]:e.target.value})} style={{...lodInpStyle,fontSize:13,cursor:'pointer'}}>
                           {Object.entries(LOD_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
                         </select>
                       ):(
-                        <input type={type} value={lod[field]||''} onChange={e=>update({[field]:e.target.value})} placeholder={placeholder||''} className="calc-inp" style={{fontSize:13}} />
+                        <input type={type} value={lod[field]||''} onChange={e=>update({[field]:e.target.value})} placeholder={placeholder||''} style={{...lodInpStyle,fontSize:13}} />
                       )}
                     </div>
                   ))}
                   <div>
                     <label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>Behandelend beheerder</label>
-                    <select value={lod.behandelaar||''} onChange={e=>update({behandelaar:e.target.value})} className="calc-inp" style={{fontSize:13,cursor:'pointer'}}>
+                    <select value={lod.behandelaar||''} onChange={e=>update({behandelaar:e.target.value})} style={{...lodInpStyle,fontSize:13,cursor:'pointer'}}>
                       <option value="">— Selecteer beheerder —</option>
                       {(beheerderList||[]).map(naam=><option key={naam} value={naam}>{naam}</option>)}
                     </select>
@@ -619,8 +641,8 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
                       ['vergaderingUitgeschreven','vergaderingUitgeschreven','Vergadering uitgeschreven'],
                       ['gemeenteBevestigd','gemeenteBevestigd','Afronding gemeld gemeente'],
                     ].map(([field,tlKey,lbl])=>(
-                      <label key={field} style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',padding:'8px 10px',background:lod[field]?'#EAF1F8':'#fff',border:`1.5px solid ${lod[field]?'#1A4D7A':'#E5DEDA'}`,borderRadius:8,fontSize:11,fontWeight:600,color:lod[field]?'#1A4D7A':'#8A7E7B',userSelect:'none',transition:'all .15s'}}>
-                        <input type="checkbox" checked={!!lod[field]} onChange={e=>toggleCheck(field,tlKey,e.target.checked)} style={{width:13,height:13,accentColor:'#1A4D7A',cursor:'pointer'}} />
+                      <label key={field} style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',padding:'8px 10px',background:lod[field]?C.blauwTint:'#fff',border:`1.5px solid ${lod[field]?C.blauw:C.lijn}`,borderRadius:8,fontSize:11,fontWeight:600,color:lod[field]?C.blauw:C.tekst2,userSelect:'none',transition:'all .15s'}}>
+                        <input type="checkbox" checked={!!lod[field]} onChange={e=>toggleCheck(field,tlKey,e.target.checked)} style={{width:13,height:13,accentColor:C.blauw,cursor:'pointer'}} />
                         {lbl}
                       </label>
                     ))}
@@ -630,14 +652,14 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
                 <div style={{marginBottom:14}}>
                   <label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>Interne notitie</label>
                   <textarea value={lod.notitie||''} onChange={e=>update({notitie:e.target.value})} placeholder="Bijzonderheden, afspraken, opmerkingen..."
-                    style={{width:'100%',minHeight:70,padding:'8px 11px',border:'1.5px solid #E5DEDA',borderRadius:8,fontFamily:'inherit',fontSize:12,color:'#1A1614',background:'#FAF7F2',outline:'none',resize:'vertical'}} />
+                    style={{width:'100%',minHeight:70,padding:'8px 11px',border:'1.5px solid #E7E2DB',borderRadius:8,fontFamily:"'DM Sans',sans-serif",fontSize:12,color:C.ink,background:C.inset,outline:'none',resize:'vertical'}} />
                 </div>
 
                 {/* Uitstel aangevraagd — verborgen als afgerond */}
-                {lod.status !== 'afgerond' && <div style={{marginBottom:14,padding:'12px 14px',background:lod.uitstelAangevraagd?'#FEF3E2':'#FAF7F2',border:`1.5px solid ${lod.uitstelAangevraagd?'#B45309':'#E5DEDA'}`,borderRadius:10,transition:'all .2s'}}>
+                {lod.status !== 'afgerond' && <div style={{marginBottom:14,padding:'12px 14px',background:lod.uitstelAangevraagd?C.amberTint:C.inset,border:`1.5px solid ${lod.uitstelAangevraagd?C.amber:C.lijn}`,borderRadius:10,transition:'all .2s'}}>
                   <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',userSelect:'none'}}>
-                    <div style={{width:18,height:18,borderRadius:5,background:lod.uitstelAangevraagd?'#B45309':'transparent',border:`2px solid ${lod.uitstelAangevraagd?'#B45309':'#9CA3AF'}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all .15s'}}>
-                      {lod.uitstelAangevraagd&&<span style={{color:'#fff',fontSize:11,fontWeight:700,lineHeight:1}}>✓</span>}
+                    <div style={{width:18,height:18,borderRadius:5,background:lod.uitstelAangevraagd?C.amber:'transparent',border:`2px solid ${lod.uitstelAangevraagd?C.amber:C.tekst3}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all .15s'}}>
+                      {lod.uitstelAangevraagd&&Icn.check(12,'#fff')}
                     </div>
                     <input type="checkbox" checked={!!lod.uitstelAangevraagd} onChange={e=>{
                       const tl = {...(lod.tijdlijn||{})};
@@ -645,9 +667,9 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
                       else if (!e.target.checked) { delete tl.uitstelAangevraagd; delete tl.uitstelGoedgekeurd; }
                       update({uitstelAangevraagd:e.target.checked, uitstelGoedgekeurd: e.target.checked ? lod.uitstelGoedgekeurd : false, tijdlijn:tl});
                     }} style={{display:'none'}} />
-                    <span style={{fontSize:13,fontWeight:600,color:lod.uitstelAangevraagd?'#92400E':'#374151'}}>Uitstel aangevraagd</span>
+                    <span style={{fontSize:13,fontWeight:600,color:lod.uitstelAangevraagd?C.amber:C.ink}}>Uitstel aangevraagd</span>
                     {lod.uitstelAangevraagd&&lod.uitstelTot&&(
-                      <span style={{marginLeft:'auto',fontSize:11,fontWeight:600,color:'#92400E',fontFamily:'monospace'}}>
+                      <span style={{marginLeft:'auto',fontSize:11,fontWeight:600,color:C.amber,fontVariantNumeric:'tabular-nums'}}>
                         t/m {new Date(lod.uitstelTot).toLocaleDateString('nl-NL')}
                       </span>
                     )}
@@ -655,9 +677,9 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
                   {lod.uitstelAangevraagd&&(
                     <div style={{marginTop:10}}>
                       {/* Uitstel goedgekeurd vinkje */}
-                      <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',padding:'8px 10px',background:lod.uitstelGoedgekeurd?'#EAF4EE':'#fff',border:`1.5px solid ${lod.uitstelGoedgekeurd?'#2D6A4F':'#E5DEDA'}`,borderRadius:8,marginBottom:10,userSelect:'none',transition:'all .15s'}}>
-                        <div style={{width:16,height:16,borderRadius:4,background:lod.uitstelGoedgekeurd?'#2D6A4F':'transparent',border:`2px solid ${lod.uitstelGoedgekeurd?'#2D6A4F':'#9CA3AF'}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                          {lod.uitstelGoedgekeurd&&<span style={{color:'#fff',fontSize:10,fontWeight:700,lineHeight:1}}>✓</span>}
+                      <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',padding:'8px 10px',background:lod.uitstelGoedgekeurd?C.groenTint:'#fff',border:`1.5px solid ${lod.uitstelGoedgekeurd?C.groen:C.lijn}`,borderRadius:8,marginBottom:10,userSelect:'none',transition:'all .15s'}}>
+                        <div style={{width:16,height:16,borderRadius:4,background:lod.uitstelGoedgekeurd?C.groen:'transparent',border:`2px solid ${lod.uitstelGoedgekeurd?C.groen:C.tekst3}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                          {lod.uitstelGoedgekeurd&&Icn.check(11,'#fff')}
                         </div>
                         <input type="checkbox" checked={!!lod.uitstelGoedgekeurd} onChange={e=>{
                           const tl = {...(lod.tijdlijn||{})};
@@ -665,21 +687,21 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
                           else if (!e.target.checked) delete tl.uitstelGoedgekeurd;
                           update({uitstelGoedgekeurd:e.target.checked, tijdlijn:tl});
                         }} style={{display:'none'}} />
-                        <span style={{fontSize:12,fontWeight:600,color:lod.uitstelGoedgekeurd?'#2D6A4F':'#374151'}}>Uitstel goedgekeurd door gemeente</span>
+                        <span style={{fontSize:12,fontWeight:600,color:lod.uitstelGoedgekeurd?C.groen:C.ink}}>Uitstel goedgekeurd door gemeente</span>
                       </label>
                       {/* Datum + reden alleen tonen als goedgekeurd */}
                       {lod.uitstelGoedgekeurd&&(
                         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
                           <div>
-                            <label style={{fontSize:10,fontWeight:600,color:'#2D6A4F',textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>Uitstel tot wanneer</label>
+                            <label style={{fontSize:10,fontWeight:600,color:C.groen,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>Uitstel tot wanneer</label>
                             <input type="date" value={lod.uitstelTot||''} onChange={e=>update({uitstelTot:e.target.value})}
-                              className="calc-inp" style={{fontSize:13,borderColor:'#6EE7B7'}} />
+                              style={{...lodInpStyle,fontSize:13,borderColor:C.groenRand}} />
                           </div>
                           <div>
-                            <label style={{fontSize:10,fontWeight:600,color:'#2D6A4F',textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>Reden uitstel</label>
+                            <label style={{fontSize:10,fontWeight:600,color:C.groen,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>Reden uitstel</label>
                             <input value={lod.uitstelReden||''} onChange={e=>update({uitstelReden:e.target.value})}
                               placeholder="bijv. gemeentelijke goedkeuring ontvangen"
-                              className="calc-inp" style={{fontSize:12,borderColor:'#6EE7B7'}} />
+                              style={{...lodInpStyle,fontSize:12,borderColor:C.groenRand}} />
                           </div>
                         </div>
                       )}
@@ -687,16 +709,16 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
                   )}
                 </div>}
 
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:12,borderTop:'1px solid #E5DEDA'}}>
-                  <button onClick={()=>{if(window.confirm('LOD verwijderen?'))onDelete()}} style={{padding:'7px 14px',background:'#fff',border:'1.5px solid #fca5a5',borderRadius:8,fontSize:12,color:LOD_ROOD,cursor:'pointer',fontFamily:'inherit'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:12,borderTop:'1px solid #E7E2DB'}}>
+                  <button onClick={()=>{if(window.confirm('LOD verwijderen?'))onDelete()}} style={{padding:'7px 14px',background:C.wit,border:'1.5px solid #E3C9C9',borderRadius:8,fontSize:12,color:C.bordeaux,cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
                     LOD verwijderen
                   </button>
                   <div style={{display:'flex',gap:8}}>
-                    <button onClick={()=>lodExportPDF(lod,null)} style={{padding:'7px 14px',background:'#fff',border:`1.5px solid ${LOD_ROOD}`,borderRadius:8,fontSize:12,color:LOD_ROOD,cursor:'pointer',fontFamily:'inherit',fontWeight:500}}>
+                    <button onClick={()=>lodExportPDF(lod,null)} style={{padding:'7px 14px',background:C.wit,border:`1.5px solid ${C.bordeaux}`,borderRadius:8,fontSize:12,color:C.bordeaux,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",fontWeight:500}}>
                       PDF rapport
                     </button>
                     {lod.status!=='afgerond'?(
-                      <button onClick={markeerAfgerond} style={{padding:'7px 18px',background:'#2D6A4F',border:'none',borderRadius:8,fontSize:12,color:'#fff',cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
+                      <button onClick={markeerAfgerond} style={{padding:'7px 18px',background:C.groen,border:'none',borderRadius:8,fontSize:12,color:'#fff',cursor:'pointer',fontFamily:"'DM Sans',sans-serif",fontWeight:600}}>
                         LOD afgerond
                       </button>
                     ):(
@@ -704,7 +726,7 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
                         const tl = {...(lod.tijdlijn||{})};
                         delete tl.afgerond;
                         onUpdate({...lod,status:'opdracht_uit',gemeenteBevestigd:false,tijdlijn:tl});
-                      }} style={{padding:'7px 18px',background:'#fff',border:'1.5px solid #1A4D7A',borderRadius:8,fontSize:12,color:'#1A4D7A',cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
+                      }} style={{padding:'7px 18px',background:C.wit,border:'1.5px solid #4A6B8A',borderRadius:8,fontSize:12,color:C.blauw,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",fontWeight:600}}>
                         LOD heropenen
                       </button>
                     )}
@@ -717,15 +739,15 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
             {tabKaart==='onderdelen'&&(
               <div>
                 <p style={{fontSize:12,color:S.muted,marginBottom:12}}>Beschrijf de onderhoudspunten zoals benoemd in de LOD.</p>
-                {(lod.onderdelen||[]).length===0&&<div style={{textAlign:'center',padding:'30px',color:'#9CA3AF',fontSize:13}}>Nog geen onderhoudspunten toegevoegd.</div>}
+                {(lod.onderdelen||[]).length===0&&<div style={{textAlign:'center',padding:'30px',color:C.tekst3,fontSize:13}}>Nog geen onderhoudspunten toegevoegd.</div>}
                 {(lod.onderdelen||[]).map((o,i)=>(
                   <div key={o.id||i} style={{display:'grid',gridTemplateColumns:'28px 1fr 36px',gap:8,alignItems:'center',marginBottom:8}}>
                     <span style={{fontSize:12,fontWeight:700,color:S.muted,textAlign:'center'}}>{i+1}</span>
-                    <input value={o.omschrijving||''} onChange={e=>updOnderdeel(i,e.target.value)} placeholder={`Onderhoudspunt ${i+1} — bijv. Herstel gevelmetselwerk`} className="calc-inp" style={{fontSize:13}} />
+                    <input value={o.omschrijving||''} onChange={e=>updOnderdeel(i,e.target.value)} placeholder={`Onderhoudspunt ${i+1} — bijv. Herstel gevelmetselwerk`} style={{...lodInpStyle,fontSize:13}} />
                     <button onClick={()=>delOnderdeel(i)} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,color:S.muted,padding:'4px 8px'}}>×</button>
                   </div>
                 ))}
-                <button onClick={addOnderdeel} style={{width:'100%',padding:'9px',background:'#fff',border:'1.5px dashed #E5DEDA',borderRadius:8,fontFamily:'inherit',fontSize:13,color:'#8A7E7B',cursor:'pointer',marginTop:4}}>
+                <button onClick={addOnderdeel} style={{width:'100%',padding:'9px',background:C.wit,border:'1.5px dashed #E7E2DB',borderRadius:8,fontFamily:"'DM Sans',sans-serif",fontSize:13,color:C.tekst2,cursor:'pointer',marginTop:4}}>
                   + Onderhoudspunt toevoegen
                 </button>
               </div>
@@ -735,17 +757,17 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
             {tabKaart==='offertes'&&(
               <div>
                 <p style={{fontSize:12,color:S.muted,marginBottom:12}}>Registreer per partij de offerte. De status van de LOD wordt automatisch bijgewerkt.</p>
-                {(lod.offertes||[]).length===0&&<div style={{textAlign:'center',padding:'30px',color:'#9CA3AF',fontSize:13}}>Nog geen offertes geregistreerd.</div>}
+                {(lod.offertes||[]).length===0&&<div style={{textAlign:'center',padding:'30px',color:C.tekst3,fontSize:13}}>Nog geen offertes geregistreerd.</div>}
                 {(lod.offertes||[]).map((o,i)=>(
-                  <div key={o.id||i} style={{background:'#FAF7F2',border:'1px solid #E5DEDA',borderRadius:10,padding:'14px',marginBottom:10}}>
+                  <div key={o.id||i} style={{background:C.inset,border:'1px solid #E7E2DB',borderRadius:10,padding:'14px',marginBottom:10}}>
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:10,marginBottom:10,alignItems:'end'}}>
                       <div>
                         <label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>Partij / aannemer</label>
-                        <input value={o.partij||''} onChange={e=>updateOfferte(i,{partij:e.target.value})} placeholder="bijv. Bouwbedrijf Jansen" className="calc-inp" style={{fontSize:13}} />
+                        <input value={o.partij||''} onChange={e=>updateOfferte(i,{partij:e.target.value})} placeholder="bijv. Bouwbedrijf Jansen" style={{...lodInpStyle,fontSize:13}} />
                       </div>
                       <div>
                         <label style={{fontSize:10,fontWeight:600,color:S.muted,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:4}}>Totaalprijs offerte (€)</label>
-                        <input type="number" value={o.bedrag||''} onChange={e=>updateOfferte(i,{bedrag:e.target.value})} placeholder="bijv. 42000" className="calc-inp" style={{fontSize:13}} />
+                        <input type="number" value={o.bedrag||''} onChange={e=>updateOfferte(i,{bedrag:e.target.value})} placeholder="bijv. 42000" style={{...lodInpStyle,fontSize:13}} />
                       </div>
                       <button onClick={()=>delOfferte(i)} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,color:S.muted,padding:'8px'}}>×</button>
                     </div>
@@ -758,16 +780,16 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
                         ['opdracht','opdracht','Opdracht verstrekt'],
                         ['opdrachtAfgerond','opdrachtAfgerond','Opdracht afgerond'],
                       ].map(([field,tlKey,lbl])=>(
-                        <label key={field} style={{display:'flex',alignItems:'center',gap:5,cursor:'pointer',padding:'7px 8px',background:o[field]?'#EAF4EE':'#fff',border:`1.5px solid ${o[field]?'#2D6A4F':'#E5DEDA'}`,borderRadius:7,fontSize:10,fontWeight:600,color:o[field]?'#2D6A4F':'#8A7E7B',userSelect:'none',transition:'all .15s'}}>
-                          <input type="checkbox" checked={!!o[field]} onChange={e=>toggleOfferteCheck(i,field,tlKey,e.target.checked)} style={{width:12,height:12,accentColor:'#2D6A4F',cursor:'pointer'}} />
+                        <label key={field} style={{display:'flex',alignItems:'center',gap:5,cursor:'pointer',padding:'7px 8px',background:o[field]?C.groenTint:'#fff',border:`1.5px solid ${o[field]?C.groen:C.lijn}`,borderRadius:7,fontSize:10,fontWeight:600,color:o[field]?C.groen:C.tekst2,userSelect:'none',transition:'all .15s'}}>
+                          <input type="checkbox" checked={!!o[field]} onChange={e=>toggleOfferteCheck(i,field,tlKey,e.target.checked)} style={{width:12,height:12,accentColor:C.groen,cursor:'pointer'}} />
                           {lbl}
                         </label>
                       ))}
                     </div>
-                    {o.ontvangen&&o.bedrag&&<div style={{marginTop:8,padding:'5px 9px',background:'#EAF4EE',borderRadius:6,fontSize:11,color:'#2D6A4F',fontFamily:'monospace'}}>Offertebedrag: {lodFmt(o.bedrag)}</div>}
+                    {o.ontvangen&&o.bedrag&&<div style={{marginTop:8,padding:'5px 9px',background:C.groenTint,borderRadius:6,fontSize:11,color:C.groen,fontVariantNumeric:'tabular-nums'}}>Offertebedrag: {lodFmt(o.bedrag)}</div>}
                   </div>
                 ))}
-                <button onClick={addOfferte} style={{width:'100%',padding:'9px',background:'#fff',border:'1.5px dashed #E5DEDA',borderRadius:8,fontFamily:'inherit',fontSize:13,color:'#8A7E7B',cursor:'pointer',marginTop:4}}>
+                <button onClick={addOfferte} style={{width:'100%',padding:'9px',background:C.wit,border:'1.5px dashed #E7E2DB',borderRadius:8,fontFamily:"'DM Sans',sans-serif",fontSize:13,color:C.tekst2,cursor:'pointer',marginTop:4}}>
                   + Partij / offerte toevoegen
                 </button>
               </div>
@@ -777,14 +799,14 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
             {tabKaart==='tijdlijn'&&(
               <div>
                 {tijdlijn.length===0?(
-                  <div style={{textAlign:'center',padding:'30px',color:'#9CA3AF',fontSize:13}}>Nog geen acties. Vink stappen aan om de tijdlijn op te bouwen.</div>
+                  <div style={{textAlign:'center',padding:'30px',color:C.tekst3,fontSize:13}}>Nog geen acties. Vink stappen aan om de tijdlijn op te bouwen.</div>
                 ):(
                   <div style={{position:'relative',paddingLeft:24}}>
-                    <div style={{position:'absolute',left:7,top:0,bottom:0,width:2,background:'#E5DEDA',borderRadius:2}} />
+                    <div style={{position:'absolute',left:7,top:0,bottom:0,width:2,background:C.lijn,borderRadius:2}} />
                     {tijdlijn.map((e,i)=>(
                       <div key={i} style={{position:'relative',marginBottom:16}}>
                         <div style={{position:'absolute',left:-20,top:3,width:10,height:10,borderRadius:'50%',background:e.kleur,border:'2px solid #fff',boxShadow:`0 0 0 2px ${e.kleur}`}} />
-                        <div style={{fontSize:11,color:'#8A7E7B',marginBottom:2}}>{lodFmtDt(e.ts)}</div>
+                        <div style={{fontSize:11,color:C.tekst2,marginBottom:2}}>{lodFmtDt(e.ts)}</div>
                         <div style={{fontSize:13,fontWeight:600,color:e.kleur}}>{e.tekst}</div>
                       </div>
                     ))}
@@ -817,26 +839,26 @@ function LodKalender({ lods }) {
   return (
     <div>
       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:20}}>
-        <button onClick={()=>setJaar(j=>j-1)} style={{padding:'6px 14px',border:'1px solid #E5DEDA',borderRadius:7,background:'#fff',cursor:'pointer',fontSize:13}}>← {jaar-1}</button>
+        <button onClick={()=>setJaar(j=>j-1)} style={{padding:'6px 14px',border:'1px solid #E7E2DB',borderRadius:7,background:C.wit,cursor:'pointer',fontSize:13}}>← {jaar-1}</button>
         <span style={{fontSize:16,fontWeight:700,color:'#2D2D2D'}}>{jaar}</span>
-        <button onClick={()=>setJaar(j=>j+1)} style={{padding:'6px 14px',border:'1px solid #E5DEDA',borderRadius:7,background:'#fff',cursor:'pointer',fontSize:13}}>{jaar+1} →</button>
+        <button onClick={()=>setJaar(j=>j+1)} style={{padding:'6px 14px',border:'1px solid #E7E2DB',borderRadius:7,background:C.wit,cursor:'pointer',fontSize:13}}>{jaar+1} →</button>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
         {maandNamen.map((naam,mi)=>{
           const me = events.filter(e=>e.maand===mi);
           const isHuidig = mi===now.getMonth()&&jaar===now.getFullYear();
           return (
-            <div key={mi} style={{background:'#fff',border:`1.5px solid ${isHuidig?LOD_ROOD:'#E5DEDA'}`,borderRadius:10,overflow:'hidden'}}>
-              <div style={{padding:'8px 12px',background:isHuidig?LOD_ROOD_BG:'#FAF7F2',borderBottom:'1px solid #E5DEDA',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <span style={{fontSize:12,fontWeight:700,color:isHuidig?LOD_ROOD:'#374151'}}>{naam}</span>
-                {me.length>0&&<span style={{fontSize:10,fontWeight:600,background:LOD_ROOD_BG,color:LOD_ROOD,padding:'1px 6px',borderRadius:8}}>{me.length}</span>}
+            <div key={mi} style={{background:C.wit,border:`1.5px solid ${isHuidig?C.bordeaux:C.lijn}`,borderRadius:10,overflow:'hidden'}}>
+              <div style={{padding:'8px 12px',background:isHuidig?C.bordeauxTint:C.inset,borderBottom:'1px solid #E7E2DB',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span style={{fontSize:12,fontWeight:700,color:isHuidig?C.bordeaux:C.ink}}>{naam}</span>
+                {me.length>0&&<span style={{fontSize:10,fontWeight:600,background:C.bordeauxTint,color:C.bordeaux,padding:'1px 6px',borderRadius:8}}>{me.length}</span>}
               </div>
               <div style={{padding:'8px 10px',minHeight:60}}>
-                {me.length===0?<span style={{fontSize:10,color:'#D1D5DB'}}>Geen deadlines</span>:
+                {me.length===0?<span style={{fontSize:10,color:C.lijn}}>Geen deadlines</span>:
                   me.map((e,i)=>(
-                    <div key={i} style={{marginBottom:5,padding:'4px 7px',background:e.dagen<0?LOD_ROOD_BG:e.dagen<=14?'#FEF3E2':'#EAF1F8',borderRadius:6,borderLeft:`3px solid ${e.dagen<0?LOD_ROOD:e.dagen<=14?'#B45309':'#1A4D7A'}`}}>
-                      <div style={{fontSize:10,fontWeight:600,color:e.dagen<0?LOD_ROOD:e.dagen<=14?'#92400E':'#1A4D7A'}}>{e.naam}</div>
-                      <div style={{fontSize:9,color:'#8A7E7B'}}>{e.dag} {naam.toLowerCase()} · {e.dagen<0?Math.abs(e.dagen)+'d over':e.dagen===0?'vandaag':e.dagen+'d'}</div>
+                    <div key={i} style={{marginBottom:5,padding:'4px 7px',background:e.dagen<0?C.bordeauxTint:e.dagen<=14?C.amberTint:C.blauwTint,borderRadius:6,borderLeft:`3px solid ${e.dagen<0?C.bordeaux:e.dagen<=14?C.amber:C.blauw}`}}>
+                      <div style={{fontSize:10,fontWeight:600,color:e.dagen<0?C.bordeaux:e.dagen<=14?C.amber:C.blauw}}>{e.naam}</div>
+                      <div style={{fontSize:9,color:C.tekst2}}>{e.dag} {naam.toLowerCase()} · {e.dagen<0?Math.abs(e.dagen)+'d over':e.dagen===0?'vandaag':e.dagen+'d'}</div>
                     </div>
                   ))
                 }
@@ -861,8 +883,8 @@ function exportTotaalLodPDF(lods) {
     const gedaan  = stappen.filter(s=>s.ok).length;
     const pct     = Math.round(gedaan/stappen.length*100);
     const aantalOf = (lod.offertes||[]).filter(o=>o.aangevraagd).length;
-    const deadlineKleur = dagen===null?'#374151':dagen<0?'#991A21':dagen<=14?'#D97706':'#374151';
-    return `<tr style="background:${i%2===0?'#fff':'#FAF7F2'}">
+    const deadlineKleur = dagen===null?C.ink:dagen<0?'#991A21':dagen<=14?C.amber:C.ink;
+    return `<tr style="background:${i%2===0?'#fff':C.inset}">
       <td style="font-weight:600">${lod.vveNaam||'-'}</td>
       <td>${lod.gemeenteReferentie||'-'}</td>
       <td>${lod.behandelaar||'-'}</td>
@@ -872,10 +894,10 @@ function exportTotaalLodPDF(lods) {
       <td style="text-align:center">${aantalOf}</td>
       <td style="text-align:center">
         <div style="display:flex;align-items:center;gap:6px;justify-content:center">
-          <div style="width:60px;height:6px;background:#F3F4F6;border-radius:3px;overflow:hidden">
-            <div style="width:${pct}%;height:100%;background:${pct===100?'#2D6A4F':'#991A21'};border-radius:3px"></div>
+          <div style="width:60px;height:6px;background:#EFEBE4;border-radius:3px;overflow:hidden">
+            <div style="width:${pct}%;height:100%;background:${pct===100?C.groen:'#991A21'};border-radius:3px"></div>
           </div>
-          <span style="font-size:8pt;font-weight:600;color:${pct===100?'#2D6A4F':'#991A21'}">${pct}%</span>
+          <span style="font-size:8pt;font-weight:600;color:${pct===100?C.groen:'#991A21'}">${pct}%</span>
         </div>
       </td>
     </tr>`;
@@ -887,18 +909,18 @@ function exportTotaalLodPDF(lods) {
 
   const html = `<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8">
     <title>LOD Totaaloverzicht - ${nu}</title>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-    <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:"DM Sans",Arial,sans-serif;color:#1A1614;font-size:10pt;background:#fff;padding:32px 40px}
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:"DM Sans",Arial,sans-serif;color:#2D2D2D;font-size:10pt;background:#fff;padding:32px 40px}
     .hdr{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:12px;border-bottom:3px solid #991A21;margin-bottom:22px}
-    .hdr h1{font-family:"DM Serif Display",serif;font-size:18pt;color:#991A21;font-weight:400}.hdr .meta{font-size:9pt;color:#8A7E7B;margin-top:3px}
+    .hdr h1{font-family:'DM Sans',sans-serif;font-size:18pt;color:#991A21;font-weight:400}.hdr .meta{font-size:9pt;color:#6B6560;margin-top:3px}
     .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
-    .stat{background:#FAF7F2;border-left:3px solid #991A21;padding:10px 14px;border-radius:4px}
-    .stat-num{font-family:"DM Serif Display",serif;font-size:22pt;color:#991A21;font-weight:400}
-    .stat-lbl{font-size:8pt;color:#8A7E7B;text-transform:uppercase;letter-spacing:.05em}
+    .stat{background:#FAF8F5;border-left:3px solid #991A21;padding:10px 14px;border-radius:4px}
+    .stat-num{font-family:'DM Sans',sans-serif;font-size:22pt;color:#991A21;font-weight:400}
+    .stat-lbl{font-size:8pt;color:#6B6560;text-transform:uppercase;letter-spacing:.05em}
     table{width:100%;border-collapse:collapse;font-size:9pt}
     thead tr{background:#991A21;color:#fff}thead th{padding:8px 10px;text-align:left;font-size:8pt;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
-    tbody td{padding:7px 10px;border-bottom:1px solid #E5DEDA}
-    .footer{margin-top:20px;padding-top:8px;border-top:1px solid #E5DEDA;display:flex;justify-content:space-between;font-size:7.5pt;color:#8A7E7B}
+    tbody td{padding:7px 10px;border-bottom:1px solid #E7E2DB}
+    .footer{margin-top:20px;padding-top:8px;border-top:1px solid #E7E2DB;display:flex;justify-content:space-between;font-size:7.5pt;color:#6B6560}
     .print-btn{position:fixed;top:18px;right:18px;padding:9px 18px;background:#991A21;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer}
     @media print{.print-btn{display:none}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
     </head><body>
@@ -906,7 +928,7 @@ function exportTotaalLodPDF(lods) {
     <div class="hdr"><div><h1>LOD Totaaloverzicht</h1><div class="meta">Alle actieve LOD dossiers · Opgesteld op ${nu}</div></div></div>
     <div class="stats">
       <div class="stat"><div class="stat-num">${actief.length}</div><div class="stat-lbl">Actieve LODs</div></div>
-      <div class="stat"><div class="stat-num" style="color:#D97706">${urgent}</div><div class="stat-lbl">Urgent (≤14 dagen)</div></div>
+      <div class="stat"><div class="stat-num" style="color:#B07414">${urgent}</div><div class="stat-lbl">Urgent (≤14 dagen)</div></div>
       <div class="stat"><div class="stat-num">${overschreden}</div><div class="stat-lbl">Deadline voorbij</div></div>
       <div class="stat"><div class="stat-num" style="font-size:16pt">${lodFmt(totaalBoete)}</div><div class="stat-lbl">Totaal boeterisico</div></div>
     </div>
@@ -915,7 +937,7 @@ function exportTotaalLodPDF(lods) {
       <th>Deadline</th><th style="text-align:right">Max. boete</th>
       <th style="text-align:center">Offertes</th><th style="text-align:center">Voortgang</th>
     </tr></thead>
-    <tbody>${rijen||'<tr><td colspan=8 style="color:#8A7E7B;text-align:center;padding:20px">Geen actieve LODs</td></tr>'}</tbody></table>
+    <tbody>${rijen||'<tr><td colspan=8 style="color:#6B6560;text-align:center;padding:20px">Geen actieve LODs</td></tr>'}</tbody></table>
     <div class="footer"><span>Totaal VvE Beheer Den Haag en omstreken B.V. · Rijswijk</span><span>Last onder Dwangsom module</span></div>
     </body></html>`;
 
@@ -981,11 +1003,11 @@ export default function LodBeheer({ onTerug, beheerderList }) {
 
   const statFilters = [
     {key:'alle',           label:"Alle LOD's",            val:lods.length,           tc:'#2D2D2D',dc:'#2D2D2D'},
-    {key:'actief',         label:'Actief',                val:actief.length,          tc:'#1A4D7A',dc:'#1A4D7A'},
-    {key:'offertes_afwacht',label:'Offerte in afwachting',val:ofwacht.length,         tc:'#92400E',dc:'#B45309'},
-    {key:'vve_afwachting', label:'In afwachting van VvE', val:vveAfwacht.length,      tc:'#065F46',dc:'#059669'},
-    {key:'urgent',         label:'Urgent',                val:urgent.length,          tc:LOD_ROOD, dc:LOD_ROOD},
-    {key:'overschreden',   label:'Overschreden',          val:overschreden.length,    tc:LOD_ROOD, dc:LOD_ROOD},
+    {key:'actief',         label:'Actief',                val:actief.length,          tc:C.blauw,dc:C.blauw},
+    {key:'offertes_afwacht',label:'Offerte in afwachting',val:ofwacht.length,         tc:C.amber,dc:C.amber},
+    {key:'vve_afwachting', label:'In afwachting van VvE', val:vveAfwacht.length,      tc:C.groen,dc:C.groen},
+    {key:'urgent',         label:'Urgent',                val:urgent.length,          tc:C.bordeaux, dc:C.bordeaux},
+    {key:'overschreden',   label:'Overschreden',          val:overschreden.length,    tc:C.bordeaux, dc:C.bordeaux},
   ];
 
   // Filterlijst zijbalk: exclusief 'in_behandeling' en 'offertes_lopen'
@@ -1011,67 +1033,65 @@ export default function LodBeheer({ onTerug, beheerderList }) {
   });
 
   if (loading) return (
-    <div className="min-h-screen bg-[#F2EFEC] flex items-center justify-center">
+    <div style={{minHeight:"100vh",background:C.papier,display:"flex",alignItems:"center",justifyContent:"center"}}>
       <style>{CSS_FONT}</style>
-      <div style={{textAlign:'center',color:'#8A7E7B'}}>
-        <div style={{fontSize:24,marginBottom:8}}>⏳</div>
+      <div style={{textAlign:'center',color:C.tekst2}}>
+        <div style={{marginBottom:8}}>{Icn.clock(24, C.tekst3)}</div>
         <div style={{fontSize:14}}>LOD data laden...</div>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#F2EFEC]">
+    <div style={{minHeight:"100vh",background:C.papier}}>
       <style>{CSS_FONT}</style>
       {/* Topbar */}
-      <div className="border-b border-gray-200 px-6 h-14 flex items-center justify-between bg-white shadow-sm sticky top-0 z-50">
-        <div className="flex items-center gap-3">
-          <div className="flex gap-1">
-            <div style={{width:28,height:28,background:LOD_ROOD,borderRadius:6}} />
-            <div style={{width:28,height:28,background:'#2D2D2D',borderRadius:6}} />
+      <div style={{position:"sticky",top:0,zIndex:50,background:C.wit,borderBottom:"1px solid "+C.lijn,height:56,padding:"0 24px",display:"flex",alignItems:"center",justifyContent:"space-between",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <div style={{borderLeft:'3px solid '+C.bordeaux,paddingLeft:10,display:'flex',alignItems:'center',gap:8}}>
+            {Icn.shield(18, C.bordeaux)}
+            <span style={{fontSize:14,fontWeight:700,color:C.ink}}>LOD Beheer</span>
+            <span style={{fontSize:12,color:C.tekst3}}>Last onder Dwangsom module</span>
           </div>
-          <div className="w-px h-5 bg-gray-200" />
-          <span className="text-sm font-bold text-[#2D2D2D]">LOD Beheer</span>
-          <span className="text-xs text-gray-400">Last onder Dwangsom module</span>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={addLod} style={{fontSize:12,padding:'6px 14px',background:LOD_ROOD,color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <button onClick={addLod} style={{fontSize:12,padding:'6px 14px',background:C.bordeaux,color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",fontWeight:600}}>
             + Nieuwe LOD
           </button>
-          <button onClick={()=>exportTotaalLodPDF(lods)} style={{fontSize:12,padding:'6px 14px',background:'#fff',color:LOD_ROOD,border:`1.5px solid ${LOD_ROOD}`,borderRadius:8,cursor:'pointer',fontFamily:'inherit',fontWeight:500}}>
+          <button onClick={()=>exportTotaalLodPDF(lods)} style={{fontSize:12,padding:'6px 14px',background:C.wit,color:C.bordeaux,border:`1.5px solid ${C.bordeaux}`,borderRadius:8,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",fontWeight:500}}>
             Totaaloverzicht PDF
           </button>
-          <button onClick={onTerug} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-gray-600 transition-colors">
+          <button onClick={onTerug} style={{fontSize:12,padding:"6px 12px",background:C.wit,border:"1px solid "+C.lijn,borderRadius:10,color:C.tekst2,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
             ← Terug naar portaal
           </button>
         </div>
       </div>
 
       {/* Stats balk — klikbaar, breed, cijfer links */}
-      <div style={{background:'#fff',borderBottom:'1px solid #E5DEDA',display:'flex',flexWrap:'wrap'}}>
+      <div style={{background:C.wit,borderBottom:'1px solid #E7E2DB',display:'flex',flexWrap:'wrap'}}>
         {statFilters.map(sf=>(
           <button key={sf.key} onClick={()=>setFilterStatus(sf.key)}
-            style={{display:'flex',alignItems:'center',gap:12,padding:'12px 20px',border:'none',borderBottom:`2px solid ${filterStatus===sf.key?sf.tc:'transparent'}`,background:filterStatus===sf.key?'#FAF7F2':'transparent',cursor:'pointer',transition:'all .15s',borderRight:'1px solid #F3F4F6',minWidth:140}}>
+            style={{display:'flex',alignItems:'center',gap:12,padding:'12px 20px',border:'none',borderBottom:`2px solid ${filterStatus===sf.key?sf.tc:'transparent'}`,background:filterStatus===sf.key?C.inset:'transparent',cursor:'pointer',transition:'all .15s',borderRight:'1px solid #EFEBE4',minWidth:140}}>
             <span style={{fontSize:28,fontWeight:700,color:sf.tc,fontFamily:'DM Sans,sans-serif',lineHeight:1}}>{sf.val}</span>
             <div style={{textAlign:'left'}}>
               <div style={{fontSize:11,color:sf.tc,fontWeight:600,lineHeight:1.2}}>{sf.label}</div>
-              {filterStatus===sf.key&&<div style={{fontSize:9,color:'#9CA3AF',marginTop:2}}>actief filter</div>}
+              {filterStatus===sf.key&&<div style={{fontSize:9,color:C.tekst3,marginTop:2}}>actief filter</div>}
             </div>
           </button>
         ))}
         {totaalBoete>0&&(
-          <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 20px',borderRight:'1px solid #F3F4F6',minWidth:160}}>
-            <span style={{fontSize:22,fontWeight:700,color:LOD_ROOD,fontFamily:'monospace',lineHeight:1}}>{lodFmt(totaalBoete)}</span>
-            <div style={{fontSize:11,color:LOD_ROOD,fontWeight:600,lineHeight:1.2}}>Totaal<br/>boeterisico</div>
+          <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 20px',borderRight:'1px solid #EFEBE4',minWidth:160}}>
+            <span style={{fontSize:22,fontWeight:700,color:C.bordeaux,fontVariantNumeric:'tabular-nums',lineHeight:1}}>{lodFmt(totaalBoete)}</span>
+            <div style={{fontSize:11,color:C.bordeaux,fontWeight:600,lineHeight:1.2}}>Totaal<br/>boeterisico</div>
           </div>
         )}
       </div>
 
       {/* Tabs hoofd */}
-      <div style={{background:'#fff',borderBottom:'1px solid #E5DEDA',paddingLeft:20,display:'flex'}}>
+      <div style={{background:C.wit,borderBottom:'1px solid #E7E2DB',paddingLeft:20,display:'flex'}}>
         {[['lods','LOD overzicht'],['kalender','Deadlinekalender']].map(([key,lbl])=>(
           <button key={key} onClick={()=>setTabHoofd(key)}
-            style={{padding:'10px 18px',border:'none',borderBottom:`2px solid ${tabHoofd===key?LOD_ROOD:'transparent'}`,background:'transparent',fontSize:13,fontWeight:tabHoofd===key?600:400,color:tabHoofd===key?LOD_ROOD:'#6B7280',cursor:'pointer'}}>
+            style={{padding:'10px 18px',border:'none',borderBottom:`2px solid ${tabHoofd===key?C.bordeaux:'transparent'}`,background:'transparent',fontSize:13,fontWeight:tabHoofd===key?600:400,color:tabHoofd===key?C.bordeaux:C.tekst2,cursor:'pointer'}}>
             {lbl}
           </button>
         ))}
@@ -1083,58 +1103,58 @@ export default function LodBeheer({ onTerug, beheerderList }) {
             {/* Zijbalk */}
             <div>
               {(overschreden.length>0||urgent.length>0||ofwacht.length>0||vveAfwacht.length>0)&&(
-                <div style={{background:'#fff',border:'1.5px solid #E5DEDA',borderRadius:12,padding:'14px 16px',marginBottom:14}}>
-                  <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:LOD_ROOD,marginBottom:10}}>Actie vereist</div>
+                <div style={{background:C.wit,border:'1.5px solid #E7E2DB',borderRadius:12,padding:'14px 16px',marginBottom:14}}>
+                  <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:C.bordeaux,marginBottom:10}}>Actie vereist</div>
                   {overschreden.map(l=>(
-                    <div key={l.id} onClick={()=>setOpenId(l.id)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 8px',background:LOD_ROOD_BG,border:`1px solid #fca5a5`,borderRadius:7,marginBottom:5,cursor:'pointer',fontSize:11}}>
-                      <span style={{fontWeight:600,color:LOD_ROOD}}>{l.vveNaam||'Naamloos'}</span>
-                      <span style={{color:LOD_ROOD}}>voorbij</span>
+                    <div key={l.id} onClick={()=>setOpenId(l.id)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 8px',background:C.bordeauxTint,border:`1px solid #E3C9C9`,borderRadius:7,marginBottom:5,cursor:'pointer',fontSize:11}}>
+                      <span style={{fontWeight:600,color:C.bordeaux}}>{l.vveNaam||'Naamloos'}</span>
+                      <span style={{color:C.bordeaux}}>voorbij</span>
                     </div>
                   ))}
                   {urgent.map(l=>(
-                    <div key={l.id} onClick={()=>setOpenId(l.id)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 8px',background:'#FEF3E2',border:'1px solid #FDE68A',borderRadius:7,marginBottom:5,cursor:'pointer',fontSize:11}}>
-                      <span style={{fontWeight:600,color:'#92400E'}}>{l.vveNaam||'Naamloos'}</span>
-                      <span style={{color:'#92400E'}}>{lodDagenTot(l.deadlineAlgemeen)}d</span>
+                    <div key={l.id} onClick={()=>setOpenId(l.id)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 8px',background:C.amberTint,border:'1px solid #E8D5B0',borderRadius:7,marginBottom:5,cursor:'pointer',fontSize:11}}>
+                      <span style={{fontWeight:600,color:C.amber}}>{l.vveNaam||'Naamloos'}</span>
+                      <span style={{color:C.amber}}>{lodDagenTot(l.deadlineAlgemeen)}d</span>
                     </div>
                   ))}
                   {ofwacht.filter(l=>!overschreden.includes(l)&&!urgent.includes(l)).map(l=>(
-                    <div key={l.id} onClick={()=>setOpenId(l.id)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 8px',background:'#F3EFFD',border:'1px solid #C4B5FD',borderRadius:7,marginBottom:5,cursor:'pointer',fontSize:11}}>
-                      <span style={{fontWeight:600,color:'#5B3FA6'}}>{l.vveNaam||'Naamloos'}</span>
-                      <span style={{color:'#5B3FA6'}}>offerte open</span>
+                    <div key={l.id} onClick={()=>setOpenId(l.id)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 8px',background:C.blauwTint,border:'1px solid #C4D2DE',borderRadius:7,marginBottom:5,cursor:'pointer',fontSize:11}}>
+                      <span style={{fontWeight:600,color:C.blauw}}>{l.vveNaam||'Naamloos'}</span>
+                      <span style={{color:C.blauw}}>offerte open</span>
                     </div>
                   ))}
                   {vveAfwacht.filter(l=>!overschreden.includes(l)&&!urgent.includes(l)&&!ofwacht.includes(l)).map(l=>(
-                    <div key={l.id} onClick={()=>setOpenId(l.id)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 8px',background:'#D1FAE5',border:'1px solid #6EE7B7',borderRadius:7,marginBottom:5,cursor:'pointer',fontSize:11}}>
-                      <span style={{fontWeight:600,color:'#065F46'}}>{l.vveNaam||'Naamloos'}</span>
-                      <span style={{color:'#065F46'}}>wacht VvE</span>
+                    <div key={l.id} onClick={()=>setOpenId(l.id)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 8px',background:C.groenTint,border:'1px solid #CFE0D5',borderRadius:7,marginBottom:5,cursor:'pointer',fontSize:11}}>
+                      <span style={{fontWeight:600,color:C.groen}}>{l.vveNaam||'Naamloos'}</span>
+                      <span style={{color:C.groen}}>wacht VvE</span>
                     </div>
                   ))}
                 </div>
               )}
               {/* Verberg afgerond knop */}
               <button onClick={()=>setHideAfgerond(p=>!p)}
-                style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'10px 12px',background:hideAfgerond?'#EAF4EE':'#fff',border:`1.5px solid ${hideAfgerond?'#2D6A4F':'#E5DEDA'}`,borderRadius:10,cursor:'pointer',fontFamily:'inherit',marginBottom:10,transition:'all .15s'}}>
-                <div style={{width:16,height:16,borderRadius:4,background:hideAfgerond?'#2D6A4F':'transparent',border:`1.5px solid ${hideAfgerond?'#2D6A4F':'#9CA3AF'}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                  {hideAfgerond&&<span style={{color:'#fff',fontSize:10,fontWeight:700,lineHeight:1}}>✓</span>}
+                style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'10px 12px',background:hideAfgerond?C.groenTint:'#fff',border:`1.5px solid ${hideAfgerond?C.groen:C.lijn}`,borderRadius:10,cursor:'pointer',fontFamily:"'DM Sans',sans-serif",marginBottom:10,transition:'all .15s'}}>
+                <div style={{width:16,height:16,borderRadius:4,background:hideAfgerond?C.groen:'transparent',border:`1.5px solid ${hideAfgerond?C.groen:C.tekst3}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                  {hideAfgerond&&Icn.check(11,'#fff')}
                 </div>
-                <span style={{fontSize:12,fontWeight:600,color:hideAfgerond?'#2D6A4F':'#374151'}}>Verberg afgerond</span>
-                {hideAfgerond&&<span style={{marginLeft:'auto',fontSize:10,color:'#2D6A4F',fontWeight:600}}>{lods.filter(l=>l.status==='afgerond').length} verborgen</span>}
+                <span style={{fontSize:12,fontWeight:600,color:hideAfgerond?C.groen:C.ink}}>Verberg afgerond</span>
+                {hideAfgerond&&<span style={{marginLeft:'auto',fontSize:10,color:C.groen,fontWeight:600}}>{lods.filter(l=>l.status==='afgerond').length} verborgen</span>}
               </button>
 
-              <div style={{background:'#fff',border:'1px solid #E5DEDA',borderRadius:12,padding:'14px 16px'}}>
-                <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#8A7E7B',marginBottom:10}}>Filter op status</div>
+              <div style={{background:C.wit,border:'1px solid #E7E2DB',borderRadius:12,padding:'14px 16px'}}>
+                <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:C.tekst2,marginBottom:10}}>Filter op status</div>
                 {[['alle',"Alle LOD's"],...filterLijstStatussen.map(([k,v])=>[k,v.label]),['uitstel','Uitstel aangevraagd']].map(([key,lbl])=>(
                   <button key={key} onClick={()=>setFilterStatus(key)}
-                    style={{display:'block',width:'100%',textAlign:'left',padding:'7px 10px',borderRadius:7,border:'none',background:filterStatus===key?LOD_ROOD_BG:'transparent',color:filterStatus===key?LOD_ROOD:'#374151',fontSize:12,fontWeight:filterStatus===key?600:400,cursor:'pointer',marginBottom:2}}>
+                    style={{display:'block',width:'100%',textAlign:'left',padding:'7px 10px',borderRadius:7,border:'none',background:filterStatus===key?C.bordeauxTint:'transparent',color:filterStatus===key?C.bordeaux:C.ink,fontSize:12,fontWeight:filterStatus===key?600:400,cursor:'pointer',marginBottom:2}}>
                     {lbl}
-                    <span style={{float:'right',fontSize:11,color:'#9CA3AF'}}>{key==='alle'?lods.length:lods.filter(l=>l.status===key).length}</span>
+                    <span style={{float:'right',fontSize:11,color:C.tekst3}}>{key==='alle'?lods.length:lods.filter(l=>l.status===key).length}</span>
                   </button>
                 ))}
               </div>
 
               {/* Maandfilter op deadline */}
-              <div style={{background:'#fff',border:'1px solid #E5DEDA',borderRadius:12,padding:'14px 16px',marginTop:10}}>
-                <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:'#8A7E7B',marginBottom:10}}>Filter op deadline maand</div>
+              <div style={{background:C.wit,border:'1px solid #E7E2DB',borderRadius:12,padding:'14px 16px',marginTop:10}}>
+                <div style={{fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.07em',color:C.tekst2,marginBottom:10}}>Filter op deadline maand</div>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:4}}>
                   {['Jan','Feb','Mrt','Apr','Mei','Jun','Jul','Aug','Sep','Okt','Nov','Dec'].map((m,mi)=>{
                     const aantalInMaand = lods.filter(l=>{
@@ -1143,14 +1163,14 @@ export default function LodBeheer({ onTerug, beheerderList }) {
                     }).length;
                     return (
                       <button key={mi} onClick={()=>setFilterMaand(filterMaand===mi?null:mi)}
-                        style={{padding:'5px 4px',borderRadius:6,border:`1.5px solid ${filterMaand===mi?LOD_ROOD:'#E5DEDA'}`,background:filterMaand===mi?LOD_ROOD_BG:'transparent',color:filterMaand===mi?LOD_ROOD:'#374151',fontSize:11,fontWeight:filterMaand===mi?700:400,cursor:'pointer',textAlign:'center',transition:'all .15s',position:'relative'}}>
+                        style={{padding:'5px 4px',borderRadius:6,border:`1.5px solid ${filterMaand===mi?C.bordeaux:C.lijn}`,background:filterMaand===mi?C.bordeauxTint:'transparent',color:filterMaand===mi?C.bordeaux:C.ink,fontSize:11,fontWeight:filterMaand===mi?700:400,cursor:'pointer',textAlign:'center',transition:'all .15s',position:'relative'}}>
                         {m}
-                        {aantalInMaand>0&&<span style={{position:'absolute',top:-4,right:-4,width:14,height:14,borderRadius:'50%',background:LOD_ROOD,color:'#fff',fontSize:8,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center'}}>{aantalInMaand}</span>}
+                        {aantalInMaand>0&&<span style={{position:'absolute',top:-4,right:-4,width:14,height:14,borderRadius:'50%',background:C.bordeaux,color:'#fff',fontSize:8,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center'}}>{aantalInMaand}</span>}
                       </button>
                     );
                   })}
                 </div>
-                {filterMaand!==null&&<button onClick={()=>setFilterMaand(null)} style={{marginTop:8,width:'100%',padding:'5px',background:'transparent',border:'none',cursor:'pointer',fontSize:11,color:'#9CA3AF',textDecoration:'underline'}}>Maandfilter wissen</button>}
+                {filterMaand!==null&&<button onClick={()=>setFilterMaand(null)} style={{marginTop:8,width:'100%',padding:'5px',background:'transparent',border:'none',cursor:'pointer',fontSize:11,color:C.tekst3,textDecoration:'underline'}}>Maandfilter wissen</button>}
               </div>
             </div>
 
@@ -1158,13 +1178,13 @@ export default function LodBeheer({ onTerug, beheerderList }) {
             <div>
               <div style={{display:'flex',gap:10,marginBottom:16,alignItems:'center'}}>
                 <input value={zoek} onChange={e=>setZoek(e.target.value)} placeholder="Zoek op VvE naam of referentie..."
-                  className="calc-inp" style={{flex:1,fontSize:13}} />
-                {zoek&&<button onClick={()=>setZoek('')} style={{padding:'8px 12px',background:'#fff',border:'1px solid #E5DEDA',borderRadius:8,cursor:'pointer',fontSize:12,color:'#8A7E7B'}}>✕</button>}
-                {filterStatus!=='alle'&&<button onClick={()=>setFilterStatus('alle')} style={{padding:'6px 12px',background:LOD_ROOD_BG,border:`1px solid #fca5a5`,borderRadius:8,cursor:'pointer',fontSize:11,color:LOD_ROOD,fontWeight:600,whiteSpace:'nowrap'}}>✕ Wis filter</button>}
+                  style={{...lodInpStyle,flex:1,fontSize:13}} />
+                {zoek&&<button onClick={()=>setZoek('')} style={{padding:'8px 12px',background:C.wit,border:'1px solid #E7E2DB',borderRadius:8,cursor:'pointer',fontSize:12,color:C.tekst2}}>{Icn.x(14,C.tekst2)}</button>}
+                {filterStatus!=='alle'&&<button onClick={()=>setFilterStatus('alle')} style={{padding:'6px 12px',background:C.bordeauxTint,border:`1px solid #E3C9C9`,borderRadius:8,cursor:'pointer',fontSize:11,color:C.bordeaux,fontWeight:600,whiteSpace:'nowrap',display:'flex',alignItems:'center',gap:4}}>{Icn.x(12,C.bordeaux)} Wis filter</button>}
               </div>
               {zichtbaar.length===0?(
-                <div style={{textAlign:'center',padding:'60px 20px',color:'#9CA3AF'}}>
-                  <div style={{fontSize:32,marginBottom:12}}>📋</div>
+                <div style={{textAlign:'center',padding:'60px 20px',color:C.tekst3}}>
+                  <div style={{marginBottom:12}}>{Icn.clipboard(32, C.tekst3)}</div>
                   <div style={{fontSize:14,fontWeight:600,marginBottom:4}}>{lods.length===0?"Nog geen LOD's geregistreerd":"Geen resultaten"}</div>
                   <div style={{fontSize:12}}>{lods.length===0?"Klik op + Nieuwe LOD om te beginnen.":"Probeer een andere zoekterm of filter."}</div>
                 </div>
