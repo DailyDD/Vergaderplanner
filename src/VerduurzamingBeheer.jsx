@@ -409,7 +409,7 @@ function Chk({ checked, onChange, label }) {
 /* Vinkje in "chip"-vorm voor de offerte-/traject-stappen — groen wanneer af. */
 function ChipChk({ checked, onChange, label }) {
   return (
-    <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", padding: "7px 9px", background: checked ? C.groenTint : C.wit, border: `1px solid ${checked ? C.groenRand : C.lijn}`, borderRadius: 8, fontSize: 11, fontWeight: 600, color: checked ? C.groen : C.tekst2, userSelect: "none", transition: "all .15s" }}>
+    <label onClick={() => onChange(!checked)} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", padding: "7px 9px", background: checked ? C.groenTint : C.wit, border: `1px solid ${checked ? C.groenRand : C.lijn}`, borderRadius: 8, fontSize: 11, fontWeight: 600, color: checked ? C.groen : C.tekst2, userSelect: "none", transition: "all .15s" }}>
       <div style={{ width: 14, height: 14, borderRadius: 4, border: `1.5px solid ${checked ? C.groen : C.randHover}`, background: checked ? C.groen : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: "#fff" }}>
         {checked && <Ico.check width={9} height={9} />}
       </div>
