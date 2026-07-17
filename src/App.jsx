@@ -2536,8 +2536,11 @@ useEffect(() => {
                 </div>
               </div>
 
-              {/* ── Voortgang + Actie vereist ──────────────────────── */}
-              <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4 mb-8 items-start">
+              {/* ── Voortgang + Eerstvolgende | Actie vereist ──────── */}
+              <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-4 mb-8 items-start">
+
+                {/* ── Linkerkolom: Voortgang + Eerstvolgende ── */}
+                <div className="flex flex-col gap-4">
 
                 {/* Voortgang */}
                 <div className="bg-white border border-[#E7E2DB] rounded-xl overflow-hidden">
@@ -2599,6 +2602,43 @@ useEffect(() => {
                     )}
                   </div>
                 </div>
+
+                {/* Eerstvolgende vergaderingen */}
+                <div className="bg-white border border-[#E7E2DB] rounded-xl overflow-hidden">
+                  <div className="flex items-center gap-2.5 px-5 py-4 border-b border-[#EFEBE4]">
+                    <span className="w-[3px] h-[15px] rounded-sm bg-[#991A21]" />
+                    <p className="text-[14px] font-semibold text-[#2D2D2D]">Eerstvolgende vergaderingen</p>
+                  </div>
+                  <div className="px-5 py-4">
+                    {komendeVergaderingen.length === 0 ? (
+                      <p className="text-[13px] text-[#9B958E]">Geen vergaderingen gepland. Open de Vergaderplanner om te beginnen.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {komendeVergaderingen.map((v, i) => (
+                          <div
+                            key={i}
+                            onClick={() => openVveKaart(v.vveId)}
+                            className="flex items-center gap-3 text-[13px] -mx-2 px-2 py-1 rounded-lg cursor-pointer hover:bg-[#FAF8F5] transition-colors"
+                          >
+                            <span
+                              className="w-[9px] h-[9px] rounded-full shrink-0 border-2 bg-white"
+                              style={{ borderColor: v.uitgenodigd ? "#4A6B8A" : "#C9BEB2" }}
+                              title={v.uitgenodigd ? "Uitnodiging verstuurd" : "Nog niet uitgenodigd"}
+                            />
+                            <span className="font-semibold text-[#2D2D2D] truncate">{v.naam}</span>
+                            <span className="text-[#9B958E] shrink-0 hidden sm:inline">— {v.soort}</span>
+                            <span className="ml-auto shrink-0 text-right whitespace-nowrap">
+                              <span className="text-[#3f3d3b] tabular-nums">{fmtDate(v.datum)}</span>
+                              <span className="text-[#9B958E]"> · {dagTekst(dagenTot(v.datum))}</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                </div>{/* einde linkerkolom */}
 
                 {/* Actie vereist */}
                 <div className="bg-white border border-[#E7E2DB] rounded-xl overflow-hidden">
@@ -2669,40 +2709,7 @@ useEffect(() => {
             </>
           )}
 
-          {/* ── Eerstvolgende vergaderingen ──────────────────────── */}
-          <div className="bg-white border border-[#E7E2DB] rounded-xl overflow-hidden">
-            <div className="flex items-center gap-2.5 px-5 py-4 border-b border-[#EFEBE4]">
-              <span className="w-[3px] h-[15px] rounded-sm bg-[#991A21]" />
-              <p className="text-[14px] font-semibold text-[#2D2D2D]">Eerstvolgende vergaderingen</p>
-            </div>
-            <div className="px-5 py-4">
-              {komendeVergaderingen.length === 0 ? (
-                <p className="text-[13px] text-[#9B958E]">Geen vergaderingen gepland. Open de Vergaderplanner om te beginnen.</p>
-              ) : (
-                <div className="space-y-3">
-                  {komendeVergaderingen.map((v, i) => (
-                    <div
-                      key={i}
-                      onClick={() => openVveKaart(v.vveId)}
-                      className="flex items-center gap-3 text-[13px] -mx-2 px-2 py-1 rounded-lg cursor-pointer hover:bg-[#FAF8F5] transition-colors"
-                    >
-                      <span
-                        className="w-[9px] h-[9px] rounded-full shrink-0 border-2 bg-white"
-                        style={{ borderColor: v.uitgenodigd ? "#4A6B8A" : "#C9BEB2" }}
-                        title={v.uitgenodigd ? "Uitnodiging verstuurd" : "Nog niet uitgenodigd"}
-                      />
-                      <span className="font-semibold text-[#2D2D2D] truncate">{v.naam}</span>
-                      <span className="text-[#9B958E] shrink-0 hidden sm:inline">— {v.soort}</span>
-                      <span className="ml-auto shrink-0 text-right whitespace-nowrap">
-                        <span className="text-[#3f3d3b] tabular-nums">{fmtDate(v.datum)}</span>
-                        <span className="text-[#9B958E]"> · {dagTekst(dagenTot(v.datum))}</span>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+
         </div>
     );
   }
