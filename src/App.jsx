@@ -173,7 +173,7 @@ function getUid() {
 async function getUserRole() {
   const uid = getUid();
   const filter = uid ? `&id=eq.${uid}` : '';
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/user_roles?select=naam,rol,welkomstscherm_gezien${filter}`, {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/user_roles?select=naam,rol,modules,welkomstscherm_gezien${filter}`, {
     headers: getAuthHeaders(),
   });
   if (!res.ok) throw new Error("Rol ophalen mislukt");
@@ -1535,7 +1535,8 @@ function AdminDashboard({ beheerderList }) {
 export default function App() {
   const [screen, setScreen] = useState(RECOVERY && RECOVERY.token ? "wachtwoord-instellen" : "login"); // login | wachtwoord-instellen | portaal | vergaderingen | calculator | admin | lod
   const [beheerder, setBeheerder] = useState("");
-  const [userRol, setUserRol] = useState("beheerder"); // beheerder | beheerder_plus | admin
+  const [userRol, setUserRol] = useState("beheerder");
+  const [userModules, setUserModules] = useState([]);
   const [showWelkomst, setShowWelkomst] = useState(false);
   const [eigenNaam, setEigenNaam] = useState("");
   const [beheerderList, setBeheerderList] = useState([]);
@@ -1597,6 +1598,7 @@ useEffect(() => {
     }
     setBeheerder(rol.naam);
     setUserRol(rol.rol || "beheerder");
+    setUserModules(rol.modules || []);
     loadData(rol.naam).then(d => {
       setData(d || defaultData());
       setScreen("portaal");
@@ -1658,6 +1660,7 @@ useEffect(() => {
       }
       setBeheerder(rol.naam);
       setUserRol(rol.rol || "beheerder");
+      setUserModules(rol.modules || []);
       const d = await loadData(rol.naam);
       setData(d || defaultData());
       setScreen("portaal");
@@ -2018,27 +2021,26 @@ useEffect(() => {
   const isLodBeheerder = userRol === "beheerder_plus";
   const heeftLodToegang = isAdmin || isHoofdAdmin || isLodBeheerder;
   const VERDUURZAMING_BEHEERDERS = ["Brian", "Jeffrey"];
-  const heeftVerduurzamingToegang = isHoofdAdmin || VERDUURZAMING_BEHEERDERS.includes(beheerder);
+  const heeftModule = (m) => userModules.includes(m);
+  const heeftVerduurzamingToegang = isHoofdAdmin || isAdmin || heeftModule('verduurzaming');
   const rolLabel = isHoofdAdmin ? "Hoofdbeheerder" : isAdmin ? "Administrator" : isLodBeheerder ? "Beheerder +" : "Beheerder";
 
   // ── Navigatie ────────────────────────────────────────────────
-  // `toon` is LETTERLIJK de gate die voorheen op de moduletegel stond. De
-  // tegels zijn weg, dus dit is nu de enige weg naar een module — een fout
-  // hier betekent dat iemand een module kwijt is zonder terugval.
+  // `toon` bepaalt zichtbaarheid per module:
   //   Vergaderplanner / Calculator  → iedereen
-  //   Verduurzaming                 → heeftVerduurzamingToegang
-  //   LOD Beheer                    → heeftLodToegang
-  //   Notulen / Kennisbank / Mail   → isHoofdAdmin
-  //   Admin Dashboard               → isAdmin || isHoofdAdmin
+  //   Verduurzaming                 → hoofd_admin/admin of modules bevat 'verduurzaming'
+  //   LOD Beheer                    → hoofd_admin/admin/beheerder_plus
+  //   Notulen / Kennisbank / Mail   → hoofd_admin/admin of modules bevat de key
+  //   Admin Dashboard               → admin || hoofd_admin
   const NAV = [
     { key: "portaal", label: "Dashboard", toon: true, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>) },
     { key: "vergaderingen", label: "Vergaderplanner", toon: true, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="3" y="4" width="18" height="18" rx="2.5"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>) },
     { key: "calculator", label: "VvE Calculator", toon: true, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="4" y="2" width="16" height="20" rx="2.5"/><path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 19h4"/></svg>) },
     { key: "verduurzaming", label: "Verduurzaming", toon: heeftVerduurzamingToegang, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg>) },
     { key: "lod", label: "LOD Beheer", toon: heeftLodToegang, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="m10.3 3.2-8.5 14.6A2 2 0 0 0 3.5 21h17a2 2 0 0 0 1.7-3.2L13.7 3.2a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>) },
-    { key: "notulen", label: "Notulen Assistent", toon: isHoofdAdmin, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M15 13H9M15 17H9M11 9H9"/></svg>) },
-    { key: "kennisbank", label: "Kennisbank", toon: isHoofdAdmin, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>) },
-    { key: "mail", label: "E-mail Configurator", toon: isHoofdAdmin, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="2" y="4" width="20" height="16" rx="2.5"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>) },
+    { key: "notulen", label: "Notulen Assistent", toon: isHoofdAdmin || isAdmin || heeftModule('notulen_assistent'), icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M15 13H9M15 17H9M11 9H9"/></svg>) },
+    { key: "kennisbank", label: "Kennisbank", toon: isHoofdAdmin || isAdmin || heeftModule('kennisbank'), icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>) },
+    { key: "mail", label: "E-mail Configurator", toon: isHoofdAdmin || isAdmin || heeftModule('email_configurator'), icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="2" y="4" width="20" height="16" rx="2.5"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>) },
     { key: "admin", label: "Admin Dashboard", toon: isAdmin || isHoofdAdmin, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>) },
   ].filter(n => n.toon);
 
