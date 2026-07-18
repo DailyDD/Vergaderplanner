@@ -1120,6 +1120,7 @@ function AdminDashboard({ beheerderList }) {
   const totAchterstand= som("achterstand");
   const totUitnodiging= som("uitnodigingUrgent");
   const totNietGepland= som("nietGepland");
+  const totTekomen    = som("tekomen");
   const totVerstreken = totAfgerond + totAchterstand;
   const pctVerwerkt   = totVerstreken === 0 ? null : Math.round((totAfgerond / totVerstreken) * 100);
 
@@ -1137,8 +1138,16 @@ function AdminDashboard({ beheerderList }) {
     { val: totaal,         label: "VvE's totaal",       kleur: "#2D2D2D", alarm: false },
     { val: totAfgerond,    label: "Afgerond",           kleur: "#3B7A57", alarm: false },
     { val: totAchterstand, label: "Achterstand",        kleur: "#991A21", alarm: totAchterstand > 0, tint: "#F6ECEC", rand: "#E3C9C9" },
-    { val: totUitnodiging, label: "Uitnodiging urgent", kleur: "#B07414", alarm: false },
-    { val: totNietGepland, label: "Niet gepland",       kleur: "#4A6B8A", alarm: false },
+    { val: totTekomen,     label: "Aankomend",          kleur: "#4A6B8A", alarm: false },
+    { val: totNietGepland, label: "Niet gepland",       kleur: "#9B958E", alarm: false },
+  ];
+
+  // Verdeling voor de gesegmenteerde balk — moet exact optellen tot totaal.
+  const verdeling = [
+    { label: "Afgerond",    val: totAfgerond,    kleur: "#3B7A57" },
+    { label: "Achterstand", val: totAchterstand, kleur: "#991A21" },
+    { label: "Aankomend",   val: totTekomen,     kleur: "#4A6B8A" },
+    { label: "Niet gepland",val: totNietGepland, kleur: "#9B958E" },
   ];
 
   const knopStijl = "flex items-center gap-1.5 text-[12.5px] font-medium px-3 h-8 rounded-lg border border-[#E7E2DB] text-[#6B6560] hover:text-[#991A21] hover:border-[#C9BEB2] transition-colors";
@@ -1182,6 +1191,20 @@ function AdminDashboard({ beheerderList }) {
           </div>
         )}
 
+        {/* ── Uitnodiging urgent — los signaal, telt NIET op bij de kaarten hieronder ── */}
+        {totUitnodiging > 0 && (
+          <div className="flex items-center gap-3 rounded-xl border px-4 py-3" style={{ backgroundColor: "#FBF3E7", borderColor: "#E8D3AC" }}>
+            <span className="w-[3px] h-[28px] rounded-sm shrink-0" style={{ backgroundColor: "#B07414" }} />
+            <div className="flex items-baseline gap-2">
+              <span className="text-[20px] leading-none font-semibold tabular-nums" style={{ color: "#B07414" }}>{totUitnodiging}</span>
+              <span className="text-[13px] font-semibold text-[#2D2D2D]">VvE{totUitnodiging === 1 ? "" : "'s"} met uitnodiging urgent</span>
+            </div>
+            <span className="text-[11.5px] text-[#9B958E] ml-1">
+              — overlapt met achterstand/aankomend hieronder, telt niet apart op bij het totaal
+            </span>
+          </div>
+        )}
+
         {/* ── KPI's ───────────────────────────────────────────────── */}
         <div className="grid grid-cols-5 gap-3">
           {kpis.map(k => (
@@ -1201,6 +1224,24 @@ function AdminDashboard({ beheerderList }) {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* ── Verdeling — gesegmenteerde balk die optelt tot het totaal ── */}
+        <div className="bg-white border border-[#E7E2DB] rounded-xl p-5">
+          <AdmKop>Verdeling — {totaal} VvE's totaal</AdmKop>
+          <div className="h-2.5 rounded-full overflow-hidden flex bg-[#EFEBE4] mt-1">
+            {verdeling.map(seg => (
+              <div key={seg.label} className="h-full" style={{ width: `${totaal === 0 ? 0 : (seg.val / totaal) * 100}%`, backgroundColor: seg.kleur }} />
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mt-2.5">
+            {verdeling.map(seg => (
+              <span key={seg.label} className="text-[11.5px] text-[#6B6560] flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: seg.kleur }} />
+                <span className="font-semibold text-[#2D2D2D] tabular-nums">{seg.val}</span> {seg.label.toLowerCase()}
+              </span>
+            ))}
+          </div>
         </div>
 
         {/* ── Verwerkingsgraad ────────────────────────────────────── */}
