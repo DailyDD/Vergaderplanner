@@ -2769,7 +2769,7 @@ useEffect(() => {
         </div>
 
       </div>
-      <div className="p-6 max-w-6xl mx-auto">
+      <div className="p-6 max-w-[1440px] mx-auto">
 
 {/* Jaarwisseling prompt */}
         {toonJaarwisselingPrompt && (
@@ -2845,7 +2845,7 @@ useEffect(() => {
 
               {/* ── Linkerkolom ───────────────────────────────────── */}
               {data.vves.length > 0 && (
-                <div className="w-full lg:w-56 lg:shrink-0 lg:sticky lg:top-[125px] space-y-4">
+                <div className="w-full lg:w-[272px] lg:shrink-0 lg:sticky lg:top-[125px] space-y-4">
 
                   {/* Deze week */}
                   {(() => {
