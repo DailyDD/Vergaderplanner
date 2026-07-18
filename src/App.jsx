@@ -2467,7 +2467,7 @@ useEffect(() => {
     };
 
     return metShell(
-        <div className="px-7 py-9 max-w-6xl mx-auto">
+        <div className="px-7 py-9 max-w-[1440px] mx-auto">
 
           {/* ── Begroeting ───────────────────────────────────────── */}
           <div className="mb-7">
@@ -2537,7 +2537,7 @@ useEffect(() => {
               </div>
 
               {/* ── Voortgang + Eerstvolgende | Actie vereist ──────── */}
-              <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-4 mb-8 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-[480px_1fr] gap-5 mb-8 items-start">
 
                 {/* ── Linkerkolom: Voortgang + Eerstvolgende ── */}
                 <div className="flex flex-col gap-4">
