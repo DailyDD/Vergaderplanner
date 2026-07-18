@@ -2065,7 +2065,7 @@ useEffect(() => {
             <span className="text-white text-[13px] font-bold tracking-wide">VP</span>
           </div>
           <div className="min-w-0">
-            <p className="text-[14px] font-semibold text-[#2D2D2D] leading-tight">VvE Planner</p>
+            <p className="text-[14px] font-semibold text-[#2D2D2D] leading-tight">VvE Workspace</p>
             <p className="text-[11px] text-[#9B958E] truncate">Totaal VvE Beheer</p>
           </div>
         </div>
@@ -2092,12 +2092,11 @@ useEffect(() => {
 
         <div className="border-t border-[#EFEBE4] p-3 shrink-0">
           <div className="flex items-center gap-2.5 px-2 py-2 mb-1">
-            <div className="w-8 h-8 rounded-lg bg-[#2D2D2D] flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-[#991A21] flex items-center justify-center shrink-0">
               <span className="text-white text-[12.5px] font-semibold">{beheerder.charAt(0)}</span>
             </div>
             <div className="min-w-0">
               <p className="text-[13px] font-semibold text-[#2D2D2D] leading-tight truncate">{beheerder}</p>
-              <p className="text-[11px] text-[#9B958E]">{rolLabel}</p>
             </div>
           </div>
           <button
@@ -2119,7 +2118,7 @@ useEffect(() => {
             <div className="w-8 h-8 rounded-lg bg-[#991A21] flex items-center justify-center shrink-0">
               <span className="text-white text-[12px] font-bold tracking-wide">VP</span>
             </div>
-            <span className="text-[13.5px] font-semibold text-[#2D2D2D]">VvE Planner</span>
+            <span className="text-[13.5px] font-semibold text-[#2D2D2D]">VvE Workspace</span>
             <button onClick={uitloggen} className="ml-auto text-[12px] font-medium px-3 h-8 rounded-lg border border-[#E7E2DB] text-[#6B6560] hover:text-[#991A21] transition-colors">
               Uitloggen
             </button>
@@ -2234,7 +2233,7 @@ useEffect(() => {
             <span className="text-white text-base font-bold tracking-wide">VP</span>
           </div>
           <div>
-            <p className="text-white text-[15px] font-semibold leading-tight">VvE Planner</p>
+            <p className="text-white text-[15px] font-semibold leading-tight">VvE Workspace</p>
             <p className="text-[11px] text-white/45 tracking-wide">Totaal VvE Beheer</p>
           </div>
         </div>
@@ -2267,7 +2266,7 @@ useEffect(() => {
               <span className="text-white text-sm font-bold tracking-wide">VP</span>
             </div>
             <div>
-              <p className="text-[#2D2D2D] text-sm font-semibold leading-tight">VvE Planner</p>
+              <p className="text-[#2D2D2D] text-sm font-semibold leading-tight">VvE Workspace</p>
               <p className="text-[11px] text-[#9B958E]">Totaal VvE Beheer</p>
             </div>
           </div>
@@ -2352,7 +2351,7 @@ useEffect(() => {
         <div className="w-14 h-14 bg-[#991A21] rounded-2xl flex items-center justify-center mx-auto">
           <span className="text-white text-2xl">👋</span>
         </div>
-        <h2 className="text-xl font-bold text-[#2D2D2D]">Welkom bij VvE Planner{eigenNaam ? `, ${eigenNaam}` : ""}!</h2>
+        <h2 className="text-xl font-bold text-[#2D2D2D]">Welkom bij VvE Workspace{eigenNaam ? `, ${eigenNaam}` : ""}!</h2>
         <p className="text-sm text-gray-500 leading-relaxed">
           Dit portaal helpt je bij het plannen van vergaderingen, het bijhouden
           van uitnodigingen en het beheren van VvE-data — allemaal op één plek.
@@ -2747,12 +2746,12 @@ useEffect(() => {
                 Opslaan…
               </span>
             )}
-            <button onClick={exportExcel} className="flex items-center gap-1.5 text-[12.5px] font-medium px-3 h-9 rounded-lg border border-[#E7E2DB] text-[#6B6560] hover:text-[#991A21] hover:border-[#C9BEB2] transition-colors">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[15px] h-[15px]"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+            <button onClick={exportExcel} className="flex items-center gap-2 text-[13px] font-semibold px-5 h-10 rounded-lg border border-[#E7E2DB] text-[#6B6560] hover:text-[#991A21] hover:border-[#C9BEB2] transition-colors">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[16px] h-[16px]"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
               Excel
             </button>
-            <button onClick={exportPDF} className="flex items-center gap-1.5 text-[12.5px] font-medium px-3 h-9 rounded-lg border border-[#E7E2DB] text-[#6B6560] hover:text-[#991A21] hover:border-[#C9BEB2] transition-colors">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[15px] h-[15px]"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+            <button onClick={exportPDF} className="flex items-center gap-2 text-[13px] font-semibold px-5 h-10 rounded-lg border border-[#E7E2DB] text-[#6B6560] hover:text-[#991A21] hover:border-[#C9BEB2] transition-colors">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[16px] h-[16px]"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
               PDF
             </button>
           </div>
