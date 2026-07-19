@@ -512,17 +512,26 @@ function VoortgangsBalk({ vve }) {
   // gevuld vlak is bordeaux te donker. De percentagetekst houdt bordeaux,
   // want tekst heeft het contrast wél nodig.
   const balkVulling = afgerond ? C.groen : gesloten ? C.tekst2 : pct >= 75 ? C.groen : pct >= 40 ? C.amber : C.balkRood;
+  // Bij precies 1 traject is de bovenste balk een letterlijk duplicaat van de
+  // enige traject-rij eronder — dan verbergen we 'm. Bij 0 of 2+ trajecten
+  // blijft hij staan: bij 0 is het de enige voortgangsindicatie, bij 2+ is
+  // het de enige plek die het gecombineerde totaal toont.
+  const toonTotaalBalk = tr.length !== 1;
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-        <span style={{ fontSize: 10.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: C.tekst3 }}>Voortgang{gesloten ? " (gesloten)" : ""}</span>
-        <span style={{ fontSize: 15, fontWeight: 700, color: balkKleur, fontVariantNumeric: "tabular-nums" }}>{pct}%</span>
-      </div>
-      <div style={{ height: 6, background: C.lijnZacht, borderRadius: 999, overflow: "hidden" }}>
-        <div style={{ width: `${pct}%`, height: "100%", background: balkVulling, borderRadius: 999, transition: "width .4s" }} />
-      </div>
+      {toonTotaalBalk && (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+            <span style={{ fontSize: 10.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: C.tekst3 }}>Voortgang{gesloten ? " (gesloten)" : ""}</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: balkKleur, fontVariantNumeric: "tabular-nums" }}>{pct}%</span>
+          </div>
+          <div style={{ height: 6, background: C.lijnZacht, borderRadius: 999, overflow: "hidden" }}>
+            <div style={{ width: `${pct}%`, height: "100%", background: balkVulling, borderRadius: 999, transition: "width .4s" }} />
+          </div>
+        </>
+      )}
       {tr.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: toonTotaalBalk ? 10 : 0 }}>
           {tr.map(t => {
             const tp = afgerond ? 100 : trajectPct(vve, t);
             const k = TRAJECT_KLEUR[t.type] || { kleur: C.tekst2, bg: "#EFECE8", rand: C.lijn };
