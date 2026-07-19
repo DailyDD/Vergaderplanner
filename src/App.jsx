@@ -471,7 +471,7 @@ function MonthBar({ counts, vakanties }) {
           const me=`${year}-${String(i+1).padStart(2,"0")}-28`;
           return ms<=v.tot && me>=v.van;
         });
-        const color = count===0?"#27272a":count>=8?"#dc2626":count>=5?"#d97706":"#059669";
+        const color = count===0?"#9B958E":count>=8?"#991A21":count>=5?"#B07414":"#3B7A57";
         return (
           <div key={m} className="flex flex-col items-center gap-1">
             <div className="w-full rounded-sm overflow-hidden bg-gray-100 h-16 flex items-end relative">
@@ -479,7 +479,7 @@ function MonthBar({ counts, vakanties }) {
               <div className="w-full transition-all duration-500 rounded-sm" style={{height:`${Math.max(pct,count>0?8:0)}%`,backgroundColor:color}}/>
             </div>
             <span className="text-[9px] text-gray-400 font-mono uppercase">{m}</span>
-            <span className="text-[10px] font-mono" style={{color:count===0?"#52525b":color}}>{count||"·"}</span>
+            <span className="text-[10px] font-mono" style={{color:count===0?"#9B958E":color}}>{count||"·"}</span>
           </div>
         );
       })}
