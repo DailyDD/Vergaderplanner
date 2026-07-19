@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import MailConfigurator from './MailConfigurator';
-import VerduurzamingBeheer from './VerduurzamingBeheer';
+import VerduurzamingBeheer, { vdDashboardStats } from './VerduurzamingBeheer';
 import NotulenAssistent from './NotulenAssistent_deel2';
 import KennisBank from './KennisBank';
 import VveCalculator from './VveCalculator';
-import LodBeheer, { lodSupaLoad, initLodDeps } from './LodBeheer';
+import LodBeheer, { lodSupaLoad, lodDashboardStats, initLodDeps } from './LodBeheer';
 
 // ── Huisstijl Totaal VvE Beheer ──────────────────────────────────
 // Primair: #991A21 (donkerrood), Antraciet: #2D2D2D, Achtergrond: #F2EFEC
@@ -2061,10 +2061,48 @@ useEffect(() => {
   const isHoofdAdmin = userRol === "hoofd_admin";
   const isLodBeheerder = userRol === "beheerder_plus";
   const heeftLodToegang = isAdmin || isHoofdAdmin || isLodBeheerder;
-  const VERDUURZAMING_BEHEERDERS = ["Brian", "Jeffrey"];
   const heeftModule = (m) => userModules.includes(m);
   const heeftVerduurzamingToegang = isHoofdAdmin || isAdmin || heeftModule('verduurzaming');
+  const heeftAdminToegang = isAdmin || isHoofdAdmin;
   const rolLabel = isHoofdAdmin ? "Hoofdbeheerder" : isAdmin ? "Administrator" : isLodBeheerder ? "Beheerder +" : "Beheerder";
+
+  // ── Moduledata voor de portaalwidgets ────────────────────────
+  // Het portaal toont per module een samenvattingskaart, maar alleen voor
+  // modules waar deze gebruiker toegang toe heeft. De rechten komen uit
+  // user_roles (rol + modules); er staan geen namen in de code. Wie er een
+  // kaart bij moet krijgen, regel je dus in de database, niet hier.
+  //
+  // Elke fetch heeft een eigen status, zodat een trage of falende module de
+  // rest van het dashboard niet blokkeert. LOD hoeft niet apart geladen:
+  // `appLods` staat al in state voor de vergaderplannerkoppeling.
+  const [vdStats, setVdStats] = useState(null);
+  const [vdStatus, setVdStatus] = useState("idle");       // idle | laden | klaar | fout
+  const [adminRuw, setAdminRuw] = useState(null);
+  const [adminStatus, setAdminStatus] = useState("idle"); // idle | laden | klaar | fout
+
+  useEffect(() => {
+    if (screen !== "portaal" || !heeftVerduurzamingToegang) return;
+    let afgebroken = false;
+    setVdStatus("laden");
+    vdDashboardStats(eigenNaam)
+      .then(s => { if (!afgebroken) { setVdStats(s); setVdStatus("klaar"); } })
+      .catch(() => { if (!afgebroken) setVdStatus("fout"); });
+    return () => { afgebroken = true; };
+  }, [screen, heeftVerduurzamingToegang, eigenNaam]);
+
+  useEffect(() => {
+    if (screen !== "portaal" || !heeftAdminToegang || !beheerderList.length) return;
+    let afgebroken = false;
+    setAdminStatus("laden");
+    Promise.all([loadAllData(beheerderList), loadAllRoles()])
+      .then(([alle, rollen]) => {
+        if (afgebroken) return;
+        setAdminRuw({ alle, rollen });
+        setAdminStatus("klaar");
+      })
+      .catch(() => { if (!afgebroken) setAdminStatus("fout"); });
+    return () => { afgebroken = true; };
+  }, [screen, heeftAdminToegang, beheerderList]);
 
   // ── Navigatie ────────────────────────────────────────────────
   // `toon` bepaalt zichtbaarheid per module:
@@ -2453,6 +2491,88 @@ useEffect(() => {
     const dagTekst = (d) => d === null ? "" : d > 0 ? `over ${d} ${d === 1 ? "dag" : "dagen"}` : d === 0 ? "vandaag" : `${-d} ${-d === 1 ? "dag" : "dagen"} geleden`;
     const deadlineTekst = (d) => d === null ? "" : d < 0 ? `${-d} ${-d === 1 ? "dag" : "dagen"} te laat` : d === 0 ? "vandaag" : `nog ${d} ${d === 1 ? "dag" : "dagen"}`;
 
+    // ── Moduledata voor de widgets ────────────────────────────────────────
+    // LOD rekent op `appLods`, dat al in state staat. Verduurzaming en de
+    // organisatiecijfers komen uit de effects hierboven.
+    const lodStats = heeftLodToegang ? lodDashboardStats(appLods) : null;
+
+    // Organisatiebreed overzicht — dezelfde optelling als het Admin Dashboard,
+    // zodat beide schermen niet uit elkaar kunnen lopen.
+    const orgStats = (() => {
+      if (!adminRuw) return null;
+      const rijen = beheerderList.map(naam => ({ naam, stats: calcStats(adminRuw.alle[naam]) }));
+      const metData = rijen.filter(r => r.stats && r.stats.total > 0);
+      const som = (veld) => metData.reduce((s, r) => s + r.stats[veld], 0);
+      const totAfgerond = som("afgerond");
+      const totAchterstand = som("achterstand");
+      const nuDt = new Date();
+      return {
+        beheerdersMetData: metData.length,
+        beheerdersTotaal: beheerderList.length,
+        totaal: som("total"),
+        afgerond: totAfgerond,
+        achterstand: totAchterstand,
+        tekomen: som("tekomen"),
+        nietGepland: som("nietGepland"),
+        uitnodigingUrgent: som("uitnodigingUrgent"),
+        pctVerwerkt: (totAfgerond + totAchterstand) === 0 ? null : Math.round((totAfgerond / (totAfgerond + totAchterstand)) * 100),
+        nooitIngelogd: (adminRuw.rollen || []).filter(r => !r.laatste_login).length,
+        inactief: (adminRuw.rollen || []).filter(r => r.laatste_login && (nuDt - new Date(r.laatste_login)) / 86400000 >= 10).length,
+        drukste: [...metData].sort((a, b) => (b.stats.achterstand - a.stats.achterstand) || (b.stats.uitnodigingUrgent - a.stats.uitnodigingUrgent)).slice(0, 3),
+      };
+    })();
+
+    const toonModuleWidgets = heeftLodToegang || heeftVerduurzamingToegang || heeftAdminToegang;
+
+    // ── Gedeelde widget-onderdelen ────────────────────────────────────────
+    const WidgetKaart = ({ titel, sub, naar, knopTekst, children }) => (
+      <div className="bg-white border border-[#E7E2DB] rounded-xl overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-[#EFEBE4]">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="w-[3px] h-[15px] rounded-sm bg-[#991A21] shrink-0" />
+            <p className="text-[14px] font-semibold text-[#2D2D2D] truncate">{titel}</p>
+            {sub && <span className="text-[12px] text-[#9B958E] truncate hidden sm:inline">· {sub}</span>}
+          </div>
+          <button
+            onClick={() => setScreen(naar)}
+            className="group shrink-0 flex items-center gap-1.5 text-[12.5px] font-semibold text-[#6B6560] hover:text-[#991A21] transition-colors"
+          >
+            {knopTekst}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[14px] h-[14px] group-hover:translate-x-0.5 transition-transform">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
+        <div className="p-5 flex-1">{children}</div>
+      </div>
+    );
+
+    const MiniKpi = ({ val, label, kleur = "#2D2D2D", tint, rand }) => (
+      <div
+        className="rounded-lg px-3 py-2.5 border"
+        style={{ backgroundColor: tint || "#FAF8F5", borderColor: rand || "#EFEBE4" }}
+      >
+        <p className="text-[19px] leading-none font-semibold tabular-nums" style={{ color: kleur }}>{val}</p>
+        <p className="text-[11.5px] text-[#6B6560] mt-1.5 leading-tight">{label}</p>
+      </div>
+    );
+
+    const WidgetLaden = ({ tekst }) => (
+      <div className="flex items-center gap-2.5 text-[12.5px] text-[#9B958E] py-1">
+        <span className="w-[6px] h-[6px] rounded-full bg-[#C9BEB2] animate-pulse shrink-0" />
+        {tekst}
+      </div>
+    );
+
+    const WidgetFout = ({ tekst }) => (
+      <div className="flex items-start gap-2.5 rounded-lg bg-[#F6ECEC] px-3 py-2.5">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0 mt-0.5 text-[#991A21]">
+          <path d="m10.3 3.2-8.5 14.6A2 2 0 0 0 3.5 21h17a2 2 0 0 0 1.7-3.2L13.7 3.2a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>
+        </svg>
+        <p className="text-[12.5px] text-[#991A21] leading-snug">{tekst}</p>
+      </div>
+    );
+
     const ArrowIcon = (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-[#C9BEB2] group-hover:text-[#991A21] group-hover:translate-x-0.5 transition-all">
         <path d="M5 12h14M12 5l7 7-7 7"/>
@@ -2521,28 +2641,57 @@ useEffect(() => {
 
           {data.vves.length === 0 ? (
 
-            /* ── Lege staat — nog geen VvE's ────────────────────── */
-            <div className="bg-white border border-[#E7E2DB] rounded-xl px-8 py-10 mb-8 text-center">
-              <div className="w-12 h-12 rounded-xl bg-[#F6ECEC] text-[#991A21] flex items-center justify-center mx-auto mb-4">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[22px] h-[22px]">
-                  <rect x="3" y="4" width="18" height="18" rx="2.5"/><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4"/>
+            /* ── Lege staat — nog geen VvE's ──────────────────────
+               Twee varianten. Wie alleen de Vergaderplanner heeft, moet daar
+               beginnen: grote kaart met een duidelijke volgende stap. Wie ook
+               andere modules heeft (Marcel bijvoorbeeld, die niet vergadert)
+               krijgt een regel in plaats van een paginavullende oproep — voor
+               hem is een leeg vergaderoverzicht geen probleem dat opgelost
+               moet worden, en zijn echte werk staat in de kaarten eronder. */
+            toonModuleWidgets ? (
+              <div className="flex items-start gap-3 bg-white border border-[#E7E2DB] rounded-xl px-5 py-4 mb-5">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px] shrink-0 mt-0.5 text-[#9B958E]">
+                  <rect x="3" y="4" width="18" height="18" rx="2.5"/><path d="M16 2v4M8 2v4M3 10h18"/>
                 </svg>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13.5px] font-semibold text-[#2D2D2D]">Geen VvE's in de Vergaderplanner</p>
+                  <p className="text-[12.5px] text-[#6B6560] mt-0.5 leading-snug">
+                    Er staan geen vergaderingen op jouw naam. Hieronder zie je de modules waar je wél toegang toe hebt.
+                  </p>
+                </div>
+                <button
+                  onClick={()=>setScreen("vergaderingen")}
+                  className="group shrink-0 flex items-center gap-1.5 text-[12.5px] font-semibold text-[#6B6560] hover:text-[#991A21] transition-colors self-center"
+                >
+                  Openen
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[14px] h-[14px] group-hover:translate-x-0.5 transition-transform">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </button>
               </div>
-              <h2 className="text-[17px] font-semibold text-[#2D2D2D] mb-2">Je hebt nog geen VvE's</h2>
-              <p className="text-[13.5px] text-[#6B6560] max-w-md mx-auto mb-6 leading-relaxed">
-                Voeg je VvE's toe in de Vergaderplanner — één voor één of via een bulkimport.
-                Zodra ze erin staan, zie je hier je actiepunten en je voortgang over het jaar.
-              </p>
-              <button
-                onClick={()=>setScreen("vergaderingen")}
-                className="inline-flex items-center gap-2 h-11 px-5 bg-[#991A21] hover:bg-[#7A1419] text-white text-[13.5px] font-semibold rounded-xl transition-colors"
-              >
-                Naar de Vergaderplanner
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                  <path d="M5 12h14M12 5l7 7-7 7"/>
-                </svg>
-              </button>
-            </div>
+            ) : (
+              <div className="bg-white border border-[#E7E2DB] rounded-xl px-8 py-10 mb-8 text-center">
+                <div className="w-12 h-12 rounded-xl bg-[#F6ECEC] text-[#991A21] flex items-center justify-center mx-auto mb-4">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[22px] h-[22px]">
+                    <rect x="3" y="4" width="18" height="18" rx="2.5"/><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4"/>
+                  </svg>
+                </div>
+                <h2 className="text-[17px] font-semibold text-[#2D2D2D] mb-2">Je hebt nog geen VvE's</h2>
+                <p className="text-[13.5px] text-[#6B6560] max-w-md mx-auto mb-6 leading-relaxed">
+                  Voeg je VvE's toe in de Vergaderplanner — één voor één of via een bulkimport.
+                  Zodra ze erin staan, zie je hier je actiepunten en je voortgang over het jaar.
+                </p>
+                <button
+                  onClick={()=>setScreen("vergaderingen")}
+                  className="inline-flex items-center gap-2 h-11 px-5 bg-[#991A21] hover:bg-[#7A1419] text-white text-[13.5px] font-semibold rounded-xl transition-colors"
+                >
+                  Naar de Vergaderplanner
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </button>
+              </div>
+            )
 
           ) : (
             <>
@@ -2749,6 +2898,208 @@ useEffect(() => {
             </>
           )}
 
+          {/* ── Modulewidgets ──────────────────────────────────────
+              Zichtbaarheid volgt exact de navigatie: heb je toegang tot een
+              module, dan staat de kaart er. Geen namen, geen uitzonderingen —
+              rechten komen uit user_roles. */}
+          {toonModuleWidgets && (
+            <div className="space-y-5">
+
+              {/* ── Organisatie-overzicht (admin / hoofd_admin) ── */}
+              {heeftAdminToegang && (
+                <WidgetKaart
+                  titel="Organisatie-overzicht"
+                  sub={orgStats ? `${orgStats.beheerdersMetData} van ${orgStats.beheerdersTotaal} beheerders met data` : null}
+                  naar="admin"
+                  knopTekst="Admin Dashboard"
+                >
+                  {adminStatus === "laden" && <WidgetLaden tekst={`Gegevens van ${beheerderList.length} beheerders ophalen…`} />}
+                  {adminStatus === "fout" && <WidgetFout tekst="De organisatiecijfers konden niet worden opgehaald. Open het Admin Dashboard om het opnieuw te proberen." />}
+                  {adminStatus === "klaar" && orgStats && (
+                    <>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 mb-4">
+                        <MiniKpi val={orgStats.totaal} label="VvE's totaal" />
+                        <MiniKpi val={orgStats.afgerond} label="Afgerond" kleur="#3B7A57" />
+                        <MiniKpi val={orgStats.achterstand} label="Achterstand" kleur="#991A21" tint={orgStats.achterstand > 0 ? "#F6ECEC" : undefined} rand={orgStats.achterstand > 0 ? "#E3C9C9" : undefined} />
+                        <MiniKpi val={orgStats.tekomen} label="Aankomend" kleur="#4A6B8A" />
+                        <MiniKpi val={orgStats.nietGepland} label="Niet gepland" kleur="#9B958E" />
+                      </div>
+
+                      {/* Gesegmenteerde balk — telt exact op tot het totaal */}
+                      {orgStats.totaal > 0 && (
+                        <>
+                          <div className="flex h-3 gap-[3px] mb-2.5">
+                            {orgStats.afgerond > 0 && <span className="rounded-[3px] bg-[#3B7A57]" style={{flex: orgStats.afgerond}} />}
+                            {orgStats.achterstand > 0 && <span className="rounded-[3px] bg-[#991A21]" style={{flex: orgStats.achterstand}} />}
+                            {orgStats.tekomen > 0 && <span className="rounded-[3px] bg-[#4A6B8A]" style={{flex: orgStats.tekomen}} />}
+                            {orgStats.nietGepland > 0 && <span className="rounded-[3px] bg-[#E7E2DB]" style={{flex: orgStats.nietGepland}} />}
+                          </div>
+                          {orgStats.pctVerwerkt !== null && (
+                            <p className="text-[12.5px] text-[#6B6560]">
+                              <b className="font-semibold text-[#2D2D2D]">{orgStats.pctVerwerkt}%</b> van de verstreken vergaderingen is verwerkt
+                            </p>
+                          )}
+                        </>
+                      )}
+
+                      {/* Signalen die actie vragen — apart, tellen niet op bij de KPI's */}
+                      {(orgStats.uitnodigingUrgent > 0 || orgStats.nooitIngelogd > 0 || orgStats.inactief > 0) && (
+                        <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-[#EFEBE4]">
+                          {orgStats.uitnodigingUrgent > 0 && (
+                            <span className="text-[12px] font-semibold px-2.5 py-1 rounded-lg" style={{backgroundColor:"#FBF3E7", color:"#B07414"}}>
+                              {orgStats.uitnodigingUrgent} uitnodiging{orgStats.uitnodigingUrgent === 1 ? "" : "en"} urgent
+                            </span>
+                          )}
+                          {orgStats.nooitIngelogd > 0 && (
+                            <span className="text-[12px] font-semibold px-2.5 py-1 rounded-lg bg-[#F6ECEC] text-[#991A21]">
+                              {orgStats.nooitIngelogd} nooit ingelogd
+                            </span>
+                          )}
+                          {orgStats.inactief > 0 && (
+                            <span className="text-[12px] font-semibold px-2.5 py-1 rounded-lg bg-[#FAF8F5] text-[#6B6560]">
+                              {orgStats.inactief} inactief (10+ dagen)
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Wie de meeste achterstand heeft — zelfde triagevolgorde als het Admin Dashboard */}
+                      {orgStats.drukste.some(r => r.stats.achterstand > 0) && (
+                        <div className="mt-4 pt-4 border-t border-[#EFEBE4]">
+                          <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#9B958E] mb-2.5">Meeste achterstand</p>
+                          <div className="space-y-1.5">
+                            {orgStats.drukste.filter(r => r.stats.achterstand > 0).map(r => (
+                              <div key={r.naam} className="flex items-center gap-3 text-[12.5px]">
+                                <span className="font-semibold text-[#2D2D2D] truncate">{r.naam}</span>
+                                <span className="ml-auto shrink-0 tabular-nums text-[#991A21] font-semibold">{r.stats.achterstand}</span>
+                                <span className="shrink-0 text-[#9B958E]">van {r.stats.total}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </WidgetKaart>
+              )}
+
+              {/* ── LOD Beheer ── */}
+              {heeftLodToegang && lodStats && (
+                <WidgetKaart
+                  titel="LOD Beheer"
+                  sub={lodStats.totaal > 0 ? `${lodStats.actief} van ${lodStats.totaal} actief` : null}
+                  naar="lod"
+                  knopTekst="Naar LOD"
+                >
+                  {lodStats.totaal === 0 ? (
+                    <p className="text-[13px] text-[#9B958E]">Geen LOD-dossiers geregistreerd.</p>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
+                        <MiniKpi val={lodStats.actief} label="Actief" />
+                        <MiniKpi val={lodStats.overschreden} label="Deadline verstreken" kleur="#991A21" tint={lodStats.overschreden > 0 ? "#F6ECEC" : undefined} rand={lodStats.overschreden > 0 ? "#E3C9C9" : undefined} />
+                        <MiniKpi val={lodStats.urgent} label="Binnen 14 dagen" kleur="#B07414" tint={lodStats.urgent > 0 ? "#FBF3E7" : undefined} rand={lodStats.urgent > 0 ? "#E8D3AC" : undefined} />
+                        <MiniKpi val={lodStats.wachtVve} label="Wacht op VvE" kleur="#4A6B8A" />
+                      </div>
+
+                      {lodStats.komend.length > 0 && (
+                        <div className="pt-4 border-t border-[#EFEBE4]">
+                          <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#9B958E] mb-2.5">Eerstvolgende deadlines</p>
+                          <div className="space-y-2">
+                            {lodStats.komend.slice(0, 4).map(l => (
+                              <div key={l.id} className="flex items-center gap-3 text-[12.5px]">
+                                <span
+                                  className="w-[9px] h-[9px] rounded-full shrink-0 border-2 bg-white"
+                                  style={{ borderColor: l.dagen < 0 ? "#991A21" : l.dagen <= 14 ? "#B07414" : "#C9BEB2" }}
+                                />
+                                <span className="font-semibold text-[#2D2D2D] truncate">{l.vveNaam}</span>
+                                <span className="text-[#9B958E] shrink-0 hidden md:inline truncate">— {l.statusLabel}</span>
+                                {l.uitstel && (
+                                  <span className="shrink-0 text-[11px] font-semibold px-1.5 py-0.5 rounded" style={{backgroundColor:"#FBF3E7", color:"#B07414"}}>uitstel</span>
+                                )}
+                                <span className="ml-auto shrink-0 text-right whitespace-nowrap">
+                                  <span className="text-[#3f3d3b] tabular-nums">{fmtDate(l.deadline)}</span>
+                                  <span className={l.dagen < 0 ? "text-[#991A21] font-semibold" : "text-[#9B958E]"}> · {deadlineTekst(l.dagen)}</span>
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {lodStats.boeteRisico > 0 && (
+                        <div className="flex justify-between text-[12.5px] pt-3.5 mt-3.5 border-t border-[#EFEBE4]">
+                          <span className="text-[#6B6560]">Maximale dwangsom op actieve dossiers</span>
+                          <b className="font-semibold text-[#2D2D2D] tabular-nums">
+                            € {lodStats.boeteRisico.toLocaleString('nl-NL', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                          </b>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </WidgetKaart>
+              )}
+
+              {/* ── Verduurzaming & Subsidies ── */}
+              {heeftVerduurzamingToegang && (
+                <WidgetKaart
+                  titel="Verduurzaming & Subsidies"
+                  sub={vdStats ? `${vdStats.actief} van ${vdStats.totaal} dossiers actief` : null}
+                  naar="verduurzaming"
+                  knopTekst="Naar Verduurzaming"
+                >
+                  {vdStatus === "laden" && <WidgetLaden tekst="Dossiers ophalen…" />}
+                  {vdStatus === "fout" && <WidgetFout tekst="De dossiers konden niet worden opgehaald. Open de module om het opnieuw te proberen." />}
+                  {vdStatus === "klaar" && vdStats && (
+                    vdStats.totaal === 0 ? (
+                      <p className="text-[13px] text-[#9B958E]">Geen dossiers geregistreerd.</p>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
+                          <MiniKpi val={vdStats.actief} label="Actieve dossiers" />
+                          <MiniKpi val={vdStats.acties} label="Openstaande acties" kleur={vdStats.acties > 0 ? "#991A21" : "#2D2D2D"} tint={vdStats.acties > 0 ? "#F6ECEC" : undefined} rand={vdStats.acties > 0 ? "#E3C9C9" : undefined} />
+                          <MiniKpi val={vdStats.opvolgenNu} label="Opvolgen vandaag" kleur="#B07414" tint={vdStats.opvolgenNu > 0 ? "#FBF3E7" : undefined} rand={vdStats.opvolgenNu > 0 ? "#E8D3AC" : undefined} />
+                          <MiniKpi val={vdStats.afgerond} label="Afgerond" kleur="#3B7A57" />
+                        </div>
+
+                        <div className="pt-4 border-t border-[#EFEBE4]">
+                          <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#9B958E] mb-2.5">Actieve trajecten</p>
+                          <div className="flex flex-wrap gap-2">
+                            <span className="text-[12.5px] px-2.5 py-1 rounded-lg bg-[#FAF8F5] border border-[#EFEBE4] text-[#6B6560]">
+                              <b className="font-semibold text-[#2D2D2D]">{vdStats.perTraject.procesbegeleiding}</b> Lening
+                            </span>
+                            <span className="text-[12.5px] px-2.5 py-1 rounded-lg bg-[#FAF8F5] border border-[#EFEBE4] text-[#6B6560]">
+                              <b className="font-semibold text-[#2D2D2D]">{vdStats.perTraject.subsidie}</b> Subsidie
+                            </span>
+                            <span className="text-[12.5px] px-2.5 py-1 rounded-lg bg-[#FAF8F5] border border-[#EFEBE4] text-[#6B6560]">
+                              <b className="font-semibold text-[#2D2D2D]">{vdStats.perTraject.isolatie}</b> Isolatie
+                            </span>
+                            {vdStats.deadlineNabij > 0 && (
+                              <span className="text-[12.5px] px-2.5 py-1 rounded-lg font-semibold" style={{backgroundColor:"#FBF3E7", color:"#B07414"}}>
+                                {vdStats.deadlineNabij} subsidiedeadline{vdStats.deadlineNabij === 1 ? "" : "s"} binnen 14 dagen
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Eigen dossiers — alleen tonen als de naam ergens als beheerder staat */}
+                        {vdStats.eigen !== null && vdStats.eigen > 0 && (
+                          <div className="flex justify-between text-[12.5px] pt-3.5 mt-3.5 border-t border-[#EFEBE4]">
+                            <span className="text-[#6B6560]">Op jouw naam</span>
+                            <span className="text-[#2D2D2D]">
+                              <b className="font-semibold">{vdStats.eigen}</b> {vdStats.eigen === 1 ? "dossier" : "dossiers"}
+                              {vdStats.eigenActies > 0 && <span className="text-[#991A21] font-semibold"> · {vdStats.eigenActies} {vdStats.eigenActies === 1 ? "actie" : "acties"}</span>}
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    )
+                  )}
+                </WidgetKaart>
+              )}
+
+            </div>
+          )}
 
         </div>
     );
