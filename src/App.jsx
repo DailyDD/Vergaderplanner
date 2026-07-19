@@ -1138,16 +1138,28 @@ function AdminDashboard({ beheerderList }) {
     { val: totaal,         label: "VvE's totaal",       kleur: "#2D2D2D", alarm: false },
     { val: totAfgerond,    label: "Afgerond",           kleur: "#3B7A57", alarm: false },
     { val: totAchterstand, label: "Achterstand",        kleur: "#991A21", alarm: totAchterstand > 0, tint: "#F6ECEC", rand: "#E3C9C9" },
-    { val: totTekomen,     label: "Aankomend",          kleur: "#4A6B8A", alarm: false },
+    { val: totTekomen,     label: "Aankomend",          kleur: "#6B6560", alarm: false },
     { val: totNietGepland, label: "Niet gepland",       kleur: "#9B958E", alarm: false },
   ];
 
   // Verdeling voor de gesegmenteerde balk — moet exact optellen tot totaal.
+  //
+  // ── Balkpalet ──────────────────────────────────────────────────────────
+  // Vlakken in een voortgangsbalk gebruiken lichtere kleuren dan tekst. Tekst
+  // heeft contrast nodig om leesbaar te zijn, een gevuld vlak niet — bordeaux
+  // #991A21 is als vlak zo donker dat het naast het groen als een gat oogt.
+  // Daarom:
+  //   achterstand → #C4565C  (lichter rood, zelfde tint als de huisstijl)
+  //   aankomend   → #9B958E  (warm grijs i.p.v. blauw; blauw droeg geen
+  //                           betekenis en botste met het bordeaux-groen-paar)
+  //   niet gepland→ #E7E2DB  (lichtst — ongewijzigd, blijft onderscheidbaar
+  //                           van het grijs hierboven)
+  // Legendablokjes volgen altijd de balk, anders klopt de legenda niet meer.
   const verdeling = [
     { label: "Afgerond",    val: totAfgerond,    kleur: "#3B7A57" },
-    { label: "Achterstand", val: totAchterstand, kleur: "#991A21" },
-    { label: "Aankomend",   val: totTekomen,     kleur: "#4A6B8A" },
-    { label: "Niet gepland",val: totNietGepland, kleur: "#9B958E" },
+    { label: "Achterstand", val: totAchterstand, kleur: "#C4565C" },
+    { label: "Aankomend",   val: totTekomen,     kleur: "#9B958E" },
+    { label: "Niet gepland",val: totNietGepland, kleur: "#E7E2DB" },
   ];
 
   const knopStijl = "flex items-center gap-1.5 text-[12.5px] font-medium px-3 h-8 rounded-lg border border-[#E7E2DB] text-[#6B6560] hover:text-[#991A21] hover:border-[#C9BEB2] transition-colors";
@@ -1265,7 +1277,7 @@ function AdminDashboard({ beheerderList }) {
               </div>
               <div className="h-2 rounded-full overflow-hidden flex bg-[#EFEBE4]">
                 <div className="h-full bg-[#3B7A57]" style={{ width: `${pctVerwerkt}%` }} />
-                <div className="h-full bg-[#991A21]" style={{ width: `${100 - pctVerwerkt}%` }} />
+                <div className="h-full bg-[#C4565C]" style={{ width: `${100 - pctVerwerkt}%` }} />
               </div>
               <div className="flex items-center gap-5 mt-2.5">
                 <span className="text-[11.5px] text-[#6B6560] flex items-center gap-1.5">
@@ -1273,7 +1285,7 @@ function AdminDashboard({ beheerderList }) {
                   <span className="tabular-nums">{totAfgerond}</span> afgerond
                 </span>
                 <span className="text-[11.5px] text-[#6B6560] flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-sm bg-[#991A21]" />
+                  <span className="w-2 h-2 rounded-sm bg-[#C4565C]" />
                   <span className="tabular-nums">{totAchterstand}</span> nog te verwerken
                 </span>
                 <span className="text-[11.5px] text-[#9B958E] ml-auto">
@@ -1322,8 +1334,8 @@ function AdminDashboard({ beheerderList }) {
                       <div className="flex-1 min-w-0">
                         <div className="h-2 rounded-full overflow-hidden flex bg-[#EFEBE4]">
                           <div className="h-full bg-[#3B7A57]" style={{ width: `${pct(stats.afgerond)}%` }} />
-                          <div className="h-full bg-[#991A21]" style={{ width: `${pct(stats.achterstand)}%` }} />
-                          <div className="h-full bg-[#4A6B8A]" style={{ width: `${pct(stats.tekomen)}%` }} />
+                          <div className="h-full bg-[#C4565C]" style={{ width: `${pct(stats.achterstand)}%` }} />
+                          <div className="h-full bg-[#9B958E]" style={{ width: `${pct(stats.tekomen)}%` }} />
                         </div>
                         <div className="flex items-center gap-3.5 mt-1.5">
                           <span className="text-[10.5px] text-[#6B6560] flex items-center gap-1">
@@ -1332,12 +1344,12 @@ function AdminDashboard({ beheerderList }) {
                           </span>
                           {stats.achterstand > 0 && (
                             <span className="text-[10.5px] text-[#6B6560] flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-sm bg-[#991A21]" />
+                              <span className="w-1.5 h-1.5 rounded-sm bg-[#C4565C]" />
                               <span className="tabular-nums">{stats.achterstand}</span> achterstand
                             </span>
                           )}
                           <span className="text-[10.5px] text-[#6B6560] flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-sm bg-[#4A6B8A]" />
+                            <span className="w-1.5 h-1.5 rounded-sm bg-[#9B958E]" />
                             <span className="tabular-nums">{stats.tekomen}</span> te komen
                           </span>
                           {stats.nietGepland > 0 && (
@@ -2712,12 +2724,12 @@ useEffect(() => {
                 </div>
                 <div className="flex h-3 gap-[3px]">
                   {afgerond > 0 && <span className="rounded-[3px] bg-[#3B7A57]" style={{flex: afgerond}} />}
-                  {uitgenodigd > 0 && <span className="rounded-[3px] bg-[#4A6B8A]" style={{flex: uitgenodigd}} />}
+                  {uitgenodigd > 0 && <span className="rounded-[3px] bg-[#9B958E]" style={{flex: uitgenodigd}} />}
                   {nietUitgenodigd > 0 && <span className="rounded-[3px] bg-[#E7E2DB]" style={{flex: nietUitgenodigd}} />}
                 </div>
                 <div className="flex gap-5 mt-3 flex-wrap">
                   <span className="flex items-center gap-2 text-[12.5px] text-[#6B6560]"><span className="w-2 h-2 rounded-sm bg-[#3B7A57]" /><b className="text-[#2D2D2D] font-semibold">{afgerond}</b> afgerond</span>
-                  <span className="flex items-center gap-2 text-[12.5px] text-[#6B6560]"><span className="w-2 h-2 rounded-sm bg-[#4A6B8A]" /><b className="text-[#2D2D2D] font-semibold">{uitgenodigd}</b> uitgenodigd</span>
+                  <span className="flex items-center gap-2 text-[12.5px] text-[#6B6560]"><span className="w-2 h-2 rounded-sm bg-[#9B958E]" /><b className="text-[#2D2D2D] font-semibold">{uitgenodigd}</b> uitgenodigd</span>
                   <span className="flex items-center gap-2 text-[12.5px] text-[#6B6560]"><span className="w-2 h-2 rounded-sm bg-[#E7E2DB]" /><b className="text-[#2D2D2D] font-semibold">{nietUitgenodigd}</b> nog niet uitgenodigd</span>
                   {ongepland > 0 && (
                     <span className="flex items-center gap-2 text-[12.5px] text-[#6B6560]"><span className="w-2 h-2 rounded-sm border border-[#C9BEB2]" /><b className="text-[#2D2D2D] font-semibold">{ongepland}</b> zonder datum</span>
@@ -2811,7 +2823,7 @@ useEffect(() => {
                           >
                             <span
                               className="w-[9px] h-[9px] rounded-full shrink-0 border-2 bg-white"
-                              style={{ borderColor: v.uitgenodigd ? "#4A6B8A" : "#C9BEB2" }}
+                              style={{ borderColor: v.uitgenodigd ? "#9B958E" : "#C9BEB2" }}
                               title={v.uitgenodigd ? "Uitnodiging verstuurd" : "Nog niet uitgenodigd"}
                             />
                             <span className="font-semibold text-[#2D2D2D] truncate">{v.naam}</span>
@@ -2921,7 +2933,7 @@ useEffect(() => {
                         <MiniKpi val={orgStats.totaal} label="VvE's totaal" />
                         <MiniKpi val={orgStats.afgerond} label="Afgerond" kleur="#3B7A57" />
                         <MiniKpi val={orgStats.achterstand} label="Achterstand" kleur="#991A21" tint={orgStats.achterstand > 0 ? "#F6ECEC" : undefined} rand={orgStats.achterstand > 0 ? "#E3C9C9" : undefined} />
-                        <MiniKpi val={orgStats.tekomen} label="Aankomend" kleur="#4A6B8A" />
+                        <MiniKpi val={orgStats.tekomen} label="Aankomend" kleur="#6B6560" />
                         <MiniKpi val={orgStats.nietGepland} label="Niet gepland" kleur="#9B958E" />
                       </div>
 
@@ -2930,8 +2942,8 @@ useEffect(() => {
                         <>
                           <div className="flex h-3 gap-[3px] mb-2.5">
                             {orgStats.afgerond > 0 && <span className="rounded-[3px] bg-[#3B7A57]" style={{flex: orgStats.afgerond}} />}
-                            {orgStats.achterstand > 0 && <span className="rounded-[3px] bg-[#991A21]" style={{flex: orgStats.achterstand}} />}
-                            {orgStats.tekomen > 0 && <span className="rounded-[3px] bg-[#4A6B8A]" style={{flex: orgStats.tekomen}} />}
+                            {orgStats.achterstand > 0 && <span className="rounded-[3px] bg-[#C4565C]" style={{flex: orgStats.achterstand}} />}
+                            {orgStats.tekomen > 0 && <span className="rounded-[3px] bg-[#9B958E]" style={{flex: orgStats.tekomen}} />}
                             {orgStats.nietGepland > 0 && <span className="rounded-[3px] bg-[#E7E2DB]" style={{flex: orgStats.nietGepland}} />}
                           </div>
                           {orgStats.pctVerwerkt !== null && (
@@ -2999,7 +3011,7 @@ useEffect(() => {
                         <MiniKpi val={lodStats.actief} label="Actief" />
                         <MiniKpi val={lodStats.overschreden} label="Deadline verstreken" kleur="#991A21" tint={lodStats.overschreden > 0 ? "#F6ECEC" : undefined} rand={lodStats.overschreden > 0 ? "#E3C9C9" : undefined} />
                         <MiniKpi val={lodStats.urgent} label="Binnen 14 dagen" kleur="#B07414" tint={lodStats.urgent > 0 ? "#FBF3E7" : undefined} rand={lodStats.urgent > 0 ? "#E8D3AC" : undefined} />
-                        <MiniKpi val={lodStats.wachtVve} label="Wacht op VvE" kleur="#4A6B8A" />
+                        <MiniKpi val={lodStats.wachtVve} label="Wacht op VvE" kleur="#6B6560" />
                       </div>
 
                       {lodStats.komend.length > 0 && (
@@ -3206,8 +3218,8 @@ useEffect(() => {
                 {[
                   [null,               "Alle",             data.vves.length, "#2D2D2D"],
                   ["actie",            "Actie vereist",    vvesMetActie,     "#991A21"],
-                  ["niet-uitgenodigd", "Niet uitgenodigd", nietUitgenodigd,  "#9B958E"],
-                  ["uitgenodigd",      "Uitgenodigd",      uitgenodigd,      "#4A6B8A"],
+                  ["niet-uitgenodigd", "Niet uitgenodigd", nietUitgenodigd,  "#C9BEB2"],
+                  ["uitgenodigd",      "Uitgenodigd",      uitgenodigd,      "#9B958E"],
                   ["afgerond",         "Afgerond",         afgerond,         "#3B7A57"],
                   ["vakantie",         "In vakantie",      inVakantie,       "#B07414"],
                 ].map(([key, label, aantal, kleur]) => {
