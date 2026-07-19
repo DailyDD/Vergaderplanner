@@ -153,6 +153,47 @@ function lodFmt(n) {
   if (!n||isNaN(n)) return '-';
   return '€ '+Number(n).toLocaleString('nl-NL',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
+
+/* ── Dashboard-samenvatting ──────────────────────────────────────
+   Pure functie: rekent op een al geladen LOD-lijst, doet zelf geen fetch.
+   App.jsx heeft die lijst al in `appLods`, dus een tweede netwerkronde is
+   niet nodig. De filters zijn exact dezelfde als in de moduleweergave
+   hieronder — wijzigt daar de definitie van "urgent", dan wijzigt hij hier
+   mee. Dat voorkomt dat portaal en module verschillende cijfers tonen. */
+export function lodDashboardStats(lods) {
+  const lijst = Array.isArray(lods) ? lods : [];
+  const actief       = lijst.filter(l => l.status !== 'afgerond');
+  const urgent       = lijst.filter(l => { const d = lodDagenTot(l.deadlineAlgemeen); return d !== null && d <= 14 && d >= 0 && l.status !== 'afgerond'; });
+  const overschreden = lijst.filter(l => { const d = lodDagenTot(l.deadlineAlgemeen); return d !== null && d < 0 && l.status !== 'afgerond'; });
+  const wachtVve     = lijst.filter(l => l.status === 'vve_afwachting');
+  const wachtOfferte = lijst.filter(l => l.status === 'offertes_afwacht');
+  const boeteRisico  = actief.reduce((s, l) => s + (parseFloat(l.boeteMax) || 0), 0);
+
+  // Eerstvolgende deadlines: alleen actieve LODs mét deadline, oplopend.
+  const komend = actief
+    .filter(l => l.deadlineAlgemeen)
+    .map(l => ({
+      id: l.id,
+      vveNaam: l.vveNaam || 'Naamloze LOD',
+      deadline: l.deadlineAlgemeen,
+      dagen: lodDagenTot(l.deadlineAlgemeen),
+      statusLabel: (LOD_STATUS[l.status] || LOD_STATUS.nieuw).label,
+      behandelaar: l.behandelaar || '',
+      uitstel: !!l.uitstelAangevraagd,
+    }))
+    .sort((a, b) => (a.dagen ?? 99999) - (b.dagen ?? 99999));
+
+  return {
+    totaal: lijst.length,
+    actief: actief.length,
+    urgent: urgent.length,
+    overschreden: overschreden.length,
+    wachtVve: wachtVve.length,
+    wachtOfferte: wachtOfferte.length,
+    boeteRisico,
+    komend,
+  };
+}
 function lodNow() { return new Date().toISOString(); }
 function lodFmtDt(iso) {
   if (!iso) return '';
