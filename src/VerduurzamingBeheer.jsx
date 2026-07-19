@@ -331,6 +331,67 @@ function bouwActies(vves) {
   return acties;
 }
 
+/* ── Dashboard-samenvatting ──────────────────────────────────────
+   Haalt de dossiers zelf op (App.jsx heeft ze niet in state) en geeft
+   alleen samengevatte cijfers terug — niet de volledige dossiers. Zo blijft
+   de dossierinhoud binnen deze module en verhuist er geen persoonsgegevens
+   naar het portaal die daar niet getoond worden.
+
+   `eigenNaam` is optioneel: is die meegegeven, dan komt er een extra telling
+   van de dossiers waar die naam als beheerder op staat. Dat is een aanvulling
+   op het totaal, geen filter — de module zelf toont ook alle dossiers, en
+   portaal en module moeten hetzelfde beeld geven. */
+export async function vdDashboardStats(eigenNaam) {
+  const dossiers = await vdLoad();
+  const lijst = Array.isArray(dossiers) ? dossiers : [];
+  const actieveDossiers = lijst.filter(isActief);
+  const acties = bouwActies(lijst);
+
+  // Per traject tellen, alleen over actieve dossiers.
+  const perTraject = { procesbegeleiding: 0, subsidie: 0, isolatie: 0 };
+  actieveDossiers.forEach(v => {
+    (v.trajecten || []).forEach(t => {
+      if (perTraject[t.type] !== undefined) perTraject[t.type] += 1;
+    });
+  });
+
+  // Subsidie-einddatums die binnen 14 dagen verlopen — zelfde regel als in
+  // de moduleweergave (aantalDl).
+  const deadlineNabij = actieveDossiers.filter(v =>
+    (v.trajecten || []).some(t => {
+      if (t.type !== 'subsidie' || !t.einddatum) return false;
+      const g = dagenTot(t.einddatum);
+      return g !== null && g <= 14 && g >= 0;
+    })
+  ).length;
+
+  // Dossiers waarvan de opvolgdatum is verstreken of vandaag is.
+  const opvolgenNu = actieveDossiers.filter(v => {
+    if (!v.opvolgenOp) return false;
+    const g = dagenTot(v.opvolgenOp);
+    return g !== null && g <= 0;
+  }).length;
+
+  const eigen = eigenNaam
+    ? actieveDossiers.filter(v => (v.beheerder || '') === eigenNaam).length
+    : null;
+  const eigenActies = eigenNaam
+    ? acties.filter(a => (a.beh || '') === eigenNaam).length
+    : null;
+
+  return {
+    totaal: lijst.length,
+    actief: actieveDossiers.length,
+    afgerond: lijst.filter(v => v.status === 'afgerond').length,
+    acties: acties.length,
+    perTraject,
+    deadlineNabij,
+    opvolgenNu,
+    eigen,
+    eigenActies,
+  };
+}
+
 /* ── Inline SVG-iconen (fill=none, stroke=currentColor, 1.75) — geen emoji ── */
 const Ico = {
   leaf: p => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...p}><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" /><path d="M2 21c0-3 1.85-5.36 5.08-6" /></svg>,
