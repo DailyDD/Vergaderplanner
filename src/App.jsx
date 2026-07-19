@@ -1591,6 +1591,10 @@ export default function App() {
   const [userRol, setUserRol] = useState("beheerder");
   const [userModules, setUserModules] = useState([]);
   const [showWelkomst, setShowWelkomst] = useState(false);
+  // true zodra bekend is dat deze gebruiker het welkomstscherm nog nooit heeft
+  // gezien; wordt pas naar showWelkomst omgezet bij de eerste klik op
+  // Vergaderplanner, niet meteen bij login (zie useEffect verderop).
+  const [welkomstPending, setWelkomstPending] = useState(false);
   const [eigenNaam, setEigenNaam] = useState("");
   const [beheerderList, setBeheerderList] = useState([]);
   const [data, setData] = useState(defaultData());
@@ -1641,7 +1645,7 @@ useEffect(() => {
   getUserRole().then(async rol => {
     if (!rol) { setToken(null); return; }
     setBeheerderList(await fetchBeheerderNamen());
-    if (rol.welkomstscherm_gezien === false) setShowWelkomst(true);
+    if (rol.welkomstscherm_gezien === false) setWelkomstPending(true);
     setEigenNaam(rol.naam);
     if (rol.rol === "admin") {
       setBeheerder("Admin");
@@ -1658,6 +1662,17 @@ useEffect(() => {
     });
   }).catch(() => setToken(null));
 }, []);
+  // Welkomstscherm: pas tonen bij de eerste keer dat de gebruiker na
+  // inloggen daadwerkelijk de Vergaderplanner opent — niet bij login zelf.
+  // Vangt alle ingangen (sidebar, mobiele nav, portaal-snelkoppelingen) omdat
+  // die allemaal via setScreen("vergaderingen") lopen.
+  useEffect(() => {
+    if (screen === "vergaderingen" && welkomstPending) {
+      setShowWelkomst(true);
+      setWelkomstPending(false);
+    }
+  }, [screen, welkomstPending]);
+
   const t = {
     bg:        "bg-[#F2EFEC]",
     bgCard:    "bg-white",
@@ -1702,7 +1717,7 @@ useEffect(() => {
       const rol = await getUserRole();
       if (!rol) throw new Error("Geen rol gevonden voor dit account.");
       setBeheerderList(await fetchBeheerderNamen());
-      if (rol.welkomstscherm_gezien === false) setShowWelkomst(true);
+      if (rol.welkomstscherm_gezien === false) setWelkomstPending(true);
       setEigenNaam(rol.naam);
       if (rol.rol === "admin") {
         setBeheerder("Admin");
@@ -2442,10 +2457,17 @@ useEffect(() => {
         <div className="w-14 h-14 bg-[#991A21] rounded-2xl flex items-center justify-center mx-auto">
           <span className="text-white text-2xl">👋</span>
         </div>
-        <h2 className="text-xl font-bold text-[#2D2D2D]">Welkom bij VvE Workspace{eigenNaam ? `, ${eigenNaam}` : ""}!</h2>
+        <h2 className="text-xl font-bold text-[#2D2D2D]">Welkom bij de Vergaderplanner{eigenNaam ? `, ${eigenNaam}` : ""}!</h2>
         <p className="text-sm text-gray-500 leading-relaxed">
-          Dit portaal helpt je bij het plannen van vergaderingen, het bijhouden
-          van uitnodigingen en het beheren van VvE-data — allemaal op één plek.
+          Hier plan je vergaderingen, houd je uitnodigingen bij en beheer je
+          je VvE-data — allemaal op één plek.
+        </p>
+        <p className="text-sm text-gray-500 leading-relaxed">
+          Zie je bij een VvE een achterstand staan? Dat is geen fout van het
+          systeem — het is bestaand werk uit de oude planning dat nog
+          bijgewerkt moet worden. Werk dit rustig op je eigen tempo bij.
+        </p>
+        <p className="text-sm text-gray-500 leading-relaxed">
           Heb je vragen over hoe iets werkt? Neem gerust contact op met Daley.
         </p>
         <button onClick={sluitWelkomst}
