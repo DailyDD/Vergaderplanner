@@ -22,6 +22,9 @@ const C = {
   groen: "#3B7A57", groenTint: "#EAF2EC", groenRand: "#CFE0D5",
   amber: "#B07414", amberTint: "#F7EEDD", amberRand: "#E8D5B0",
   blauw: "#4A6B8A", blauwTint: "#EAEFF4", blauwRand: "#C4D2DE",
+  // Vlakvulling in voortgangsbalken. Bordeaux is als gevuld vlak te donker —
+  // als tekst heeft die het contrast nodig, als balk oogt hij als een gat.
+  balkRood: "#C4565C",
 }
 
 const calcFmt = (n) => {
@@ -273,7 +276,7 @@ function LodVoortgangBalk({ lod }) {
         <span style={{fontSize:11,fontWeight:700,color:pct===100?C.groen:C.bordeaux,fontVariantNumeric:'tabular-nums'}}>{pct}%</span>
       </div>
       <div style={{height:6,background:C.lijnZacht,borderRadius:3,overflow:'hidden',marginBottom:5}}>
-        <div style={{height:'100%',width:pct+'%',background:pct===100?C.groen:C.bordeaux,borderRadius:3,transition:'width .3s'}} />
+        <div style={{height:'100%',width:pct+'%',background:pct===100?C.groen:C.balkRood,borderRadius:3,transition:'width .3s'}} />
       </div>
       <div style={{display:'flex',flexDirection:'column',gap:2}}>
         {stappen.map((s,i)=>(
