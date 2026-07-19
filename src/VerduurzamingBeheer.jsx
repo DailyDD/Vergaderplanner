@@ -37,6 +37,9 @@ const C = {
   groen: "#3B7A57", groenTint: "#EAF2EC", groenRand: "#CFE0D5",
   amber: "#B07414", amberTint: "#F7EEDD", amberRand: "#E8D5B0",
   blauw: "#4A6B8A", blauwTint: "#EAEFF4", blauwRand: "#C4D2DE",
+  // Vlakvulling in voortgangsbalken — lichter dan bordeaux, dat als gevuld
+  // vlak te donker uitvalt naast het groen.
+  balkRood: "#C4565C",
 };
 
 function getAuthHeaders() {
@@ -505,6 +508,10 @@ function VoortgangsBalk({ vve }) {
   const afgerond = vve.status === "afgerond";
   const gesloten = vve.status === "gesloten";
   const balkKleur = afgerond ? C.groen : gesloten ? C.tekst2 : pct >= 75 ? C.groen : pct >= 40 ? C.amber : C.bordeaux;
+  // Balkvulling volgt dezelfde drempels, maar met het lichtere rood — als
+  // gevuld vlak is bordeaux te donker. De percentagetekst houdt bordeaux,
+  // want tekst heeft het contrast wél nodig.
+  const balkVulling = afgerond ? C.groen : gesloten ? C.tekst2 : pct >= 75 ? C.groen : pct >= 40 ? C.amber : C.balkRood;
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
@@ -512,7 +519,7 @@ function VoortgangsBalk({ vve }) {
         <span style={{ fontSize: 15, fontWeight: 700, color: balkKleur, fontVariantNumeric: "tabular-nums" }}>{pct}%</span>
       </div>
       <div style={{ height: 6, background: C.lijnZacht, borderRadius: 999, overflow: "hidden" }}>
-        <div style={{ width: `${pct}%`, height: "100%", background: balkKleur, borderRadius: 999, transition: "width .4s" }} />
+        <div style={{ width: `${pct}%`, height: "100%", background: balkVulling, borderRadius: 999, transition: "width .4s" }} />
       </div>
       {tr.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
