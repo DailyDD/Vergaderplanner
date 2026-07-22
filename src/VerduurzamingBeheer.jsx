@@ -21,7 +21,11 @@ const CSS_PRINT = `
   #vd-print-area tr { page-break-inside: avoid; page-break-after: auto; }
   #vd-print-area thead { display: table-header-group; }
   @page { margin: 1.5cm; size: A4; }
-}`;
+  /* Print toont de alfabetische VvE-tabel, scherm toont de normale sortering. */
+  .vd-screen-only { display: none !important; }
+  .vd-print-only { display: block !important; }
+}
+.vd-print-only { display: none; }`;
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -127,6 +131,17 @@ function parseGeld(v) {
 function euro(n) {
   const val = typeof n === "number" ? n : parseGeld(n);
   return `€ ${(val || 0).toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/* Btw-tarief vast op 21% voor alle traject-types (isolatie, procesbegeleiding, subsidie). */
+const BTW_TARIEF = 1.21;
+function euroInclBtw(n) {
+  const val = (typeof n === "number" ? n : parseGeld(n)) * BTW_TARIEF;
+  return euro(val);
+}
+/* Klein bedrag-label incl. btw, te tonen onder een hoofdbedrag. */
+function InclBtwLabel({ bedrag }) {
+  return <div style={{ fontSize: 10, fontWeight: 400, color: C.tekst3, marginTop: 2 }}>{euroInclBtw(bedrag)} incl. btw</div>;
 }
 
 /* ── Statussen ── */
@@ -1043,11 +1058,45 @@ function ModuleKop({ icoon, titel, badge }) {
   );
 }
 
+/* Eén rij in de VvE-detailtabel — gebruikt door zowel de scherm- als de print-versie. */
+function VveDetailRij({ r }) {
+  return (
+    <tr style={{ borderBottom: `1px solid ${C.lijnZacht}`, background: !r.gefactureerd ? "rgba(153,26,33,.02)" : "transparent" }}>
+      <td style={{ padding: "11px 16px" }}><div style={{ fontWeight: 600, color: C.ink }}>{r.naam}</div><div style={{ fontSize: 10.5, color: C.tekst3 }}>{r.adres}</div></td>
+      <td style={{ padding: "11px 16px", color: C.tekst2, fontSize: 12 }}>{r.beheerder}</td>
+      <td style={{ padding: "11px 16px" }}><span style={{ fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 999, background: TRAJECT_KLEUR[r.type].bg, color: TRAJECT_KLEUR[r.type].kleur, border: `1px solid ${TRAJECT_KLEUR[r.type].rand}` }}>{r.typeLabel}</span></td>
+      <td style={{ padding: "11px 16px", textAlign: "right", fontWeight: 600, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{euro(r.bedrag)}<InclBtwLabel bedrag={r.bedrag} /></td>
+      <td style={{ padding: "11px 16px", textAlign: "right" }}>{r.gefactureerd ? <span style={{ fontSize: 11, fontWeight: 600, color: C.groen, background: C.groenTint, padding: "2px 9px", borderRadius: 999, border: `1px solid ${C.groenRand}` }}>Gefactureerd</span> : <span style={{ fontSize: 11, fontWeight: 600, color: C.bordeaux, background: C.bordeauxTint, padding: "2px 9px", borderRadius: 999, border: `1px solid ${C.bordeauxRand}` }}>Openstaand</span>}</td>
+      <td style={{ padding: "11px 16px", textAlign: "right", fontSize: 12, color: C.tekst2, fontVariantNumeric: "tabular-nums" }}>{r.datum ? datumNL(r.datum) : "—"}</td>
+    </tr>
+  );
+}
+
+/* Volledige VvE-detailtabel (kop + rijen + totaalregel). data bepaalt de volgorde. */
+function VveDetailTabel({ data, totaal }) {
+  return (
+    <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
+      <thead><tr style={{ borderBottom: `1px solid ${C.lijnZacht}`, background: C.inset }}>{["VvE", "Beheerder", "Type", "Bedrag", "Status", "Datum"].map((h, i) => <th key={h} style={{ padding: "10px 16px", fontSize: 10.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: C.tekst3, textAlign: i > 2 ? "right" : "left" }}>{h}</th>)}</tr></thead>
+      <tbody>
+        {data.map((r, i) => <VveDetailRij key={i} r={r} />)}
+        <tr style={{ borderTop: `2px solid ${C.lijn}`, background: C.inset }}>
+          <td colSpan={3} style={{ padding: "11px 16px", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.tekst2 }}>Totaal</td>
+          <td style={{ padding: "11px 16px", textAlign: "right", fontWeight: 700, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{euro(totaal.totaal)}<InclBtwLabel bedrag={totaal.totaal} /></td>
+          <td style={{ padding: "11px 16px", textAlign: "right", fontSize: 11, fontWeight: 600, color: C.groen, fontVariantNumeric: "tabular-nums" }}>{euro(totaal.gefactureerd)}<InclBtwLabel bedrag={totaal.gefactureerd} /></td>
+          <td style={{ padding: "11px 16px", textAlign: "right", fontSize: 11, fontWeight: 600, color: C.bordeaux, fontVariantNumeric: "tabular-nums" }}>{euro(totaal.open)} open<InclBtwLabel bedrag={totaal.open} /></td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+
 /* ── Financieel-scherm: één rekenmodel voor KPI's, per-traject en tabel ── */
 function FinancieelScherm({ vves }) {
   const { rijen, totaal, per } = financieelOverzicht(vves);
   const printDatum = new Date().toLocaleDateString("nl-NL", { day: "2-digit", month: "long", year: "numeric" });
   const geordend = [...rijen].sort((a, b) => (a.gefactureerd === b.gefactureerd ? 0 : a.gefactureerd ? 1 : -1) || b.bedrag - a.bedrag);
+  /* Alleen voor de export/print: VvE's alfabetisch op naam, ongeacht status of bedrag. */
+  const geordendAlfabetisch = [...rijen].sort((a, b) => (a.naam || "").localeCompare(b.naam || "", "nl", { sensitivity: "base" }));
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1091,9 +1140,9 @@ function FinancieelScherm({ vves }) {
                   <tr key={type} style={{ borderBottom: `1px solid ${C.lijnZacht}` }}>
                     <td style={{ padding: "11px 18px" }}><TrajectBadge type={type} /></td>
                     <td style={{ padding: "11px 18px", textAlign: "right", color: C.tekst2, fontVariantNumeric: "tabular-nums" }}>{f.aantal}</td>
-                    <td style={{ padding: "11px 18px", textAlign: "right", color: C.inkSoft, fontVariantNumeric: "tabular-nums" }}>{euro(f.totaal)}</td>
-                    <td style={{ padding: "11px 18px", textAlign: "right", color: C.groen, fontWeight: 500, fontVariantNumeric: "tabular-nums" }}>{euro(f.gefactureerd)}</td>
-                    <td style={{ padding: "11px 18px", textAlign: "right", color: C.bordeaux, fontWeight: 500, fontVariantNumeric: "tabular-nums" }}>{euro(f.open)}</td>
+                    <td style={{ padding: "11px 18px", textAlign: "right", color: C.inkSoft, fontVariantNumeric: "tabular-nums" }}>{euro(f.totaal)}<InclBtwLabel bedrag={f.totaal} /></td>
+                    <td style={{ padding: "11px 18px", textAlign: "right", color: C.groen, fontWeight: 500, fontVariantNumeric: "tabular-nums" }}>{euro(f.gefactureerd)}<InclBtwLabel bedrag={f.gefactureerd} /></td>
+                    <td style={{ padding: "11px 18px", textAlign: "right", color: C.bordeaux, fontWeight: 500, fontVariantNumeric: "tabular-nums" }}>{euro(f.open)}<InclBtwLabel bedrag={f.open} /></td>
                   </tr>
                 );
               })}
@@ -1111,27 +1160,16 @@ function FinancieelScherm({ vves }) {
           {rijen.length === 0 ? (
             <div style={{ padding: "32px", textAlign: "center", fontSize: 12.5, color: C.tekst3, fontStyle: "italic" }}>Geen bedragen ingevuld bij isolatie-, subsidie- of procesbegeleidingstrajecten.</div>
           ) : (
-            <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
-              <thead><tr style={{ borderBottom: `1px solid ${C.lijnZacht}`, background: C.inset }}>{["VvE", "Beheerder", "Type", "Bedrag", "Status", "Datum"].map((h, i) => <th key={h} style={{ padding: "10px 16px", fontSize: 10.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: C.tekst3, textAlign: i > 2 ? "right" : "left" }}>{h}</th>)}</tr></thead>
-              <tbody>
-                {geordend.map((r, i) => (
-                  <tr key={i} style={{ borderBottom: `1px solid ${C.lijnZacht}`, background: !r.gefactureerd ? "rgba(153,26,33,.02)" : "transparent" }}>
-                    <td style={{ padding: "11px 16px" }}><div style={{ fontWeight: 600, color: C.ink }}>{r.naam}</div><div style={{ fontSize: 10.5, color: C.tekst3 }}>{r.adres}</div></td>
-                    <td style={{ padding: "11px 16px", color: C.tekst2, fontSize: 12 }}>{r.beheerder}</td>
-                    <td style={{ padding: "11px 16px" }}><span style={{ fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 999, background: TRAJECT_KLEUR[r.type].bg, color: TRAJECT_KLEUR[r.type].kleur, border: `1px solid ${TRAJECT_KLEUR[r.type].rand}` }}>{r.typeLabel}</span></td>
-                    <td style={{ padding: "11px 16px", textAlign: "right", fontWeight: 600, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{euro(r.bedrag)}</td>
-                    <td style={{ padding: "11px 16px", textAlign: "right" }}>{r.gefactureerd ? <span style={{ fontSize: 11, fontWeight: 600, color: C.groen, background: C.groenTint, padding: "2px 9px", borderRadius: 999, border: `1px solid ${C.groenRand}` }}>Gefactureerd</span> : <span style={{ fontSize: 11, fontWeight: 600, color: C.bordeaux, background: C.bordeauxTint, padding: "2px 9px", borderRadius: 999, border: `1px solid ${C.bordeauxRand}` }}>Openstaand</span>}</td>
-                    <td style={{ padding: "11px 16px", textAlign: "right", fontSize: 12, color: C.tekst2, fontVariantNumeric: "tabular-nums" }}>{r.datum ? datumNL(r.datum) : "—"}</td>
-                  </tr>
-                ))}
-                <tr style={{ borderTop: `2px solid ${C.lijn}`, background: C.inset }}>
-                  <td colSpan={3} style={{ padding: "11px 16px", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.tekst2 }}>Totaal</td>
-                  <td style={{ padding: "11px 16px", textAlign: "right", fontWeight: 700, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{euro(totaal.totaal)}</td>
-                  <td style={{ padding: "11px 16px", textAlign: "right", fontSize: 11, fontWeight: 600, color: C.groen, fontVariantNumeric: "tabular-nums" }}>{euro(totaal.gefactureerd)}</td>
-                  <td style={{ padding: "11px 16px", textAlign: "right", fontSize: 11, fontWeight: 600, color: C.bordeaux, fontVariantNumeric: "tabular-nums" }}>{euro(totaal.open)} open</td>
-                </tr>
-              </tbody>
-            </table>
+            <>
+              {/* Scherm: huidige sortering (openstaand eerst, dan op bedrag) */}
+              <div className="vd-screen-only">
+                <VveDetailTabel data={geordend} totaal={totaal} />
+              </div>
+              {/* Export/print: alfabetisch op VvE-naam */}
+              <div className="vd-print-only">
+                <VveDetailTabel data={geordendAlfabetisch} totaal={totaal} />
+              </div>
+            </>
           )}
         </div>
 
