@@ -1587,6 +1587,7 @@ function AdminDashboard({ beheerderList }) {
 // ── Main App ─────────────────────────────────────────────────────
 export default function App() {
   const [screen, setScreen] = useState(RECOVERY && RECOVERY.token ? "wachtwoord-instellen" : "login"); // login | wachtwoord-instellen | portaal | vergaderingen | calculator | admin | lod
+  const [calcSnapshot, setCalcSnapshot] = useState(null); // bewaart calculator-invoer bij wisselen van module (in-memory)
   const [beheerder, setBeheerder] = useState("");
   const [userRol, setUserRol] = useState("beheerder");
   const [userModules, setUserModules] = useState([]);
@@ -2256,7 +2257,7 @@ useEffect(() => {
   if (screen==="kennisbank") return metShell(<KennisBank onTerug={()=>setScreen("portaal")} />);
   if (screen==="admin") return metShell(<AdminDashboard beheerderList={beheerderList}/>);
   if (screen==="lod") return metShell(<LodBeheer onTerug={()=>setScreen("portaal")} beheerderList={beheerderList}/>);
-  if (screen==="calculator") return metShell(<VveCalculator onTerug={()=>setScreen("portaal")}/>);
+  if (screen==="calculator") return metShell(<VveCalculator onTerug={()=>setScreen("portaal")} snapshot={calcSnapshot} onSnapshot={setCalcSnapshot}/>);
 
   if (screen==="wachtwoord-instellen") return (
     <div className="min-h-screen grid grid-cols-2">
