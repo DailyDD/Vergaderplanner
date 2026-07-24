@@ -1,4 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 // ── VvE Calculator ───────────────────────────────────────────────
 const CSS_FONT = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
@@ -203,6 +206,61 @@ function CSecTitle({children, style:st}) {
   );
 }
 
+// -- Presentielijst-PDF parser (coordinaat-gebaseerd; robuust tegen celafbreking) --
+async function calcPageItems(doc, p) {
+  const page = await doc.getPage(p)
+  const tc = await page.getTextContent()
+  return tc.items
+    .filter(it => it.str.trim() !== '')
+    .map(it => ({ x: Math.round(it.transform[4]), y: Math.round(it.transform[5]), s: it.str }))
+}
+
+async function parsePresentielijst(bytes) {
+  const doc = await pdfjsLib.getDocument({ data: bytes }).promise
+  let bands = null, headerY = null
+  for (let p = 1; p <= doc.numPages && !bands; p++) {
+    const items = await calcPageItems(doc, p)
+    const find = (label) => items.find(it => it.s.replace(/\s+/g, ' ').trim() === label)
+    const adres = find('Adres + postcode'), tel = find('Telefoonnummer'), breuk = find('Breukdelen'), stem = find('Stemmen'), hand = find('Handtekening')
+    if (adres && tel && breuk && stem && hand) {
+      bands = { adres: [adres.x - 5, tel.x - 5], breuk: [breuk.x - 8, stem.x - 8], stem: [stem.x - 8, hand.x - 8] }
+      headerY = adres.y
+    }
+  }
+  if (!bands) throw new Error('Kop van de presentielijst niet herkend -- is dit het standaardformaat?')
+  const inBand = (x, band) => x >= band[0] && x < band[1]
+  const units = []
+  for (let p = 1; p <= doc.numPages; p++) {
+    const items = await calcPageItems(doc, p)
+    const maxY = (p === 1) ? headerY - 1 : Infinity
+    const ankers = items
+      .filter(it => inBand(it.x, bands.breuk) && /^\d+$/.test(it.s.trim()) && it.y < maxY)
+      .sort((a, b) => b.y - a.y)
+    for (let i = 0; i < ankers.length; i++) {
+      const a = ankers[i]
+      const nextY = (i + 1 < ankers.length) ? ankers[i + 1].y : a.y - 60
+      const adresItems = items
+        .filter(it => inBand(it.x, bands.adres) && it.y <= a.y + 2 && it.y > nextY + 2)
+        .sort((u, v) => v.y - u.y || u.x - v.x)
+      const adresFull = adresItems.map(it => it.s).join(' ').replace(/\s+/g, ' ').trim()
+      const linksDeel = adresFull.split(',')[0].trim()
+      const hm = linksDeel.match(/^(.+?)\s+(\d+\s*[A-Za-z]?)$/)
+      if (!hm) continue
+      const straat = hm[1].trim()
+      const huisnr = hm[2].replace(/\s+/g, '')
+      const breukdeel = parseInt(a.s.trim(), 10)
+      const stemItem = items.find(it => inBand(it.x, bands.stem) && Math.abs(it.y - a.y) <= 3 && /^\d+$/.test(it.s.trim()))
+      const stem = stemItem ? parseInt(stemItem.s.trim(), 10) : null
+      units.push({ label: straat + ' ' + huisnr, straat, huisnr, hnr: parseInt(huisnr, 10) || 0, breukdeel, stem })
+    }
+  }
+  const seen = new Set()
+  const uniek = units.filter(u => (seen.has(u.label) ? false : seen.add(u.label)))
+  uniek.sort((a, b) => a.straat.localeCompare(b.straat, 'nl') || a.hnr - b.hnr)
+  const noemer = uniek.reduce((s, u) => s + (u.breukdeel || 0), 0)
+  return { units: uniek, noemer }
+}
+
 export default function VveCalculator({ onTerug, snapshot, onSnapshot }) {
   const S = C
   const fmt = calcFmt
@@ -251,6 +309,23 @@ export default function VveCalculator({ onTerug, snapshot, onSnapshot }) {
     rows, result, calcTab, wfBedrag, wfLooptijd, wfRente, wfResult,
   }
   useEffect(() => () => { if (onSnapshot) onSnapshot(snapshotRef.current) }, [])
+
+  // PDF-import van presentielijst
+  const [pdfBezig, setPdfBezig] = useState(false)
+  const [pdfFout,  setPdfFout]  = useState('')
+  const importeerPresentielijst = async (file) => {
+    setPdfFout(''); setPdfBezig(true)
+    try {
+      const buf = await file.arrayBuffer()
+      const { units, noemer } = await parsePresentielijst(new Uint8Array(buf))
+      if (!units.length) { setPdfFout('Geen units herkend in deze PDF. Is het een presentielijst in het standaardformaat?'); setPdfBezig(false); return }
+      setRows(units.map(u => ({ id: uid(), naam: u.label, teller: String(u.breukdeel), huidig: '', stem: u.stem == null ? '' : String(u.stem) })))
+      setVasteNoemer(String(noemer))
+      setPdfBezig(false)
+    } catch (e) {
+      setPdfFout('Kon de PDF niet lezen: ' + (e && e.message ? e.message : 'onbekende fout')); setPdfBezig(false)
+    }
+  }
 
   // Annuitaire maandlast berekening
   const berekenWarmtefonds = () => {
@@ -306,7 +381,7 @@ export default function VveCalculator({ onTerug, snapshot, onSnapshot }) {
     return { ok: true, totaal: totalTeller }
   })()
 
-  const addRow = () => setRows(p => [...p, { id: uid(), naam: '', teller: '', huidig: '' }])
+  const addRow = () => setRows(p => [...p, { id: uid(), naam: '', teller: '', huidig: '', stem: '' }])
   const delRow = (id) => setRows(p => p.filter(r => r.id !== id))
   const updRow = (id, f, v) => setRows(p => p.map(r => r.id === id ? { ...r, [f]: v } : r))
 
@@ -446,7 +521,7 @@ export default function VveCalculator({ onTerug, snapshot, onSnapshot }) {
       const teller = parseFloat(r.teller) || 0
       const aandeel = noemer > 0 ? teller / noemer : 0
       const huidig = parseFloat(r.huidig) || null
-      return { naam: r.naam || ('App. ' + r.id), teller: r.teller, noemer, aandeel, huidig, bijdrMjop: mt > 0 ? aandeel * mndMjop : null, bijdr05: hv > 0 ? aandeel * mnd05 : null }
+      return { naam: r.naam || ('App. ' + r.id), teller: r.teller, noemer, aandeel, huidig, stem: r.stem, bijdrMjop: mt > 0 ? aandeel * mndMjop : null, bijdr05: hv > 0 ? aandeel * mnd05 : null }
     })
     const somHuidig = validRows.reduce((s, r) => s + (parseFloat(r.huidig) || 0), 0)
     const jaarResHuidig = somHuidig > 0 ? (somHuidig * 12) - exploit : null
@@ -609,7 +684,7 @@ export default function VveCalculator({ onTerug, snapshot, onSnapshot }) {
                     <tr style={{ background:C.inset, borderBottom:'1px solid '+C.lijn }}>
                       <th style={{ padding:'8px 10px', textAlign:'center', fontSize:10, fontWeight:600, color:C.tekst2, textTransform:'uppercase', letterSpacing:'0.06em', width:30 }}>#</th>
                       <th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:C.tekst2, textTransform:'uppercase', letterSpacing:'0.06em' }}>Naam / adres eigenaar</th>
-                      <th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:C.tekst2, textTransform:'uppercase', letterSpacing:'0.06em', width:150 }}>Breukdeel teller</th>
+                      <th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:C.tekst2, textTransform:'uppercase', letterSpacing:'0.06em', width:150 }}>Breukdeel teller</th><th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:C.tekst2, textTransform:'uppercase', letterSpacing:'0.06em', width:80 }}>Stem</th>
                       <th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:C.tekst2, textTransform:'uppercase', letterSpacing:'0.06em', width:170 }}>Huidige bijdrage (euro/mnd)</th>
                       <th style={{ width:36 }}></th>
                     </tr>
@@ -619,7 +694,7 @@ export default function VveCalculator({ onTerug, snapshot, onSnapshot }) {
                       <tr key={r.id} style={{ borderBottom: i < rows.length - 1 ? '1px solid '+C.lijn : 'none' }}>
                         <td style={{ textAlign:'center', fontVariantNumeric:'tabular-nums', fontSize:11, color:C.tekst3, padding:'7px 8px' }}>{i + 1}</td>
                         <td style={{ padding:'5px 6px' }}><CInp placeholder="bijv. App. 1 De Vries" value={r.naam} onChange={e => updRow(r.id, 'naam', e.target.value)} /></td>
-                        <td style={{ padding:'5px 6px' }}><CInp type="number" placeholder="bijv. 45" value={r.teller} onChange={e => updRow(r.id, 'teller', e.target.value)} /></td>
+                        <td style={{ padding:'5px 6px' }}><CInp type="number" placeholder="bijv. 45" value={r.teller} onChange={e => updRow(r.id, 'teller', e.target.value)} /></td><td style={{ padding:'5px 6px' }}><CInp type="number" placeholder="bijv. 1" value={r.stem == null ? '' : r.stem} onChange={e => updRow(r.id, 'stem', e.target.value)} /></td>
                         <td style={{ padding:'5px 6px' }}><CInp type="number" placeholder="bijv. 125" value={r.huidig} onChange={e => updRow(r.id, 'huidig', e.target.value)} /></td>
                         <td style={{ padding:'5px 6px', textAlign:'center' }}>
                           <button onClick={() => delRow(r.id)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:16, color:C.tekst3, padding:'2px 6px', borderRadius:4 }}>×</button>
@@ -852,6 +927,10 @@ ${r.mnd05 !== null ? '<div class="summary-grid" style="grid-template-columns:rep
               <button onClick={() => setBulkOpen(p => !p)} style={{ padding:'8px 16px', background:bulkOpen?C.bordeaux:C.wit, border:'1.5px solid '+C.bordeaux, borderRadius:8, fontFamily:"'DM Sans',sans-serif", fontSize:13, color:bulkOpen?'#fff':C.bordeaux, cursor:'pointer', fontWeight:500 }}>
                 {bulkOpen ? '× Sluiten' : 'Bulk importeren via tekst'}
               </button>
+              <label style={{ padding:'8px 16px', background:pdfBezig?C.inset:C.bordeaux, border:'1.5px solid '+C.bordeaux, borderRadius:8, fontFamily:"'DM Sans',sans-serif", fontSize:13, color:pdfBezig?C.tekst2:'#fff', cursor:pdfBezig?'default':'pointer', fontWeight:500, display:'inline-flex', alignItems:'center', gap:6 }}>
+                {pdfBezig ? 'Bezig met inlezen…' : 'Presentielijst-PDF importeren'}
+                <input type="file" accept="application/pdf,.pdf" disabled={pdfBezig} style={{ display:'none' }} onChange={e => { const f = e.target.files && e.target.files[0]; if (f) importeerPresentielijst(f); e.target.value = '' }} />
+              </label>
               <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                 <label style={{ fontSize:11, fontWeight:600, color:C.tekst2, textTransform:'uppercase', letterSpacing:'0.06em', whiteSpace:'nowrap' }}>Totaal breukdelen (noemer)</label>
                 <input type="number" placeholder="bijv. 5250" value={vasteNoemer} onChange={e => setVasteNoemer(e.target.value)}
@@ -860,6 +939,7 @@ ${r.mnd05 !== null ? '<div class="summary-grid" style="grid-template-columns:rep
                 />
               </div>
             </div>
+            {pdfFout && <div style={{ color:C.bordeaux, fontSize:12, marginTop:8, display:'flex', alignItems:'center', gap:4 }}>{Icn.warn(14, C.bordeaux)} {pdfFout}</div>}
             {bulkOpen && (
               <div style={{ background:C.inset, border:'1px solid '+C.lijn, borderRadius:10, padding:16, marginTop:10, marginBottom:12 }}>
                 <div style={{ fontSize:12, color:C.tekst2, marginBottom:8 }}>Plak hieronder de presentielijst of eigenaarstekst. De tool haalt naam, adres en breukdeel er automatisch uit.</div>
@@ -880,7 +960,7 @@ ${r.mnd05 !== null ? '<div class="summary-grid" style="grid-template-columns:rep
                 <tr style={{ background:C.inset, borderBottom:'1px solid '+C.lijn }}>
                   <th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:C.tekst2, textTransform:'uppercase', letterSpacing:'0.06em', width:36 }}>#</th>
                   <th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:C.tekst2, textTransform:'uppercase', letterSpacing:'0.06em' }}>Naam / appartement</th>
-                  <th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:C.tekst2, textTransform:'uppercase', letterSpacing:'0.06em', width:150 }}>Breukdeel teller</th>
+                  <th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:C.tekst2, textTransform:'uppercase', letterSpacing:'0.06em', width:150 }}>Breukdeel teller</th><th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:C.tekst2, textTransform:'uppercase', letterSpacing:'0.06em', width:80 }}>Stem</th>
                   <th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:C.tekst2, textTransform:'uppercase', letterSpacing:'0.06em', width:220 }}>
                     <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                       Huidige bijdrage (€/mnd)
@@ -895,7 +975,7 @@ ${r.mnd05 !== null ? '<div class="summary-grid" style="grid-template-columns:rep
               {bulkBijdrageOpen && (
                 <tbody>
                   <tr>
-                    <td colSpan={5} style={{ padding:'12px 16px', background:C.inset }}>
+                    <td colSpan={6} style={{ padding:'12px 16px', background:C.inset }}>
                       <div style={{ fontSize:12, color:C.tekst2, marginBottom:8 }}>Plak het overzicht ledenbijdragen. De tool pakt het vaakst voorkomende bedrag per eigenaar.</div>
                       <textarea value={bulkBijdrageTekst} onChange={e => setBulkBijdrageTekst(e.target.value)} placeholder="Plak hier het overzicht ledenbijdragen..."
                         style={{ width:'100%', minHeight:120, padding:'8px 10px', border:'1.5px solid '+C.lijn, borderRadius:7, fontFamily:'monospace', fontSize:12, color:C.ink, background:C.wit, outline:'none', resize:'vertical' }} />
@@ -910,7 +990,7 @@ ${r.mnd05 !== null ? '<div class="summary-grid" style="grid-template-columns:rep
                   <tr key={r.id} style={{ borderBottom: i < rows.length - 1 ? '1px solid '+C.lijn : 'none' }}>
                     <td style={{ textAlign:'center', fontVariantNumeric:'tabular-nums', fontSize:11, color:C.tekst3, padding:'7px 8px' }}>{i + 1}</td>
                     <td style={{ padding:'5px 6px' }}><CInp placeholder="bijv. App. 1 · De Vries" value={r.naam} onChange={e => updRow(r.id, 'naam', e.target.value)} /></td>
-                    <td style={{ padding:'5px 6px' }}><CInp type="number" placeholder="bijv. 45" value={r.teller} onChange={e => updRow(r.id, 'teller', e.target.value)} /></td>
+                    <td style={{ padding:'5px 6px' }}><CInp type="number" placeholder="bijv. 45" value={r.teller} onChange={e => updRow(r.id, 'teller', e.target.value)} /></td><td style={{ padding:'5px 6px' }}><CInp type="number" placeholder="bijv. 1" value={r.stem == null ? '' : r.stem} onChange={e => updRow(r.id, 'stem', e.target.value)} /></td>
                     <td style={{ padding:'5px 6px' }}><CInp type="number" placeholder="bijv. 125" value={r.huidig} onChange={e => updRow(r.id, 'huidig', e.target.value)} /></td>
                     <td style={{ padding:'5px 6px', textAlign:'center' }}>
                       <button onClick={() => delRow(r.id)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:16, color:C.tekst3, padding:'2px 6px', borderRadius:4 }}>×</button>
