@@ -392,11 +392,12 @@ export default function VveCalculator({ onTerug, snapshot, onSnapshot }) {
       if (!totaal) { setXlsFout('Geen bijdragen herkend in dit bestand. Is het de juiste export uit het beheersysteem?'); setXlsBezig(false); return }
       const normAdres = (s) => (s || '').toLowerCase().replace(/[\s\u00a0]/g, '')
       let gekoppeld = 0
-      setRows(prev => prev.map(r => {
+      const nieuweRows = rows.map(r => {
         const bedrag = bijdragen[normAdres(r.naam)]
         if (bedrag != null) { gekoppeld++; return { ...r, huidig: String(bedrag.toFixed(2)) } }
         return r
-      }))
+      })
+      setRows(nieuweRows)
       setXlsBezig(false)
       if (gekoppeld === 0) setXlsFout('Geen rijen gekoppeld op adres. Importeer eerst de presentielijst-PDF, of controleer of de adressen overeenkomen.')
       else setXlsInfo(gekoppeld + ' van ' + totaal + ' bijdragen gekoppeld op adres.')
