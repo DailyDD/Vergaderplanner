@@ -261,6 +261,58 @@ async function parsePresentielijst(bytes) {
   return { units: uniek, noemer }
 }
 
+// -- Bijdragen-export parser (tab-gescheiden; koppelt op adres, modus van niet-nul maandbedragen) --
+function parseBijdragenExport(tekst) {
+  const MAANDEN = ['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december']
+  const parseBedrag = (s) => {
+    if (s == null) return null
+    let x = s.replace(/\u20AC/g, '').replace(/[\s\u00a0]/g, '')
+    if (!x) return null
+    x = x.replace(/\./g, '').replace(',', '.')
+    const n = parseFloat(x)
+    return isNaN(n) ? null : n
+  }
+  const normAdres = (s) => (s || '').toLowerCase().replace(/[\s\u00a0]/g, '')
+  const lijnen = tekst.split(/\r?\n/)
+  const result = {}, totalen = {}
+  let curAdres = null, curBedragen = [], curTotaal = null
+  const flush = () => {
+    if (curAdres) {
+      const nz = curBedragen.filter(b => b != null && b > 0)
+      if (nz.length) {
+        const teller = {}
+        nz.forEach(b => { teller[b] = (teller[b] || 0) + 1 })
+        const modus = parseFloat(Object.entries(teller).sort((a, b) => b[1] - a[1])[0][0])
+        if (!(curAdres in result) || (curTotaal || 0) > (totalen[curAdres] || 0)) {
+          result[curAdres] = modus; totalen[curAdres] = curTotaal || 0
+        }
+      }
+    }
+    curAdres = null; curBedragen = []; curTotaal = null
+  }
+  for (const raw of lijnen) {
+    const cells = raw.replace(/\r$/, '').split('\t')
+    if (cells.length >= 4 && cells[1] === 'Maandbijdrage' && cells[2] === 'Betaling' && cells[3] === 'Verschil') {
+      flush()
+      const label = cells[0].replace(/Maand$/, '').trim()
+      const parens = label.match(/\(([^)]+)\)/g)
+      const adres = parens && parens.length ? parens[parens.length - 1].replace(/[()]/g, '').trim() : null
+      curAdres = adres ? normAdres(adres) : null
+      curBedragen = []; curTotaal = null
+      continue
+    }
+    if (!cells.length) continue
+    const eerste = (cells[0] || '').trim().toLowerCase()
+    if (MAANDEN.indexOf(eerste) !== -1 && cells.length >= 2) {
+      curBedragen.push(parseBedrag(cells[1]))
+    } else if ((cells[0] || '').trim() === 'Totalen' && cells.length >= 2) {
+      curTotaal = parseBedrag(cells[1])
+    }
+  }
+  flush()
+  return result
+}
+
 export default function VveCalculator({ onTerug, snapshot, onSnapshot }) {
   const S = C
   const fmt = calcFmt
@@ -324,6 +376,32 @@ export default function VveCalculator({ onTerug, snapshot, onSnapshot }) {
       setPdfBezig(false)
     } catch (e) {
       setPdfFout('Kon de PDF niet lezen: ' + (e && e.message ? e.message : 'onbekende fout')); setPdfBezig(false)
+    }
+  }
+
+  // Excel/CSV-import van maandelijkse bijdragen (koppelt op adres aan bestaande rijen)
+  const [xlsBezig, setXlsBezig] = useState(false)
+  const [xlsFout,  setXlsFout]  = useState('')
+  const [xlsInfo,  setXlsInfo]  = useState('')
+  const importeerBijdragenExcel = async (file) => {
+    setXlsFout(''); setXlsInfo(''); setXlsBezig(true)
+    try {
+      const tekst = await file.text()
+      const bijdragen = parseBijdragenExport(tekst)
+      const totaal = Object.keys(bijdragen).length
+      if (!totaal) { setXlsFout('Geen bijdragen herkend in dit bestand. Is het de juiste export uit het beheersysteem?'); setXlsBezig(false); return }
+      const normAdres = (s) => (s || '').toLowerCase().replace(/[\s\u00a0]/g, '')
+      let gekoppeld = 0
+      setRows(prev => prev.map(r => {
+        const bedrag = bijdragen[normAdres(r.naam)]
+        if (bedrag != null) { gekoppeld++; return { ...r, huidig: String(bedrag.toFixed(2)) } }
+        return r
+      }))
+      setXlsBezig(false)
+      if (gekoppeld === 0) setXlsFout('Geen rijen gekoppeld op adres. Importeer eerst de presentielijst-PDF, of controleer of de adressen overeenkomen.')
+      else setXlsInfo(gekoppeld + ' van ' + totaal + ' bijdragen gekoppeld op adres.')
+    } catch (e) {
+      setXlsFout('Kon het bestand niet lezen: ' + (e && e.message ? e.message : 'onbekende fout')); setXlsBezig(false)
     }
   }
 
@@ -657,26 +735,23 @@ export default function VveCalculator({ onTerug, snapshot, onSnapshot }) {
             <CCard header={<CCardHdr icon={Icn.users(16, C.groen)} bg={C.groenTint} title="Eigenaren" sub="Naam en breukdeel conform splitsingsakte — gedeeld met standaard calculator" />}>
               <div style={{ padding:'12px 20px 0' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
-                  <button onClick={() => setBulkOpen(p => !p)} style={{ padding:'8px 16px', background:bulkOpen?C.bordeaux:C.wit, border:'1.5px solid '+C.bordeaux, borderRadius:8, fontFamily:"'DM Sans',sans-serif", fontSize:13, color:bulkOpen?'#fff':C.bordeaux, cursor:'pointer', fontWeight:500 }}>
-                    {bulkOpen ? 'x Sluiten' : 'Bulk importeren via tekst'}
-                  </button>
+                  <label style={{ padding:'8px 16px', background:pdfBezig?C.inset:C.bordeaux, border:'1.5px solid '+C.bordeaux, borderRadius:8, fontFamily:"'DM Sans',sans-serif", fontSize:13, color:pdfBezig?C.tekst2:'#fff', cursor:pdfBezig?'default':'pointer', fontWeight:500, display:'inline-flex', alignItems:'center', gap:6 }}>
+                    {pdfBezig ? 'Bezig met inlezen…' : 'Presentielijst-PDF importeren'}
+                    <input type="file" accept="application/pdf,.pdf" disabled={pdfBezig} style={{ display:'none' }} onChange={e => { const f = e.target.files && e.target.files[0]; if (f) importeerPresentielijst(f); e.target.value = '' }} />
+                  </label>
+                  <label style={{ padding:'8px 16px', background:xlsBezig?C.inset:C.wit, border:'1.5px solid '+C.bordeaux, borderRadius:8, fontFamily:"'DM Sans',sans-serif", fontSize:13, color:C.bordeaux, cursor:xlsBezig?'default':'pointer', fontWeight:500, display:'inline-flex', alignItems:'center', gap:6 }}>
+                    {xlsBezig ? 'Bezig met inlezen…' : 'Bijdragen importeren via Excel'}
+                    <input type="file" accept=".xls,.xlsx,.csv,.tsv,.txt" disabled={xlsBezig} style={{ display:'none' }} onChange={e => { const f = e.target.files && e.target.files[0]; if (f) importeerBijdragenExcel(f); e.target.value = '' }} />
+                  </label>
                   <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                     <label style={{ fontSize:11, fontWeight:600, color:C.tekst2, textTransform:'uppercase', letterSpacing:'0.06em', whiteSpace:'nowrap' }}>Totaal breukdelen (noemer)</label>
                     <input type="number" placeholder="bijv. 5250" value={vasteNoemer} onChange={e => setVasteNoemer(e.target.value)}
                       style={{ width:120, padding:'7px 10px', border:'1.5px solid '+C.lijn, borderRadius:8, fontVariantNumeric:'tabular-nums', fontSize:13, color:C.ink, background:C.inset, outline:'none', MozAppearance:'textfield', appearance:'textfield' }} />
                   </div>
                 </div>
-                {bulkOpen && (
-                  <div style={{ background:C.inset, border:'1px solid '+C.lijn, borderRadius:10, padding:16, marginTop:10, marginBottom:12 }}>
-                    <div style={{ fontSize:12, color:C.tekst2, marginBottom:8 }}>Plak hieronder de presentielijst of eigenaarstekst.</div>
-                    <textarea value={bulkTekst} onChange={e => setBulkTekst(e.target.value)} placeholder="Plak hier de presentielijst..."
-                      style={{ width:'100%', minHeight:120, padding:'10px 12px', border:'1.5px solid '+C.lijn, borderRadius:8, fontFamily:'monospace', fontSize:12, color:C.ink, background:C.wit, outline:'none', resize:'vertical' }} />
-                    {bulkFout && <div style={{ color:C.bordeaux, fontSize:12, marginTop:6, display:'flex', alignItems:'center', gap:4 }}>{Icn.warn(14, C.bordeaux)} {bulkFout}</div>}
-                    <div style={{ display:'flex', alignItems:'center', gap:12, marginTop:10 }}>
-                      <button onClick={parseBulk} style={{ padding:'9px 20px', background:C.bordeaux, border:'none', borderRadius:8, fontFamily:"'DM Sans',sans-serif", fontSize:13, color:'#fff', cursor:'pointer', fontWeight:500 }}>Verwerken</button>
-                    </div>
-                  </div>
-                )}
+                {pdfFout && <div style={{ color:C.bordeaux, fontSize:12, marginTop:8, display:'flex', alignItems:'center', gap:4 }}>{Icn.warn(14, C.bordeaux)} {pdfFout}</div>}
+                {xlsFout && <div style={{ color:C.bordeaux, fontSize:12, marginTop:8, display:'flex', alignItems:'center', gap:4 }}>{Icn.warn(14, C.bordeaux)} {xlsFout}</div>}
+                {xlsInfo && <div style={{ color:C.groen, fontSize:12, marginTop:8, display:'flex', alignItems:'center', gap:4 }}>{Icn.check(14, C.groen)} {xlsInfo}</div>}
               </div>
               <div style={{ overflowX:'auto', padding:'8px 20px' }}>
                 <table style={{ width:'100%', borderCollapse:'collapse' }}>
@@ -924,12 +999,13 @@ ${r.mnd05 !== null ? '<div class="summary-grid" style="grid-template-columns:rep
         <CCard header={<CCardHdr icon={Icn.users(16, C.groen)} bg={C.groenTint} title="Eigenaren" sub="Naam en breukdeel conform splitsingsakte" />}>
           <div style={{ padding:'12px 20px 0' }}>
             <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
-              <button onClick={() => setBulkOpen(p => !p)} style={{ padding:'8px 16px', background:bulkOpen?C.bordeaux:C.wit, border:'1.5px solid '+C.bordeaux, borderRadius:8, fontFamily:"'DM Sans',sans-serif", fontSize:13, color:bulkOpen?'#fff':C.bordeaux, cursor:'pointer', fontWeight:500 }}>
-                {bulkOpen ? '× Sluiten' : 'Bulk importeren via tekst'}
-              </button>
               <label style={{ padding:'8px 16px', background:pdfBezig?C.inset:C.bordeaux, border:'1.5px solid '+C.bordeaux, borderRadius:8, fontFamily:"'DM Sans',sans-serif", fontSize:13, color:pdfBezig?C.tekst2:'#fff', cursor:pdfBezig?'default':'pointer', fontWeight:500, display:'inline-flex', alignItems:'center', gap:6 }}>
                 {pdfBezig ? 'Bezig met inlezen…' : 'Presentielijst-PDF importeren'}
                 <input type="file" accept="application/pdf,.pdf" disabled={pdfBezig} style={{ display:'none' }} onChange={e => { const f = e.target.files && e.target.files[0]; if (f) importeerPresentielijst(f); e.target.value = '' }} />
+              </label>
+              <label style={{ padding:'8px 16px', background:xlsBezig?C.inset:C.wit, border:'1.5px solid '+C.bordeaux, borderRadius:8, fontFamily:"'DM Sans',sans-serif", fontSize:13, color:C.bordeaux, cursor:xlsBezig?'default':'pointer', fontWeight:500, display:'inline-flex', alignItems:'center', gap:6 }}>
+                {xlsBezig ? 'Bezig met inlezen…' : 'Bijdragen importeren via Excel'}
+                <input type="file" accept=".xls,.xlsx,.csv,.tsv,.txt" disabled={xlsBezig} style={{ display:'none' }} onChange={e => { const f = e.target.files && e.target.files[0]; if (f) importeerBijdragenExcel(f); e.target.value = '' }} />
               </label>
               <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                 <label style={{ fontSize:11, fontWeight:600, color:C.tekst2, textTransform:'uppercase', letterSpacing:'0.06em', whiteSpace:'nowrap' }}>Totaal breukdelen (noemer)</label>
@@ -940,18 +1016,8 @@ ${r.mnd05 !== null ? '<div class="summary-grid" style="grid-template-columns:rep
               </div>
             </div>
             {pdfFout && <div style={{ color:C.bordeaux, fontSize:12, marginTop:8, display:'flex', alignItems:'center', gap:4 }}>{Icn.warn(14, C.bordeaux)} {pdfFout}</div>}
-            {bulkOpen && (
-              <div style={{ background:C.inset, border:'1px solid '+C.lijn, borderRadius:10, padding:16, marginTop:10, marginBottom:12 }}>
-                <div style={{ fontSize:12, color:C.tekst2, marginBottom:8 }}>Plak hieronder de presentielijst of eigenaarstekst. De tool haalt naam, adres en breukdeel er automatisch uit.</div>
-                <textarea value={bulkTekst} onChange={e => setBulkTekst(e.target.value)} placeholder="Plak hier de presentielijst of eigenaarstekst..."
-                  style={{ width:'100%', minHeight:140, padding:'10px 12px', border:'1.5px solid '+C.lijn, borderRadius:8, fontFamily:'monospace', fontSize:12, color:C.ink, background:C.wit, outline:'none', resize:'vertical' }} />
-                {bulkFout && <div style={{ color:C.bordeaux, fontSize:12, marginTop:6, display:'flex', alignItems:'center', gap:4 }}>{Icn.warn(14, C.bordeaux)} {bulkFout}</div>}
-                <div style={{ display:'flex', alignItems:'center', gap:12, marginTop:10 }}>
-                  <button onClick={parseBulk} style={{ padding:'9px 20px', background:C.bordeaux, border:'none', borderRadius:8, fontFamily:"'DM Sans',sans-serif", fontSize:13, color:'#fff', cursor:'pointer', fontWeight:500 }}>Verwerken</button>
-                  <span style={{ fontSize:11, color:C.tekst3 }}>Bestaande eigenaren worden vervangen</span>
-                </div>
-              </div>
-            )}
+            {xlsFout && <div style={{ color:C.bordeaux, fontSize:12, marginTop:8, display:'flex', alignItems:'center', gap:4 }}>{Icn.warn(14, C.bordeaux)} {xlsFout}</div>}
+            {xlsInfo && <div style={{ color:C.groen, fontSize:12, marginTop:8, display:'flex', alignItems:'center', gap:4 }}>{Icn.check(14, C.groen)} {xlsInfo}</div>}
           </div>
 
           <div style={{ overflowX:'auto' }}>
@@ -961,30 +1027,10 @@ ${r.mnd05 !== null ? '<div class="summary-grid" style="grid-template-columns:rep
                   <th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:C.tekst2, textTransform:'uppercase', letterSpacing:'0.06em', width:36 }}>#</th>
                   <th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:C.tekst2, textTransform:'uppercase', letterSpacing:'0.06em' }}>Naam / appartement</th>
                   <th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:C.tekst2, textTransform:'uppercase', letterSpacing:'0.06em', width:150 }}>Breukdeel teller</th><th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:C.tekst2, textTransform:'uppercase', letterSpacing:'0.06em', width:80 }}>Stem</th>
-                  <th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:C.tekst2, textTransform:'uppercase', letterSpacing:'0.06em', width:220 }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                      Huidige bijdrage (€/mnd)
-                      <button onClick={() => setBulkBijdrageOpen(p => !p)} style={{ padding:'2px 8px', background:bulkBijdrageOpen?C.bordeaux:C.wit, border:'1px solid '+C.bordeaux, borderRadius:5, fontSize:10, color:bulkBijdrageOpen?'#fff':C.bordeaux, cursor:'pointer', fontWeight:600 }}>
-                        {bulkBijdrageOpen ? '× sluiten' : 'bulk'}
-                      </button>
-                    </div>
-                  </th>
+                  <th style={{ padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:600, color:C.tekst2, textTransform:'uppercase', letterSpacing:'0.06em', width:220 }}>Huidige bijdrage (€/mnd)</th>
                   <th style={{ padding:'8px 10px', width:44 }}></th>
                 </tr>
               </thead>
-              {bulkBijdrageOpen && (
-                <tbody>
-                  <tr>
-                    <td colSpan={6} style={{ padding:'12px 16px', background:C.inset }}>
-                      <div style={{ fontSize:12, color:C.tekst2, marginBottom:8 }}>Plak het overzicht ledenbijdragen. De tool pakt het vaakst voorkomende bedrag per eigenaar.</div>
-                      <textarea value={bulkBijdrageTekst} onChange={e => setBulkBijdrageTekst(e.target.value)} placeholder="Plak hier het overzicht ledenbijdragen..."
-                        style={{ width:'100%', minHeight:120, padding:'8px 10px', border:'1.5px solid '+C.lijn, borderRadius:7, fontFamily:'monospace', fontSize:12, color:C.ink, background:C.wit, outline:'none', resize:'vertical' }} />
-                      {bulkBijdrageFout && <div style={{ color:C.bordeaux, fontSize:12, marginTop:4, display:'flex', alignItems:'center', gap:4 }}>{Icn.warn(14, C.bordeaux)} {bulkBijdrageFout}</div>}
-                      <button onClick={parseBulkBijdrage} style={{ marginTop:8, padding:'8px 18px', background:C.bordeaux, border:'none', borderRadius:7, fontFamily:"'DM Sans',sans-serif", fontSize:13, color:'#fff', cursor:'pointer', fontWeight:500 }}>Verwerken</button>
-                    </td>
-                  </tr>
-                </tbody>
-              )}
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={r.id} style={{ borderBottom: i < rows.length - 1 ? '1px solid '+C.lijn : 'none' }}>
