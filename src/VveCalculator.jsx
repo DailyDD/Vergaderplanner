@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
 // ── VvE Calculator ───────────────────────────────────────────────
 const CSS_FONT = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
@@ -203,45 +203,54 @@ function CSecTitle({children, style:st}) {
   );
 }
 
-export default function VveCalculator({ onTerug }) {
+export default function VveCalculator({ onTerug, snapshot, onSnapshot }) {
   const S = C
   const fmt = calcFmt
   const uid = calcUid
-  const [complexNaam,   setComplexNaam]   = useState('')
-  const [herbouwwaarde, setHerbouwwaarde] = useState('')
-  const [mjopTotaal,    setMjopTotaal]    = useState('')
-  const [planPeriode,   setPlanPeriode]   = useState('10')
-  const [verzekering,   setVerzekering]   = useState('')
-  const [administratie, setAdministratie] = useState('')
-  const [bankkosten,    setBankkosten]    = useState('')
-  const [overig,        setOverig]        = useState('')
-  const [extraKosten,   setExtraKosten]   = useState([])
+  const [complexNaam,   setComplexNaam]   = useState(snapshot?.complexNaam ?? '')
+  const [herbouwwaarde, setHerbouwwaarde] = useState(snapshot?.herbouwwaarde ?? '')
+  const [mjopTotaal,    setMjopTotaal]    = useState(snapshot?.mjopTotaal ?? '')
+  const [planPeriode,   setPlanPeriode]   = useState(snapshot?.planPeriode ?? '10')
+  const [verzekering,   setVerzekering]   = useState(snapshot?.verzekering ?? '')
+  const [administratie, setAdministratie] = useState(snapshot?.administratie ?? '')
+  const [bankkosten,    setBankkosten]    = useState(snapshot?.bankkosten ?? '')
+  const [overig,        setOverig]        = useState(snapshot?.overig ?? '')
+  const [extraKosten,   setExtraKosten]   = useState(snapshot?.extraKosten ?? [])
   const [bulkTekst,         setBulkTekst]         = useState('')
   const [bulkOpen,          setBulkOpen]          = useState(false)
   const [bulkFout,          setBulkFout]          = useState('')
   const [bulkBijdrageTekst, setBulkBijdrageTekst] = useState('')
   const [bulkBijdrageOpen,  setBulkBijdrageOpen]  = useState(false)
   const [bulkBijdrageFout,  setBulkBijdrageFout]  = useState('')
-  const [vasteNoemer,   setVasteNoemer]   = useState('')
-  const [eenmaligAan,   setEenmaligAan]   = useState(false)
-  const [eenmaligItems, setEenmaligItems] = useState([{ id: uid(), omschrijving: '', bedrag: '', reserveStand: '', buffer: '2500', kortingAan: false, kortingBedrag: '' }])
-  const [rows, setRows] = useState([
+  const [vasteNoemer,   setVasteNoemer]   = useState(snapshot?.vasteNoemer ?? '')
+  const [eenmaligAan,   setEenmaligAan]   = useState(snapshot?.eenmaligAan ?? false)
+  const [eenmaligItems, setEenmaligItems] = useState(snapshot?.eenmaligItems ?? [{ id: uid(), omschrijving: '', bedrag: '', reserveStand: '', buffer: '2500', kortingAan: false, kortingBedrag: '' }])
+  const [rows, setRows] = useState(snapshot?.rows ?? [
     { id: uid(), naam: '', teller: '', huidig: '' },
     { id: uid(), naam: '', teller: '', huidig: '' },
     { id: uid(), naam: '', teller: '', huidig: '' },
   ])
-  const [result, setResult] = useState(null)
+  const [result, setResult] = useState(snapshot?.result ?? null)
   const [error,  setError]  = useState('')
 
   // Tabblad
-  const [calcTab, setCalcTab] = useState('standaard') // 'standaard' | 'warmtefonds'
+  const [calcTab, setCalcTab] = useState(snapshot?.calcTab ?? 'standaard') // 'standaard' | 'warmtefonds'
 
   // Warmtefonds state
-  const [wfBedrag,    setWfBedrag]    = useState('')
-  const [wfLooptijd,  setWfLooptijd]  = useState('120')
-  const [wfRente,     setWfRente]     = useState('')
-  const [wfResult,    setWfResult]    = useState(null)
+  const [wfBedrag,    setWfBedrag]    = useState(snapshot?.wfBedrag ?? '')
+  const [wfLooptijd,  setWfLooptijd]  = useState(snapshot?.wfLooptijd ?? '120')
+  const [wfRente,     setWfRente]     = useState(snapshot?.wfRente ?? '')
+  const [wfResult,    setWfResult]    = useState(snapshot?.wfResult ?? null)
   const [wfError,     setWfError]     = useState('')
+
+  // Snapshot: bewaar ingevulde gegevens bij het wisselen van module (in-memory, geen browseropslag)
+  const snapshotRef = useRef(null)
+  snapshotRef.current = {
+    complexNaam, herbouwwaarde, mjopTotaal, planPeriode, verzekering, administratie,
+    bankkosten, overig, extraKosten, vasteNoemer, eenmaligAan, eenmaligItems,
+    rows, result, calcTab, wfBedrag, wfLooptijd, wfRente, wfResult,
+  }
+  useEffect(() => () => { if (onSnapshot) onSnapshot(snapshotRef.current) }, [])
 
   // Annuitaire maandlast berekening
   const berekenWarmtefonds = () => {
