@@ -1587,6 +1587,8 @@ function AdminDashboard({ beheerderList }) {
 // ── Main App ─────────────────────────────────────────────────────
 export default function App() {
   const [screen, setScreen] = useState(RECOVERY && RECOVERY.token ? "wachtwoord-instellen" : "login"); // login | wachtwoord-instellen | portaal | vergaderingen | calculator | admin | lod
+  // Modules die nog in ontwikkeling zijn: klik toont een "under construction"-popup i.p.v. te navigeren.
+  const [ucModule, setUcModule] = useState(null); // null of het label van de module
   const [calcSnapshot, setCalcSnapshot] = useState(null); // bewaart calculator-invoer bij wisselen van module (in-memory)
   const [beheerder, setBeheerder] = useState("");
   const [userRol, setUserRol] = useState("beheerder");
@@ -2094,6 +2096,14 @@ useEffect(() => {
   const heeftAdminToegang = isAdmin || isHoofdAdmin;
   const rolLabel = isHoofdAdmin ? "Hoofdbeheerder" : isAdmin ? "Administrator" : isLodBeheerder ? "Beheerder +" : "Beheerder";
 
+  // Modules die nog niet af zijn: klik toont de under-construction-popup i.p.v. te navigeren.
+  // Zodra een module live gaat: verwijder de key hieronder, dan navigeert het menu-item weer normaal.
+  const IN_AANBOUW = ["notulen", "mail", "mjop"];
+  const openNav = (key) => {
+    if (IN_AANBOUW.includes(key)) { setUcModule(NAV.find(n => n.key === key)?.label || "Deze module"); return; }
+    setScreen(key);
+  };
+
   // ── Moduledata voor de portaalwidgets ────────────────────────
   // Het portaal toont per module een samenvattingskaart, maar alleen voor
   // modules waar deze gebruiker toegang toe heeft. De rechten komen uit
@@ -2145,9 +2155,10 @@ useEffect(() => {
     { key: "calculator", label: "VvE Calculator", toon: true, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="4" y="2" width="16" height="20" rx="2.5"/><path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 19h4"/></svg>) },
     { key: "verduurzaming", label: "Verduurzaming", toon: heeftVerduurzamingToegang, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg>) },
     { key: "lod", label: "LOD Beheer", toon: heeftLodToegang, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="m10.3 3.2-8.5 14.6A2 2 0 0 0 3.5 21h17a2 2 0 0 0 1.7-3.2L13.7 3.2a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>) },
-    { key: "notulen", label: "Notulen Assistent", toon: isHoofdAdmin || isAdmin || heeftModule('notulen_assistent'), icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M15 13H9M15 17H9M11 9H9"/></svg>) },
+    { key: "notulen", label: "Notulen Assistent", toon: true /* TIJDELIJK: in aanbouw, voor iedereen zichtbaar met melding. Straks terug naar: isHoofdAdmin || isAdmin || heeftModule('notulen_assistent') */, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M15 13H9M15 17H9M11 9H9"/></svg>) },
     { key: "kennisbank", label: "Kennisbank", toon: isHoofdAdmin || isAdmin || heeftModule('kennisbank'), icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>) },
-    { key: "mail", label: "E-mail Configurator", toon: isHoofdAdmin || isAdmin || heeftModule('email_configurator'), icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="2" y="4" width="20" height="16" rx="2.5"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>) },
+    { key: "mail", label: "E-mail Configurator", toon: true /* TIJDELIJK: in aanbouw, voor iedereen zichtbaar met melding. Straks terug naar: isHoofdAdmin || isAdmin || heeftModule('email_configurator') */, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="2" y="4" width="20" height="16" rx="2.5"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>) },
+    { key: "mjop", label: "Levend MJOP", toon: true /* TIJDELIJK: in aanbouw, voor iedereen zichtbaar met melding. Straks toegangsregel bepalen */, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M3 3v18h18"/><path d="m7 14 3-3 3 3 5-5"/><path d="M17 9h3v3"/></svg>) },
     { key: "admin", label: "Admin Dashboard", toon: isAdmin || isHoofdAdmin, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>) },
   ].filter(n => n.toon);
 
@@ -2183,7 +2194,7 @@ useEffect(() => {
             return (
               <button
                 key={n.key}
-                onClick={() => setScreen(n.key)}
+                onClick={() => openNav(n.key)}
                 title={n.label}
                 className={`w-full flex items-center gap-3 px-3 h-10 rounded-lg text-[13.5px] font-medium text-left transition-colors ${
                   actief ? "bg-[#F6ECEC] text-[#991A21]" : "text-[#6B6560] hover:bg-[#FAF8F5] hover:text-[#2D2D2D]"
@@ -2234,7 +2245,7 @@ useEffect(() => {
             {NAV.map(n => (
               <button
                 key={n.key}
-                onClick={() => setScreen(n.key)}
+                onClick={() => openNav(n.key)}
                 className={`shrink-0 px-3 h-8 rounded-lg text-[12.5px] font-medium whitespace-nowrap transition-colors ${
                   screen === n.key ? "bg-[#F6ECEC] text-[#991A21]" : "text-[#6B6560] hover:bg-[#FAF8F5]"
                 }`}
@@ -2247,6 +2258,60 @@ useEffect(() => {
 
         <div className="flex-1 min-w-0">{inhoud}</div>
       </div>
+
+      {/* Under-construction popup — toont voor modules die nog in ontwikkeling zijn */}
+      {ucModule && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          onClick={() => setUcModule(null)}
+        >
+          <div className="absolute inset-0 bg-[#2D2D2D]/45 backdrop-blur-[2px]" />
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-[420px] bg-white rounded-2xl shadow-[0_24px_60px_-12px_rgba(45,45,45,0.4)] border border-[#EFEBE4] overflow-hidden animate-[ucIn_.22s_ease-out]"
+          >
+            <style>{`@keyframes ucIn{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}`}</style>
+
+            {/* Bovenrand in huisstijl */}
+            <div className="h-1.5 bg-[#991A21]" />
+
+            <button
+              onClick={() => setUcModule(null)}
+              aria-label="Sluiten"
+              className="absolute top-4 right-4 w-8 h-8 rounded-lg flex items-center justify-center text-[#9B958E] hover:bg-[#FAF8F5] hover:text-[#2D2D2D] transition-colors"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-[18px] h-[18px]"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+
+            <div className="px-7 pt-8 pb-7">
+              <div className="w-14 h-14 rounded-xl bg-[#F6ECEC] flex items-center justify-center mb-5">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#991A21" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7">
+                  <path d="M2 20h20M6 20V10l6-5 6 5v10"/><path d="M10 20v-4h4v4"/>
+                </svg>
+              </div>
+
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF3E7] mb-3">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#B07414]" />
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-[#B07414]">In ontwikkeling</span>
+              </div>
+
+              <h3 className="text-[19px] font-bold text-[#2D2D2D] leading-tight mb-2">{ucModule}</h3>
+              <p className="text-[13.5px] leading-relaxed text-[#6B6560]">
+                Deze module wordt op dit moment gebouwd en komt binnenkort beschikbaar. We werken hard aan de laatste onderdelen — houd de portal in de gaten.
+              </p>
+
+              <button
+                onClick={() => setUcModule(null)}
+                className="mt-6 w-full h-11 rounded-xl bg-[#991A21] hover:bg-[#7d151b] text-white text-[14px] font-semibold transition-colors"
+              >
+                Begrepen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
