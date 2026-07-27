@@ -2299,7 +2299,7 @@ useEffect(() => {
 
               <h3 className="text-[19px] font-bold text-[#2D2D2D] leading-tight mb-2">{ucModule}</h3>
               <p className="text-[13.5px] leading-relaxed text-[#6B6560]">
-                Deze module wordt op dit moment gebouwd en komt binnenkort beschikbaar. We werken hard aan de laatste onderdelen — houd de portal in de gaten.
+                Deze module wordt op dit moment gebouwd en komt binnenkort beschikbaar. We werken hard aan de laatste onderdelen, houd het portaal in de gaten.
               </p>
 
               <button
