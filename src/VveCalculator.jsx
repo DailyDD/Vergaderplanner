@@ -439,7 +439,14 @@ export default function VveCalculator({ onTerug, snapshot, onSnapshot }) {
       const bijdr05 = mnd05 !== null ? aandeel * mnd05 : null
       return { naam: row.naam || ('App. ' + row.id), teller, noemer, aandeel, lening, bijdr05 }
     })
-    setWfResult({ bedrag, looptijd, rente, maandlast, eigenaren, complexNaam, hv, mnd05 })
+    setWfResult({
+      bedrag, looptijd, rente, maandlast, eigenaren, complexNaam, hv, mnd05,
+      verzekering: parseFloat(verzekering) || 0,
+      administratie: parseFloat(administratie) || 0,
+      bankkosten: parseFloat(bankkosten) || 0,
+      overig: parseFloat(overig) || 0,
+      extraKosten: extraKosten.filter(e => e.naam || e.bedrag).map(e => ({ naam: e.naam, bedrag: parseFloat(e.bedrag) || 0 })),
+    })
   }
 
   const addExtraKost = () => setExtraKosten(p => [...p, { id: uid(), naam: '', bedrag: '' }])
@@ -909,6 +916,7 @@ tfoot td{padding:9px 12px;font-size:10pt;font-weight:700;border-top:2px solid ${
 <div class="aanhef">
   Hierbij ontvangt u het overzicht van de maandelijkse leningbijdragen per eigenaar, berekend op basis van het geleende bedrag via het Warmtefonds. De verdeling is gebaseerd op de breukdelen conform de splitsingsakte.
 </div>
+${(r.complexNaam || r.hv > 0) ? '<div class="sec-title">Complexgegevens</div><div class="summary-grid" style="grid-template-columns:repeat(2,1fr);max-width:460px"><div class="sum-box"><label>Naam complex</label><span>' + (r.complexNaam || '—') + '</span></div><div class="sum-box"><label>Herbouwwaarde</label><span>' + (r.hv > 0 ? fmt(r.hv) : '—') + '</span></div></div>' : ''}
 <div class="sec-title">Leninggegevens</div>
 <div class="summary-grid">
   <div class="sum-box"><label>Geleend bedrag</label><span>${fmt(r.bedrag)}</span></div>
@@ -917,6 +925,7 @@ tfoot td{padding:9px 12px;font-size:10pt;font-weight:700;border-top:2px solid ${
   <div class="sum-box"><label>Maandlast VvE totaal</label><span>${fmt(r.maandlast)}</span></div>
 </div>
 ${r.mnd05 !== null ? '<div class="summary-grid" style="grid-template-columns:repeat(2,1fr);max-width:340px"><div class="sum-box"><label>0,5% bijdrage (jaarlijks)</label><span>' + fmt((r.mnd05||0)*12) + '</span></div><div class="sum-box"><label>0,5% bijdrage per maand</label><span>' + fmt(r.mnd05) + '</span></div></div>' : ''}
+${r.mnd05 !== null ? '<div class="sec-title">Vaste lasten (jaarlijks)</div><div class="summary-grid"><div class="sum-box"><label>Opstalverzekering</label><span>' + fmt(r.verzekering) + '</span></div><div class="sum-box"><label>Administratie/beheer</label><span>' + fmt(r.administratie) + '</span></div><div class="sum-box"><label>Bankkosten</label><span>' + fmt(r.bankkosten) + '</span></div><div class="sum-box"><label>Overig</label><span>' + fmt(r.overig) + '</span></div></div>' + (r.extraKosten && r.extraKosten.length ? '<div class="summary-grid" style="grid-template-columns:repeat(' + Math.min(r.extraKosten.length,4) + ',1fr)">' + r.extraKosten.map(e => '<div class="sum-box"><label>' + (e.naam || 'Extra kostenpost') + '</label><span>' + fmt(e.bedrag) + '</span></div>').join('') + '</div>' : '') : ''}
 <div class="sec-title">Bijdrage per eigenaar</div>
 <table>
   <thead><tr>
