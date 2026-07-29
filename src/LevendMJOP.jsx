@@ -494,18 +494,21 @@ export default function LevendMJOP({ onTerug, beheerder }) {
       open = 0,
       achterstallig = 0,
       totOpen = 0,
-      werkelijk = 0;
+      werkelijk = 0,
+      vervallen = 0;
     for (const r of rijen) {
       if (r.status === "uitgevoerd") {
         uitgevoerd++;
         werkelijk += Number(r.werkelijk_bedrag) || 0;
+      } else if (r.status === "vervallen") {
+        vervallen++; // telt niet mee als 'nog te doen' of in het resterende budget
       } else {
         open++;
         totOpen += Number(r.begroot_bedrag) || 0;
         if (isAchterstallig(r, jaarNu)) achterstallig++;
       }
     }
-    return { aantal: rijen.length, uitgevoerd, open, achterstallig, totOpen, werkelijk };
+    return { aantal: rijen.length, uitgevoerd, open, achterstallig, totOpen, werkelijk, vervallen };
   };
 
   const gefilterdeParents = parents.filter((p) =>
@@ -532,6 +535,140 @@ export default function LevendMJOP({ onTerug, beheerder }) {
     ? detailRows.filter((r) => matchUrgentie(r) && (jaarFilter === "alle" || r.jaar === Number(jaarFilter)))
     : [];
 
+  // ── PDF-export: vergaderrapport (browser-print, geen dependency) ──
+  // Exporteert altijd de volledige VvE, ongeacht het schermfilter.
+  const exporteerPdf = () => {
+    if (!detailRows || detailRows.length === 0) return;
+    const naam = geselParent ? geselParent.vve_naam : "MJOP";
+    const esc = (s) =>
+      String(s === null || s === undefined ? "" : s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+
+    const sorteer = (a, b) => a.jaar - b.jaar || String(a.element).localeCompare(String(b.element));
+    const open = detailRows.filter((r) => r.status === "gepland" || r.status === "doorgeschoven").sort(sorteer);
+    const gedaan = detailRows.filter((r) => r.status === "uitgevoerd").sort(sorteer);
+    const verv = detailRows.filter((r) => r.status === "vervallen").sort(sorteer);
+
+    const som = (arr, veld) => arr.reduce((s, r) => s + (Number(r[veld]) || 0), 0);
+    const totOpen = som(open, "begroot_bedrag");
+    const totGedaanBegroot = som(gedaan, "begroot_bedrag");
+    const totGedaanWerkelijk = som(gedaan, "werkelijk_bedrag");
+    const aantalAcht = open.filter((r) => isAchterstallig(r, jaarNu)).length;
+    const jaren = Array.from(new Set(open.map((r) => r.jaar))).sort((a, b) => a - b);
+
+    let html =
+      `<html><head><meta charset="utf-8"><title>MJOP ${esc(naam)}</title><style>` +
+      `body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a;margin:24px}` +
+      `h1{font-size:17px;color:#991A21;margin:0 0 2px}` +
+      `.subtitle{font-size:12px;color:#2D2D2D;margin:0 0 2px}` +
+      `.sub{color:#888;font-size:9.5px;margin:0}` +
+      `h2{font-size:12.5px;color:#991A21;margin:20px 0 6px;border-bottom:1px solid #991A21;padding-bottom:2px}` +
+      `table{width:100%;border-collapse:collapse;margin-bottom:6px}` +
+      `th{background:#991A21;color:#fff;padding:4px 6px;text-align:left;font-size:9.5px}` +
+      `td{padding:3px 6px;border-bottom:1px solid #eee;vertical-align:top;font-size:10px}` +
+      `.num{text-align:right;white-space:nowrap}` +
+      `.jaarrij td{background:#f3ece9;font-weight:bold;color:#2D2D2D}` +
+      `.totaalrij td{font-weight:bold;border-top:2px solid #991A21;background:#faf7f7}` +
+      `.red{color:#B23636;font-weight:bold}` +
+      `.samenvatting{width:auto;border-collapse:collapse;margin:10px 0 4px}` +
+      `.samenvatting td{border:none;padding:2px 18px 2px 0;font-size:10.5px}` +
+      `.samenvatting .lbl{color:#888}.samenvatting .kv{font-weight:bold}` +
+      `@media print{h2{page-break-after:avoid}tr{page-break-inside:avoid}}` +
+      `</style></head><body>`;
+
+    html += `<h1>${esc(naam)}</h1>`;
+    html += `<p class="subtitle">Meerjarenonderhoudsplan — overzicht uitgevoerd en gepland onderhoud</p>`;
+    html += `<p class="sub">Gegenereerd op ${fmtDatum(vandaagISO())}${
+      geselParent && geselParent.laatste_import_op ? ` &middot; laatste import ${fmtDatum(geselParent.laatste_import_op)}` : ""
+    }</p>`;
+
+    html +=
+      `<table class="samenvatting">` +
+      `<tr><td class="lbl">Uitgevoerd</td><td class="kv">${gedaan.length}</td>` +
+      `<td class="lbl">Nog uit te voeren</td><td class="kv">${open.length}${
+        aantalAcht ? ` (waarvan ${aantalAcht} achterstallig)` : ""
+      }</td></tr>` +
+      `<tr><td class="lbl">Begroot nog uit te voeren</td><td class="kv">${euro(totOpen)}</td>` +
+      `<td class="lbl">Werkelijk uitgegeven</td><td class="kv">${euro(totGedaanWerkelijk)}</td></tr>` +
+      `</table>`;
+
+    // Nog uit te voeren
+    html += `<h2>Nog uit te voeren</h2>`;
+    if (open.length === 0) {
+      html += `<p class="sub">Geen openstaande werkzaamheden.</p>`;
+    } else {
+      html += `<table><tr><th style="width:56px">Jaar</th><th>Element</th><th>Werkzaamheid</th><th style="width:90px" class="num">Begroot</th></tr>`;
+      jaren.forEach((j) => {
+        const rj = open.filter((r) => r.jaar === j);
+        const sub = som(rj, "begroot_bedrag");
+        html += `<tr class="jaarrij"><td>${j}</td><td colspan="2">${rj.length} werkzaamhe${
+          rj.length === 1 ? "id" : "den"
+        }</td><td class="num">${euro(sub)}</td></tr>`;
+        rj.forEach((r) => {
+          const loc = r.locatie ? ` — ${esc(r.locatie)}` : "";
+          const merk =
+            r.status === "doorgeschoven"
+              ? ` <span class="red">(doorgeschoven)</span>`
+              : isAchterstallig(r, jaarNu)
+              ? ` <span class="red">(achterstallig)</span>`
+              : "";
+          html += `<tr><td></td><td>${esc(r.element)}${loc}</td><td>${esc(r.handeling)}${merk}</td><td class="num">${euro(
+            r.begroot_bedrag
+          )}</td></tr>`;
+        });
+      });
+      html += `<tr class="totaalrij"><td colspan="3">Totaal nog uit te voeren</td><td class="num">${euro(totOpen)}</td></tr>`;
+      html += `</table>`;
+    }
+
+    // Uitgevoerd
+    html += `<h2>Uitgevoerd</h2>`;
+    if (gedaan.length === 0) {
+      html += `<p class="sub">Nog geen werkzaamheden afgevinkt als uitgevoerd.</p>`;
+    } else {
+      html += `<table><tr><th style="width:56px">Jaar</th><th>Element</th><th>Werkzaamheid</th><th style="width:80px" class="num">Begroot</th><th style="width:80px" class="num">Werkelijk</th><th style="width:78px">Datum</th></tr>`;
+      gedaan.forEach((r) => {
+        const loc = r.locatie ? ` — ${esc(r.locatie)}` : "";
+        const w = r.werkelijk_bedrag !== null && r.werkelijk_bedrag !== undefined ? euro(r.werkelijk_bedrag) : "—";
+        html += `<tr><td>${r.jaar}</td><td>${esc(r.element)}${loc}</td><td>${esc(r.handeling)}</td><td class="num">${euro(
+          r.begroot_bedrag
+        )}</td><td class="num">${w}</td><td>${r.datum_uitgevoerd ? fmtDatum(r.datum_uitgevoerd) : "—"}</td></tr>`;
+      });
+      html += `<tr class="totaalrij"><td colspan="3">Totaal uitgevoerd</td><td class="num">${euro(
+        totGedaanBegroot
+      )}</td><td class="num">${euro(totGedaanWerkelijk)}</td><td></td></tr>`;
+      html += `</table>`;
+    }
+
+    // Vervallen (alleen indien aanwezig)
+    if (verv.length) {
+      html += `<h2>Vervallen</h2>`;
+      html += `<table><tr><th style="width:56px">Jaar</th><th>Element</th><th>Werkzaamheid</th><th style="width:90px" class="num">Begroot</th></tr>`;
+      verv.forEach((r) => {
+        const loc = r.locatie ? ` — ${esc(r.locatie)}` : "";
+        html += `<tr><td>${r.jaar}</td><td>${esc(r.element)}${loc}</td><td>${esc(r.handeling)}</td><td class="num">${euro(
+          r.begroot_bedrag
+        )}</td></tr>`;
+      });
+      html += `</table>`;
+    }
+
+    html += `<p class="sub" style="margin-top:16px">Bedragen conform het geïmporteerde meerjarenonderhoudsplan van de bouwkundige. Dit overzicht toont de actuele stand van uitvoering en dient als hulpmiddel voor de vergadering.</p>`;
+    html += `</body></html>`;
+
+    const win = window.open("", "_blank");
+    if (!win) {
+      toast("Pop-up geblokkeerd. Sta pop-ups toe voor deze pagina.", "error");
+      return;
+    }
+    win.document.write(html);
+    win.document.close();
+    win.print();
+  };
+
   // ── KPI-blokje ──
   const Kpi = ({ label, waarde, accent }) => (
     <div className="rounded-lg bg-white border border-[#EFEBE4] px-3 py-2.5">
@@ -555,7 +692,7 @@ export default function LevendMJOP({ onTerug, beheerder }) {
                 <path d="M19 12H5M12 19l-7-7 7-7" />
               </svg>
             </button>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <h1 className="text-[20px] font-bold text-[#2D2D2D] leading-tight truncate">
                 {geselParent ? geselParent.vve_naam : "MJOP"}
               </h1>
@@ -563,6 +700,18 @@ export default function LevendMJOP({ onTerug, beheerder }) {
                 Laatste import {geselParent ? fmtDatum(geselParent.laatste_import_op) : "—"}
               </p>
             </div>
+            {detailRows && detailRows.length > 0 && (
+              <button
+                onClick={exporteerPdf}
+                className="flex items-center gap-2 h-9 px-4 rounded-lg border border-[#E7E2DB] text-[#6B6560] text-[13px] font-semibold hover:text-[#991A21] hover:border-[#C9BEB2] transition-colors shrink-0"
+                title="Exporteer vergaderrapport als PDF"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[16px] h-[16px]">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                </svg>
+                <span className="hidden sm:inline">Exporteer PDF</span>
+              </button>
+            )}
           </div>
 
           {detailLaadFout ? (
