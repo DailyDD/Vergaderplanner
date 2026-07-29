@@ -6,6 +6,7 @@ import KennisBank from './KennisBank';
 import VveCalculator from './VveCalculator';
 import LodBeheer, { lodSupaLoad, lodDashboardStats, initLodDeps } from './LodBeheer';
 import Offertegenerator from './Offertegenerator';
+import LevendMJOP, { initMjopDeps } from './LevendMJOP';
 
 // ── Huisstijl Totaal VvE Beheer ──────────────────────────────────
 // Primair: #991A21 (donkerrood), Antraciet: #2D2D2D, Achtergrond: #F2EFEC
@@ -305,6 +306,7 @@ function addDays(iso, n) {
 function today() { return isoLokaal(new Date()); }
 // LOD module dependencies doorgeven
 initLodDeps({ sbFetch, showToast, today });
+initMjopDeps({ sbFetch, showToast, getUid });
 function monthKey(iso) { return iso ? iso.slice(0,7) : null; }
 function isInVakantie(iso, vakanties) {
   return vakanties.some(v => v.van && v.tot && iso >= v.van && iso <= v.tot);
@@ -2099,7 +2101,7 @@ useEffect(() => {
 
   // Modules die nog niet af zijn: klik toont de under-construction-popup i.p.v. te navigeren.
   // Zodra een module live gaat: verwijder de key hieronder, dan navigeert het menu-item weer normaal.
-  const IN_AANBOUW = ["notulen", "mail", "mjop"];
+  const IN_AANBOUW = ["notulen", "mail"];
   const openNav = (key) => {
     if (IN_AANBOUW.includes(key)) { setUcModule(NAV.find(n => n.key === key)?.label || "Deze module"); return; }
     setScreen(key);
@@ -2326,6 +2328,7 @@ useEffect(() => {
   if (screen==="lod") return metShell(<LodBeheer onTerug={()=>setScreen("portaal")} beheerderList={beheerderList}/>);
   if (screen==="calculator") return metShell(<VveCalculator onTerug={()=>setScreen("portaal")} snapshot={calcSnapshot} onSnapshot={setCalcSnapshot}/>);
   if (screen==="offertes") return metShell(<Offertegenerator onTerug={()=>setScreen("portaal")} />);
+  if (screen==="mjop") return metShell(<LevendMJOP onTerug={()=>setScreen("portaal")} beheerder={beheerder}/>);
 
   if (screen==="wachtwoord-instellen") return (
     <div className="min-h-screen grid grid-cols-2">
