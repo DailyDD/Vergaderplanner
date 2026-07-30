@@ -72,6 +72,75 @@ function isAchterstallig(r, jaarNu) {
   return r.status === "gepland" && r.jaar < jaarNu;
 }
 
+// Dekkingsprojectie: gegeven het huidige reservesaldo + jaarlijkse storting,
+// per jaar het eindsaldo na aftrek van de nog openstaande (gepland +
+// doorgeschoven) kosten. Achterstallige kosten (jaar < nu) worden bij het
+// huidige jaar opgeteld, want die moeten nu betaald worden. Uitgevoerd en
+// vervallen tellen niet mee. Retourneert null als er geen reserve is ingevoerd.
+function berekenDekking(rijen, reserveSaldo, jaarlijkseStorting, jaarNu) {
+  if (reserveSaldo === null || reserveSaldo === undefined || reserveSaldo === "") return null;
+  const start = Number(reserveSaldo) || 0;
+  const storting = Number(jaarlijkseStorting) || 0;
+  const open = rijen.filter((r) => r.status === "gepland" || r.status === "doorgeschoven");
+
+  if (open.length === 0) {
+    return { jaren: [], gedektTot: null, tekortVanaf: null, altijdGedekt: true, eindSaldo: start, geenKosten: true };
+  }
+
+  const maxJaar = Math.max(...open.map((r) => r.jaar));
+  const kostenPerJaar = {};
+  for (const r of open) {
+    const y = r.jaar < jaarNu ? jaarNu : r.jaar;
+    kostenPerJaar[y] = (kostenPerJaar[y] || 0) + (Number(r.begroot_bedrag) || 0);
+  }
+
+  const jaren = [];
+  let saldo = start;
+  let tekortVanaf = null;
+  for (let y = jaarNu; y <= maxJaar; y++) {
+    const kosten = kostenPerJaar[y] || 0;
+    const beginSaldo = saldo;
+    saldo = saldo + storting - kosten;
+    jaren.push({ jaar: y, beginSaldo, storting, kosten, eindSaldo: saldo });
+    if (saldo < 0 && tekortVanaf === null) tekortVanaf = y;
+  }
+
+  const altijdGedekt = tekortVanaf === null;
+  const gedektTot = altijdGedekt ? maxJaar : tekortVanaf - 1;
+
+  // Minimale extra jáárlijkse storting zodat de reserve nooit negatief wordt:
+  // per tekortjaar geldt extra × (aantal stortingsjaren tot dat jaar) >= tekort.
+  // Het maximum daarvan dekt alle jaren. Naar boven afgerond op hele euro's.
+  let extraJaarlijks = 0;
+  let diepsteTekort = 0;
+  let diepsteTekortJaar = null;
+  for (const j of jaren) {
+    if (j.eindSaldo < 0) {
+      const n = j.jaar - jaarNu + 1;
+      const nodig = -j.eindSaldo / n;
+      if (nodig > extraJaarlijks) extraJaarlijks = nodig;
+      if (j.eindSaldo < diepsteTekort) {
+        diepsteTekort = j.eindSaldo;
+        diepsteTekortJaar = j.jaar;
+      }
+    }
+  }
+  extraJaarlijks = Math.ceil(extraJaarlijks);
+
+  return {
+    jaren,
+    gedektTot,
+    tekortVanaf,
+    altijdGedekt,
+    eindSaldo: saldo,
+    geenKosten: false,
+    extraJaarlijks,
+    extraMaandelijks: extraJaarlijks / 12,
+    diepsteTekort,
+    diepsteTekortJaar,
+  };
+}
+
 // ── Parser: Excel → occurrences ───────────────────────────────────
 function parseMjopWorkbook(arrayBuffer) {
   const wb = XLSX.read(arrayBuffer, { type: "array" });
@@ -147,7 +216,7 @@ function parseMjopWorkbook(arrayBuffer) {
 // ── Supabase-laag ─────────────────────────────────────────────────
 async function laadParents() {
   const rows = await _sbFetch(
-    "mjop_vve?select=id,vve_naam,laatste_import_op,laatste_import_bron&order=vve_naam.asc"
+    "mjop_vve?select=id,vve_naam,laatste_import_op,laatste_import_bron,reserve_saldo,jaarlijkse_storting&order=vve_naam.asc"
   );
   return rows || [];
 }
@@ -170,6 +239,14 @@ async function laadWerkVoor(mjopId) {
 
 async function updateWerk(rowId, payload) {
   await _sbFetch(`mjop_werkzaamheden?id=eq.${rowId}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify(payload),
+  });
+}
+
+async function updateReserve(mjopId, payload) {
+  await _sbFetch(`mjop_vve?id=eq.${mjopId}`, {
     method: "PATCH",
     headers: { Prefer: "return=minimal" },
     body: JSON.stringify(payload),
@@ -376,6 +453,9 @@ export default function LevendMJOP({ onTerug, beheerder }) {
   const [jaarFilter, setJaarFilter] = useState("alle");
   const [openRij, setOpenRij] = useState(null);
   const [bezigRij, setBezigRij] = useState(null);
+  const [reserveInput, setReserveInput] = useState("");
+  const [stortingInput, setStortingInput] = useState("");
+  const [bezigReserve, setBezigReserve] = useState(false);
 
   const herladen = useCallback(async () => {
     setLaden(true);
@@ -452,6 +532,11 @@ export default function LevendMJOP({ onTerug, beheerder }) {
     setUrgentie("alle");
     setJaarFilter("alle");
     setOpenRij(null);
+    const p = parents.find((x) => x.id === mjopId);
+    setReserveInput(p && p.reserve_saldo !== null && p.reserve_saldo !== undefined ? String(p.reserve_saldo) : "");
+    setStortingInput(
+      p && p.jaarlijkse_storting !== null && p.jaarlijkse_storting !== undefined ? String(p.jaarlijkse_storting) : ""
+    );
     try {
       const rows = await laadWerkVoor(mjopId);
       setDetailRows(rows);
@@ -487,6 +572,28 @@ export default function LevendMJOP({ onTerug, beheerder }) {
     }
   };
 
+  // ── Reserve opslaan ──
+  const bewaarReserve = async () => {
+    const rs = reserveInput.trim() === "" ? null : Number(reserveInput);
+    const js = stortingInput.trim() === "" ? null : Number(stortingInput);
+    if ((rs !== null && !Number.isFinite(rs)) || (js !== null && !Number.isFinite(js))) {
+      toast("Vul geldige bedragen in.", "error");
+      return;
+    }
+    setBezigReserve(true);
+    try {
+      await updateReserve(detailMjopId, { reserve_saldo: rs, jaarlijkse_storting: js });
+      setParents((ps) =>
+        ps.map((p) => (p.id === detailMjopId ? { ...p, reserve_saldo: rs, jaarlijkse_storting: js } : p))
+      );
+      toast("Reserve opgeslagen", "success");
+    } catch (e) {
+      toast("Opslaan mislukt: " + e.message, "error");
+    } finally {
+      setBezigReserve(false);
+    }
+  };
+
   // ── Afgeleide waarden ──
   const statsVoor = (mjopId) => {
     const rijen = alleWerk.filter((w) => w.mjop_id === mjopId);
@@ -517,6 +624,18 @@ export default function LevendMJOP({ onTerug, beheerder }) {
 
   const geselParent = parents.find((p) => p.id === detailMjopId);
   const detailStats = detailMjopId ? statsVoor(detailMjopId) : null;
+  const dek =
+    geselParent && detailRows
+      ? berekenDekking(detailRows, geselParent.reserve_saldo, geselParent.jaarlijkse_storting, jaarNu)
+      : null;
+  const reserveGewijzigd =
+    geselParent &&
+    ((reserveInput.trim() === "" ? null : Number(reserveInput)) !==
+      (geselParent.reserve_saldo === null || geselParent.reserve_saldo === undefined ? null : Number(geselParent.reserve_saldo)) ||
+      (stortingInput.trim() === "" ? null : Number(stortingInput)) !==
+        (geselParent.jaarlijkse_storting === null || geselParent.jaarlijkse_storting === undefined
+          ? null
+          : Number(geselParent.jaarlijkse_storting)));
 
   const beschikbareJaren = detailRows
     ? Array.from(new Set(detailRows.map((r) => r.jaar))).sort((a, b) => a - b)
@@ -536,7 +655,9 @@ export default function LevendMJOP({ onTerug, beheerder }) {
     : [];
 
   // ── PDF-export: vergaderrapport (browser-print, geen dependency) ──
-  // Exporteert altijd de volledige VvE, ongeacht het schermfilter.
+  // Hybride opzet: pagina 1 = samenvatting + financieel jaaroverzicht,
+  // daarna de onderhoudspunten per jaar. Exporteert altijd de volledige
+  // VvE, ongeacht het schermfilter.
   const exporteerPdf = () => {
     if (!detailRows || detailRows.length === 0) return;
     const naam = geselParent ? geselParent.vve_naam : "MJOP";
@@ -548,116 +669,214 @@ export default function LevendMJOP({ onTerug, beheerder }) {
         .replace(/"/g, "&quot;");
 
     const sorteer = (a, b) => a.jaar - b.jaar || String(a.element).localeCompare(String(b.element));
-    const open = detailRows.filter((r) => r.status === "gepland" || r.status === "doorgeschoven").sort(sorteer);
-    const gedaan = detailRows.filter((r) => r.status === "uitgevoerd").sort(sorteer);
+    const actief = detailRows.filter((r) => r.status !== "vervallen").sort(sorteer);
     const verv = detailRows.filter((r) => r.status === "vervallen").sort(sorteer);
 
     const som = (arr, veld) => arr.reduce((s, r) => s + (Number(r[veld]) || 0), 0);
-    const totOpen = som(open, "begroot_bedrag");
-    const totGedaanBegroot = som(gedaan, "begroot_bedrag");
-    const totGedaanWerkelijk = som(gedaan, "werkelijk_bedrag");
+    const isOpen = (r) => r.status === "gepland" || r.status === "doorgeschoven";
+
+    const gedaan = actief.filter((r) => r.status === "uitgevoerd");
+    const open = actief.filter(isOpen);
     const aantalAcht = open.filter((r) => isAchterstallig(r, jaarNu)).length;
-    const jaren = Array.from(new Set(open.map((r) => r.jaar))).sort((a, b) => a - b);
+    const totOpen = som(open, "begroot_bedrag");
+    const totWerkelijk = som(gedaan, "werkelijk_bedrag");
+
+    const jaren = Array.from(new Set(actief.map((r) => r.jaar))).sort((a, b) => a - b);
+    const perJaar = jaren.map((j) => {
+      const rj = actief.filter((r) => r.jaar === j);
+      return {
+        jaar: j,
+        rijen: rj,
+        aantal: rj.length,
+        begroot: som(rj, "begroot_bedrag"),
+        open: som(rj.filter(isOpen), "begroot_bedrag"),
+      };
+    });
+    const maxBegroot = Math.max(1, ...perJaar.map((p) => p.begroot));
+
+    const statusKleur = { gepland: "#6B6560", uitgevoerd: "#1E7D43", doorgeschoven: "#9A6C1E", vervallen: "#9B958E" };
+    const statusLabel = (s) => (STATUS_META[s] ? STATUS_META[s].label : s);
 
     let html =
       `<html><head><meta charset="utf-8"><title>MJOP ${esc(naam)}</title><style>` +
-      `body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a;margin:24px}` +
-      `h1{font-size:17px;color:#991A21;margin:0 0 2px}` +
-      `.subtitle{font-size:12px;color:#2D2D2D;margin:0 0 2px}` +
-      `.sub{color:#888;font-size:9.5px;margin:0}` +
-      `h2{font-size:12.5px;color:#991A21;margin:20px 0 6px;border-bottom:1px solid #991A21;padding-bottom:2px}` +
-      `table{width:100%;border-collapse:collapse;margin-bottom:6px}` +
-      `th{background:#991A21;color:#fff;padding:4px 6px;text-align:left;font-size:9.5px}` +
-      `td{padding:3px 6px;border-bottom:1px solid #eee;vertical-align:top;font-size:10px}` +
-      `.num{text-align:right;white-space:nowrap}` +
-      `.jaarrij td{background:#f3ece9;font-weight:bold;color:#2D2D2D}` +
-      `.totaalrij td{font-weight:bold;border-top:2px solid #991A21;background:#faf7f7}` +
-      `.red{color:#B23636;font-weight:bold}` +
-      `.samenvatting{width:auto;border-collapse:collapse;margin:10px 0 4px}` +
-      `.samenvatting td{border:none;padding:2px 18px 2px 0;font-size:10.5px}` +
-      `.samenvatting .lbl{color:#888}.samenvatting .kv{font-weight:bold}` +
-      `@media print{h2{page-break-after:avoid}tr{page-break-inside:avoid}}` +
+      `*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}` +
+      `body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#2D2D2D;margin:0;padding:0}` +
+      `.band{background:#991A21;color:#fff;padding:16px 26px}` +
+      `.band h1{font-size:19px;margin:0 0 2px;font-weight:bold}` +
+      `.band .st{font-size:11.5px;opacity:.92;margin:0}` +
+      `.band .meta{font-size:10px;opacity:.85;margin-top:5px}` +
+      `.page{padding:20px 26px}` +
+      `.kpis{display:flex;gap:8px;margin:4px 0 6px}` +
+      `.kpi{flex:1;border:1px solid #E4DED6;border-radius:6px;padding:7px 9px}` +
+      `.kpi .l{font-size:8.5px;color:#8A847C;margin-bottom:2px;text-transform:uppercase;letter-spacing:.03em}` +
+      `.kpi .v{font-size:15px;font-weight:bold}` +
+      `.kpi .v.red{color:#B23636}` +
+      `h2{font-size:12.5px;color:#991A21;margin:20px 0 3px;border-bottom:1px solid #991A21;padding-bottom:2px}` +
+      `.hint{font-size:9px;color:#9B958E;margin:0 0 7px}` +
+      `table{width:100%;border-collapse:collapse}` +
+      `.jt th{background:#F3ECE9;color:#2D2D2D;text-align:left;font-size:9.5px;padding:4px 7px;border-bottom:1px solid #E0D6CD}` +
+      `.jt td{padding:4px 7px;font-size:10px;border-bottom:1px solid #EEE}` +
+      `.jt .num{text-align:right;white-space:nowrap}` +
+      `.jt tr.tot td{font-weight:bold;border-top:2px solid #991A21;background:#FAF7F7}` +
+      `.bar{height:8px;background:#E9E0D8;border-radius:3px;overflow:hidden}` +
+      `.bar>span{display:block;height:100%;background:#991A21}` +
+      `.legend{margin:9px 0 0;font-size:9.5px;color:#6B6560}` +
+      `.legend span.it{display:inline-block;margin-right:14px}` +
+      `.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}` +
+      `.jaarblok{margin-bottom:12px}` +
+      `.jaarkop{background:#F3ECE9;border-left:3px solid #991A21;padding:5px 9px;display:flex;justify-content:space-between;font-size:11px}` +
+      `.jaarkop .j{font-weight:bold;color:#991A21}` +
+      `.jaarkop .s{color:#6B6560}` +
+      `.wt th{color:#8A847C;text-align:left;font-weight:normal;font-size:9px;padding:3px 7px;border-bottom:1px solid #E4DED6}` +
+      `.wt td{padding:3px 7px;font-size:9.7px;border-bottom:1px solid #F0ECE5;vertical-align:top}` +
+      `.wt .num{text-align:right;white-space:nowrap}` +
+      `.tag{font-weight:bold}` +
+      `.loc{color:#9B958E;font-size:8.7px}` +
+      `.strike{text-decoration:line-through;color:#9B958E}` +
+      `.foot{margin-top:14px;font-size:9px;color:#9B958E;line-height:1.4}` +
+      `.conc{border-radius:6px;padding:8px 12px;font-size:11px;margin:5px 0;line-height:1.45}` +
+      `.conc.ok{background:#E8F5EC;color:#1E7D43}` +
+      `.conc.nok{background:#FDECEC;color:#B23636}` +
+      `.disc{font-size:9px;color:#9B958E;margin:6px 0 0;font-style:italic}` +
+      `@media print{.detail{page-break-before:always}.jaarblok{page-break-inside:avoid}h2{page-break-after:avoid}}` +
       `</style></head><body>`;
 
-    html += `<h1>${esc(naam)}</h1>`;
-    html += `<p class="subtitle">Meerjarenonderhoudsplan — overzicht uitgevoerd en gepland onderhoud</p>`;
-    html += `<p class="sub">Gegenereerd op ${fmtDatum(vandaagISO())}${
-      geselParent && geselParent.laatste_import_op ? ` &middot; laatste import ${fmtDatum(geselParent.laatste_import_op)}` : ""
-    }</p>`;
+    html +=
+      `<div class="band"><h1>${esc(naam)}</h1>` +
+      `<p class="st">Meerjarenonderhoudsplan &middot; stand van uitvoering</p>` +
+      `<p class="meta">Gegenereerd op ${fmtDatum(vandaagISO())}${
+        geselParent && geselParent.laatste_import_op
+          ? ` &nbsp;|&nbsp; laatste import ${fmtDatum(geselParent.laatste_import_op)}`
+          : ""
+      }</p></div>`;
+
+    html += `<div class="page">`;
 
     html +=
-      `<table class="samenvatting">` +
-      `<tr><td class="lbl">Uitgevoerd</td><td class="kv">${gedaan.length}</td>` +
-      `<td class="lbl">Nog uit te voeren</td><td class="kv">${open.length}${
-        aantalAcht ? ` (waarvan ${aantalAcht} achterstallig)` : ""
-      }</td></tr>` +
-      `<tr><td class="lbl">Begroot nog uit te voeren</td><td class="kv">${euro(totOpen)}</td>` +
-      `<td class="lbl">Werkelijk uitgegeven</td><td class="kv">${euro(totGedaanWerkelijk)}</td></tr>` +
-      `</table>`;
+      `<div class="kpis">` +
+      `<div class="kpi"><div class="l">Uitgevoerd</div><div class="v">${gedaan.length}</div></div>` +
+      `<div class="kpi"><div class="l">Nog te doen</div><div class="v">${open.length}</div></div>` +
+      `<div class="kpi"><div class="l">Achterstallig</div><div class="v red">${aantalAcht}</div></div>` +
+      `<div class="kpi"><div class="l">Begroot resterend</div><div class="v">${euro(totOpen)}</div></div>` +
+      `<div class="kpi"><div class="l">Werkelijk uitgegeven</div><div class="v">${euro(totWerkelijk)}</div></div>` +
+      `</div>`;
 
-    // Nog uit te voeren
-    html += `<h2>Nog uit te voeren</h2>`;
-    if (open.length === 0) {
-      html += `<p class="sub">Geen openstaande werkzaamheden.</p>`;
-    } else {
-      html += `<table><tr><th style="width:56px">Jaar</th><th>Element</th><th>Werkzaamheid</th><th style="width:90px" class="num">Begroot</th></tr>`;
-      jaren.forEach((j) => {
-        const rj = open.filter((r) => r.jaar === j);
-        const sub = som(rj, "begroot_bedrag");
-        html += `<tr class="jaarrij"><td>${j}</td><td colspan="2">${rj.length} werkzaamhe${
-          rj.length === 1 ? "id" : "den"
-        }</td><td class="num">${euro(sub)}</td></tr>`;
-        rj.forEach((r) => {
-          const loc = r.locatie ? ` — ${esc(r.locatie)}` : "";
-          const merk =
-            r.status === "doorgeschoven"
-              ? ` <span class="red">(doorgeschoven)</span>`
-              : isAchterstallig(r, jaarNu)
-              ? ` <span class="red">(achterstallig)</span>`
-              : "";
-          html += `<tr><td></td><td>${esc(r.element)}${loc}</td><td>${esc(r.handeling)}${merk}</td><td class="num">${euro(
-            r.begroot_bedrag
-          )}</td></tr>`;
-        });
-      });
-      html += `<tr class="totaalrij"><td colspan="3">Totaal nog uit te voeren</td><td class="num">${euro(totOpen)}</td></tr>`;
-      html += `</table>`;
+    html += `<h2>Financieel jaaroverzicht</h2>`;
+    html += `<p class="hint">Begrote bedragen per jaar volgens het onderhoudsplan. "Nog open" is het deel dat nog uitgevoerd moet worden; het cumulatief helpt bij het bepalen van de benodigde reservering.</p>`;
+    const saldoKol = !!dek;
+    const saldoVoorJaar = {};
+    if (dek) dek.jaren.forEach((j) => { saldoVoorJaar[j.jaar] = j.eindSaldo; });
+    html +=
+      `<table class="jt"><tr><th style="width:52px">Jaar</th><th style="width:52px" class="num">Punten</th>` +
+      `<th style="width:100px" class="num">Begroot</th><th style="width:100px" class="num">Nog open</th>` +
+      `<th style="width:110px" class="num">Cumulatief</th>` +
+      (saldoKol ? `<th style="width:118px" class="num">Eindsaldo reserve</th>` : `<th>Verhouding</th>`) +
+      `</tr>`;
+    let cum = 0;
+    perJaar.forEach((p) => {
+      cum += p.begroot;
+      const pct = Math.round((p.begroot / maxBegroot) * 100);
+      let laatste;
+      if (saldoKol) {
+        const es = saldoVoorJaar[p.jaar];
+        laatste =
+          es === undefined
+            ? `<td class="num">—</td>`
+            : `<td class="num" style="${es < 0 ? "color:#B23636;font-weight:bold" : "color:#1E7D43"}">${euro(es)}</td>`;
+      } else {
+        laatste = `<td><div class="bar"><span style="width:${pct}%"></span></div></td>`;
+      }
+      html +=
+        `<tr><td>${p.jaar}</td><td class="num">${p.aantal}</td><td class="num">${euro(p.begroot)}</td>` +
+        `<td class="num">${euro(p.open)}</td><td class="num">${euro(cum)}</td>` +
+        laatste +
+        `</tr>`;
+    });
+    html +=
+      `<tr class="tot"><td>Totaal</td><td class="num">${actief.length}</td>` +
+      `<td class="num">${euro(som(actief, "begroot_bedrag"))}</td><td class="num">${euro(totOpen)}</td>` +
+      `<td class="num">${euro(cum)}</td>` +
+      (saldoKol
+        ? `<td class="num" style="${dek.eindSaldo < 0 ? "color:#B23636;font-weight:bold" : "color:#1E7D43"}">${euro(dek.eindSaldo)}</td>`
+        : `<td></td>`) +
+      `</tr>`;
+    html += `</table>`;
+
+    html +=
+      `<div class="legend">` +
+      `<span class="it"><span class="dot" style="background:${statusKleur.gepland}"></span>Gepland</span>` +
+      `<span class="it"><span class="dot" style="background:${statusKleur.uitgevoerd}"></span>Uitgevoerd</span>` +
+      `<span class="it"><span class="dot" style="background:${statusKleur.doorgeschoven}"></span>Doorgeschoven</span>` +
+      `<span class="it"><span class="dot" style="background:#B23636"></span>Achterstallig</span>` +
+      (verv.length ? `<span class="it"><span class="dot" style="background:${statusKleur.vervallen}"></span>Vervallen</span>` : "") +
+      `</div>`;
+
+    if (dek) {
+      html += `<h2>Dekking onderhoudsreserve</h2>`;
+      html +=
+        `<table class="jt" style="width:auto"><tr>` +
+        `<th style="width:150px">Huidige reserve</th><th style="width:170px">Jaarlijkse storting onderhoud</th></tr>` +
+        `<tr><td>${euro(geselParent.reserve_saldo)}</td><td>${euro(geselParent.jaarlijkse_storting)}</td></tr></table>`;
+      if (dek.geenKosten) {
+        html += `<p class="hint">Geen openstaande kosten om te dekken; de reserve blijft ${euro(dek.eindSaldo)}.</p>`;
+      } else if (dek.altijdGedekt) {
+        html +=
+          `<div class="conc ok"><strong>Voldoende: JA.</strong> De reserve dekt alle geplande uitgaven t/m ${dek.gedektTot}. ` +
+          `Verwacht eindsaldo ${euro(dek.eindSaldo)}.</div>`;
+      } else {
+        html +=
+          `<div class="conc nok"><strong>Voldoende: NEE.</strong> Gedekt t/m ${dek.gedektTot}; tekort verwacht vanaf ${dek.tekortVanaf}. ` +
+          `Op het diepste punt (${dek.diepsteTekortJaar}) komt de reserve ${euro(Math.abs(dek.diepsteTekort))} tekort.<br>` +
+          `<strong>Advies:</strong> verhoog de jaarlijkse storting in het onderhoudsfonds met &plusmn; ${euro(dek.extraJaarlijks)} ` +
+          `(&asymp; ${euro(dek.extraMaandelijks)} per maand) zodat de reserve gedurende de looptijd niet negatief wordt.</div>`;
+      }
+      html += `<p class="disc">Het MJOP is een richtlijn. Het werkelijke onderhoudsmoment en de kosten kunnen in de praktijk afwijken van dit overzicht.</p>`;
     }
 
-    // Uitgevoerd
-    html += `<h2>Uitgevoerd</h2>`;
-    if (gedaan.length === 0) {
-      html += `<p class="sub">Nog geen werkzaamheden afgevinkt als uitgevoerd.</p>`;
-    } else {
-      html += `<table><tr><th style="width:56px">Jaar</th><th>Element</th><th>Werkzaamheid</th><th style="width:80px" class="num">Begroot</th><th style="width:80px" class="num">Werkelijk</th><th style="width:78px">Datum</th></tr>`;
-      gedaan.forEach((r) => {
-        const loc = r.locatie ? ` — ${esc(r.locatie)}` : "";
-        const w = r.werkelijk_bedrag !== null && r.werkelijk_bedrag !== undefined ? euro(r.werkelijk_bedrag) : "—";
-        html += `<tr><td>${r.jaar}</td><td>${esc(r.element)}${loc}</td><td>${esc(r.handeling)}</td><td class="num">${euro(
-          r.begroot_bedrag
-        )}</td><td class="num">${w}</td><td>${r.datum_uitgevoerd ? fmtDatum(r.datum_uitgevoerd) : "—"}</td></tr>`;
+    html += `<div class="detail">`;
+    html += `<h2>Onderhoudspunten per jaar</h2>`;
+    perJaar.forEach((p) => {
+      html +=
+        `<div class="jaarblok"><div class="jaarkop"><span class="j">${p.jaar}</span>` +
+        `<span class="s">${p.aantal} punt${p.aantal === 1 ? "" : "en"} &middot; begroot ${euro(p.begroot)}</span></div>`;
+      html +=
+        `<table class="wt"><tr><th>Element</th><th>Werkzaamheid</th><th style="width:74px">Status</th>` +
+        `<th style="width:80px" class="num">Begroot</th><th style="width:80px" class="num">Werkelijk</th><th style="width:68px">Datum</th></tr>`;
+      p.rijen.forEach((r) => {
+        const acht = isAchterstallig(r, jaarNu);
+        const kleur = acht ? "#B23636" : statusKleur[r.status] || "#6B6560";
+        const lbl = acht ? "Achterstallig" : statusLabel(r.status);
+        const loc = r.locatie ? `<div class="loc">${esc(r.locatie)}</div>` : "";
+        const w =
+          r.status === "uitgevoerd" && r.werkelijk_bedrag !== null && r.werkelijk_bedrag !== undefined
+            ? euro(r.werkelijk_bedrag)
+            : "—";
+        const dat = r.status === "uitgevoerd" && r.datum_uitgevoerd ? fmtDatum(r.datum_uitgevoerd) : "—";
+        html +=
+          `<tr><td>${esc(r.element)}${loc}</td><td>${esc(r.handeling)}</td>` +
+          `<td><span class="tag" style="color:${kleur}">${lbl}</span></td>` +
+          `<td class="num">${euro(r.begroot_bedrag)}</td><td class="num">${w}</td><td>${dat}</td></tr>`;
       });
-      html += `<tr class="totaalrij"><td colspan="3">Totaal uitgevoerd</td><td class="num">${euro(
-        totGedaanBegroot
-      )}</td><td class="num">${euro(totGedaanWerkelijk)}</td><td></td></tr>`;
-      html += `</table>`;
-    }
+      html += `</table></div>`;
+    });
 
-    // Vervallen (alleen indien aanwezig)
     if (verv.length) {
-      html += `<h2>Vervallen</h2>`;
-      html += `<table><tr><th style="width:56px">Jaar</th><th>Element</th><th>Werkzaamheid</th><th style="width:90px" class="num">Begroot</th></tr>`;
+      html += `<h2>Vervallen werkzaamheden</h2>`;
+      html +=
+        `<table class="wt"><tr><th style="width:54px">Jaar</th><th>Element</th><th>Werkzaamheid</th>` +
+        `<th style="width:90px" class="num">Begroot</th></tr>`;
       verv.forEach((r) => {
         const loc = r.locatie ? ` — ${esc(r.locatie)}` : "";
-        html += `<tr><td>${r.jaar}</td><td>${esc(r.element)}${loc}</td><td>${esc(r.handeling)}</td><td class="num">${euro(
-          r.begroot_bedrag
-        )}</td></tr>`;
+        html +=
+          `<tr><td>${r.jaar}</td><td class="strike">${esc(r.element)}${loc}</td>` +
+          `<td class="strike">${esc(r.handeling)}</td><td class="num strike">${euro(r.begroot_bedrag)}</td></tr>`;
       });
       html += `</table>`;
     }
 
-    html += `<p class="sub" style="margin-top:16px">Bedragen conform het geïmporteerde meerjarenonderhoudsplan van de bouwkundige. Dit overzicht toont de actuele stand van uitvoering en dient als hulpmiddel voor de vergadering.</p>`;
-    html += `</body></html>`;
+    html +=
+      `<p class="foot">Bedragen conform het geïmporteerde meerjarenonderhoudsplan van de bouwkundige. Dit overzicht toont de actuele stand van uitvoering (uitgevoerd, gepland en achterstallig onderhoud) en dient als hulpmiddel voor de vergadering. Vervallen werkzaamheden zijn niet meegerekend in de begrote bedragen.</p>`;
+    html += `</div></div></body></html>`;
 
     const win = window.open("", "_blank");
     if (!win) {
@@ -678,7 +897,26 @@ export default function LevendMJOP({ onTerug, beheerder }) {
   );
 
   return (
-    <div className="max-w-[1000px] mx-auto px-5 sm:px-8 py-7">
+    <div>
+      {/* Standaard topbar (gelijk aan de overige modules) */}
+      <div className="sticky top-0 z-50 flex items-center justify-between h-14 px-6 bg-white border-b border-[#E7E2DB]">
+        <div className="flex items-center gap-[11px]">
+          <div className="w-[3px] h-[22px] bg-[#991A21] rounded-[2px]" />
+          <span className="text-[#991A21] flex">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[19px] h-[19px]"><path d="M3 3v18h18"/><path d="m7 14 3-3 3 3 5-5"/><path d="M17 9h3v3"/></svg>
+          </span>
+          <span className="text-[14px] font-bold text-[#2D2D2D]">Levend MJOP</span>
+        </div>
+        <button
+          onClick={onTerug}
+          className="inline-flex items-center gap-1.5 text-[12.5px] px-[13px] py-[7px] bg-white border border-[#E7E2DB] rounded-[9px] text-[#6B6560] hover:border-[#991A21] hover:text-[#991A21] transition-colors"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="w-[15px] h-[15px]"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+          Terug naar portaal
+        </button>
+      </div>
+
+      <div className="max-w-[1000px] mx-auto px-5 sm:px-8 py-7">
       {detailMjopId ? (
         // ══════════════ DETAILWEERGAVE ══════════════
         <>
@@ -729,6 +967,88 @@ export default function LevendMJOP({ onTerug, beheerder }) {
                 <Kpi label="Achterstallig" waarde={detailStats.achterstallig} accent="text-[#B23636]" />
                 <Kpi label="Begroot resterend" waarde={euro(detailStats.totOpen)} />
                 <Kpi label="Werkelijk uitgegeven" waarde={euro(detailStats.werkelijk)} />
+              </div>
+
+              {/* Reserve & onderhoudssparen */}
+              <div className="bg-white rounded-xl border border-[#E7E2DB] p-4 sm:p-5 mb-5">
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="min-w-[150px]">
+                    <label className="block text-[12px] font-semibold text-[#2D2D2D] mb-1.5">Huidige reserve (€)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={reserveInput}
+                      onChange={(e) => setReserveInput(e.target.value)}
+                      placeholder="bv. 45000"
+                      className="w-full h-9 px-3 rounded-lg border border-[#E7E2DB] text-[13px] text-[#2D2D2D] focus:outline-none focus:border-[#991A21] focus:ring-1 focus:ring-[#991A21]"
+                    />
+                  </div>
+                  <div className="min-w-[150px]">
+                    <label className="block text-[12px] font-semibold text-[#2D2D2D] mb-1.5">Jaarlijkse storting onderhoud (€)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={stortingInput}
+                      onChange={(e) => setStortingInput(e.target.value)}
+                      placeholder="bv. 12000"
+                      className="w-full h-9 px-3 rounded-lg border border-[#E7E2DB] text-[13px] text-[#2D2D2D] focus:outline-none focus:border-[#991A21] focus:ring-1 focus:ring-[#991A21]"
+                    />
+                  </div>
+                  <button
+                    onClick={bewaarReserve}
+                    disabled={bezigReserve || !reserveGewijzigd}
+                    className="h-9 px-4 rounded-lg bg-[#991A21] text-white text-[13px] font-semibold hover:bg-[#7d1519] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {bezigReserve ? "Opslaan…" : "Opslaan"}
+                  </button>
+                </div>
+
+                {reserveGewijzigd && (
+                  <p className="text-[11.5px] text-[#9A6C1E] mt-2.5">Niet-opgeslagen wijziging — klik Opslaan om de dekking bij te werken.</p>
+                )}
+
+                {dek && !reserveGewijzigd && (
+                  <div className="mt-4 border-t border-[#F0ECE5] pt-4">
+                    <div className="flex flex-wrap gap-x-8 gap-y-1.5 text-[12.5px] mb-3">
+                      <span className="text-[#6B6560]">
+                        Huidige reserve <strong className="text-[#2D2D2D]">{euro(geselParent.reserve_saldo)}</strong>
+                      </span>
+                      <span className="text-[#6B6560]">
+                        Jaarlijkse storting <strong className="text-[#2D2D2D]">{euro(geselParent.jaarlijkse_storting)}</strong>
+                      </span>
+                    </div>
+
+                    {dek.geenKosten ? (
+                      <div className="rounded-lg bg-[#F1EEE9] text-[#6B6560] px-4 py-2.5 text-[12.5px]">
+                        Geen openstaande kosten om te dekken. Reserve blijft {euro(dek.eindSaldo)}.
+                      </div>
+                    ) : (
+                      <div className={`rounded-lg px-4 py-3 ${dek.altijdGedekt ? "bg-[#E8F5EC]" : "bg-[#FDECEC]"}`}>
+                        <p className={`text-[13.5px] font-bold ${dek.altijdGedekt ? "text-[#1E7D43]" : "text-[#B23636]"}`}>
+                          Voldoende: {dek.altijdGedekt ? "JA" : "NEE"}
+                        </p>
+                        <p className={`text-[12.5px] mt-0.5 ${dek.altijdGedekt ? "text-[#1E7D43]" : "text-[#B23636]"}`}>
+                          {dek.altijdGedekt
+                            ? `De reserve dekt alle geplande uitgaven t/m ${dek.gedektTot}. Verwacht eindsaldo ${euro(dek.eindSaldo)}.`
+                            : `Gedekt t/m ${dek.gedektTot} — tekort verwacht vanaf ${dek.tekortVanaf}. Op het diepste punt (${dek.diepsteTekortJaar}) komt de reserve ${euro(Math.abs(dek.diepsteTekort))} tekort.`}
+                        </p>
+                        {!dek.altijdGedekt && (
+                          <p className="text-[12.5px] font-semibold text-[#B23636] mt-2">
+                            Advies: verhoog de jaarlijkse storting in het onderhoudsfonds met ± {euro(dek.extraJaarlijks)} (≈ {euro(dek.extraMaandelijks)} per maand).
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    <p className="text-[11px] text-[#9B958E] italic mt-2">
+                      Het MJOP is een richtlijn. Het werkelijke onderhoudsmoment en de kosten kunnen in de praktijk afwijken.
+                    </p>
+                  </div>
+                )}
+
+                {!dek && !reserveGewijzigd && (
+                  <p className="text-[11.5px] text-[#9B958E] mt-2.5">Voer de reserve en jaarlijkse storting in om te zien tot welk jaar het onderhoud gedekt is.</p>
+                )}
               </div>
 
               {/* Filterbalk */}
@@ -848,22 +1168,6 @@ export default function LevendMJOP({ onTerug, beheerder }) {
       ) : (
         // ══════════════ OVERZICHTWEERGAVE ══════════════
         <>
-          <div className="flex items-center gap-3 mb-6">
-            <button
-              onClick={onTerug}
-              className="w-9 h-9 rounded-lg border border-[#E7E2DB] flex items-center justify-center text-[#6B6560] hover:text-[#991A21] hover:border-[#D8CFC5] transition-colors shrink-0"
-              title="Terug naar portaal"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]">
-                <path d="M19 12H5M12 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <div>
-              <h1 className="text-[22px] font-bold text-[#2D2D2D] leading-tight">Levend MJOP</h1>
-              <p className="text-[13px] text-[#9B958E]">Onderhoudsplan inspoelen en per VvE bijhouden wat is uitgevoerd</p>
-            </div>
-          </div>
-
           {/* Import-kaart */}
           <div className="bg-white rounded-xl border border-[#E7E2DB] p-5 sm:p-6 mb-6">
             <h2 className="text-[15px] font-bold text-[#2D2D2D] mb-1">MJOP importeren</h2>
@@ -1016,6 +1320,7 @@ export default function LevendMJOP({ onTerug, beheerder }) {
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }

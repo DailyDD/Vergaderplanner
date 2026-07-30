@@ -70,6 +70,13 @@ const STIJL = `
 .ofg-knop:disabled { background:#C9BEB9; cursor:not-allowed; }
 .ofg-fout { color:${BORDEAUX}; font-size:13px; font-weight:500; }
 .ofg-ok { color:#2E6B45; font-size:13px; font-weight:600; }
+.ofg-topbar { display:flex; align-items:center; justify-content:space-between; height:56px; padding:0 24px; background:#fff; border-bottom:1px solid #E7E2DB; position:sticky; top:0; z-index:50; }
+.ofg-topbar-kop { display:flex; align-items:center; gap:11px; }
+.ofg-topbar-accent { width:3px; height:22px; background:${BORDEAUX}; border-radius:2px; }
+.ofg-topbar-ico { color:${BORDEAUX}; display:flex; }
+.ofg-topbar-titel { font-size:14px; font-weight:700; color:${ANTRACIET}; }
+.ofg-topbar-btn { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; padding:7px 13px; background:#fff; border:1px solid #E7E2DB; border-radius:9px; color:#6B6560; cursor:pointer; transition:all .15s; }
+.ofg-topbar-btn:hover { border-color:${BORDEAUX}; color:${BORDEAUX}; }
 `;
 
 export default function Offertegenerator({ onTerug }) {
@@ -164,16 +171,28 @@ export default function Offertegenerator({ onTerug }) {
   }
 
   return (
-    <div className="ofg-wrap">
+    <>
       <style>{STIJL}</style>
 
-      <div className="ofg-top">
-        <button className="ofg-terug" onClick={onTerug}>&larr; Terug naar portaal</button>
+      {/* Standaard topbar (gelijk aan de overige modules) */}
+      <div className="ofg-topbar">
+        <div className="ofg-topbar-kop">
+          <span className="ofg-topbar-accent" />
+          <span className="ofg-topbar-ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" width="19" height="19"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>
+          </span>
+          <span className="ofg-topbar-titel">Offertegenerator</span>
+        </div>
+        <button className="ofg-topbar-btn" onClick={onTerug}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+          Terug naar portaal
+        </button>
       </div>
-      <h1 className="ofg-titel">Offertegenerator</h1>
-      <p className="ofg-hulp" style={{ margin: "6px 0 20px" }}>
-        Vul de gegevens in, controleer de voorbeelden en genereer de offerte in de juiste template.
-      </p>
+
+      <div className="ofg-wrap">
+        <p className="ofg-hulp" style={{ margin: "4px 0 20px" }}>
+          Vul de gegevens in, controleer de voorbeelden en genereer de offerte in de juiste template.
+        </p>
 
       {/* ── Contactgegevens ── */}
       <div className="ofg-kaart">
@@ -309,5 +328,6 @@ export default function Offertegenerator({ onTerug }) {
         {klaar && !fout && <span className="ofg-ok">Offerte gegenereerd &#10003; — controleer de download.</span>}
       </div>
     </div>
+    </>
   );
 }
