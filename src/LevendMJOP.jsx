@@ -602,11 +602,17 @@ export default function LevendMJOP({ onTerug, beheerder }) {
       achterstallig = 0,
       totOpen = 0,
       werkelijk = 0,
-      vervallen = 0;
+      vervallen = 0,
+      begrootUitgevoerd = 0, // begroot bedrag van uitsluitend de uitgevoerde posten
+      werkelijkMetBedrag = 0; // aantal uitgevoerde posten waarvoor ook een werkelijk bedrag is ingevuld
     for (const r of rijen) {
       if (r.status === "uitgevoerd") {
         uitgevoerd++;
         werkelijk += Number(r.werkelijk_bedrag) || 0;
+        begrootUitgevoerd += Number(r.begroot_bedrag) || 0;
+        if (r.werkelijk_bedrag !== null && r.werkelijk_bedrag !== undefined && r.werkelijk_bedrag !== "") {
+          werkelijkMetBedrag++;
+        }
       } else if (r.status === "vervallen") {
         vervallen++; // telt niet mee als 'nog te doen' of in het resterende budget
       } else {
@@ -615,7 +621,17 @@ export default function LevendMJOP({ onTerug, beheerder }) {
         if (isAchterstallig(r, jaarNu)) achterstallig++;
       }
     }
-    return { aantal: rijen.length, uitgevoerd, open, achterstallig, totOpen, werkelijk, vervallen };
+    return {
+      aantal: rijen.length,
+      uitgevoerd,
+      open,
+      achterstallig,
+      totOpen,
+      werkelijk,
+      vervallen,
+      begrootUitgevoerd,
+      werkelijkMetBedrag,
+    };
   };
 
   const gefilterdeParents = parents.filter((p) =>
@@ -968,6 +984,69 @@ export default function LevendMJOP({ onTerug, beheerder }) {
                 <Kpi label="Begroot resterend" waarde={euro(detailStats.totOpen)} />
                 <Kpi label="Werkelijk uitgegeven" waarde={euro(detailStats.werkelijk)} />
               </div>
+
+              {/* Begroot vs. werkelijk — uitsluitend uitgevoerde posten (optie 1) */}
+              {detailStats.werkelijkMetBedrag > 0 && (() => {
+                const begroot = detailStats.begrootUitgevoerd;
+                const werkelijk = detailStats.werkelijk;
+                const verschil = werkelijk - begroot; // > 0 = duurder dan begroot
+                const pct = begroot > 0 ? (verschil / begroot) * 100 : null;
+                const overBudget = verschil > 0;
+                const noemenswaard = Math.abs(verschil) >= 0.005; // afronding op centen
+                const kleur = !noemenswaard
+                  ? { rand: "#E7E2DB", bg: "#FCFBF9", tekst: "#6B6560", accent: "#2D2D2D" }
+                  : overBudget
+                  ? { rand: "#F3D9D9", bg: "#FDF6F5", tekst: "#B23636", accent: "#B23636" }
+                  : { rand: "#D6E9DC", bg: "#F4FAF6", tekst: "#1E7D43", accent: "#1E7D43" };
+                return (
+                  <div
+                    className="rounded-xl border p-4 sm:p-5 mb-5"
+                    style={{ borderColor: kleur.rand, backgroundColor: kleur.bg }}
+                  >
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-2.5">
+                      <h2 className="text-[14px] font-bold text-[#2D2D2D]">Begroot vs. werkelijk</h2>
+                      <span className="text-[12px] text-[#9B958E]">
+                        {detailStats.werkelijkMetBedrag} van {detailStats.uitgevoerd} uitgevoerde post
+                        {detailStats.uitgevoerd === 1 ? "" : "en"} met werkelijk bedrag
+                        {detailStats.werkelijkMetBedrag < detailStats.uitgevoerd
+                          ? " (rest zonder bedrag telt niet mee)"
+                          : ""}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
+                      <div>
+                        <p className="text-[11px] text-[#9B958E] mb-0.5">Begroot (uitgevoerd deel)</p>
+                        <p className="text-[17px] font-bold tabular-nums text-[#2D2D2D]">{euro(begroot)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] text-[#9B958E] mb-0.5">Werkelijk uitgegeven</p>
+                        <p className="text-[17px] font-bold tabular-nums text-[#2D2D2D]">{euro(werkelijk)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] text-[#9B958E] mb-0.5">Afwijking</p>
+                        <p className="text-[17px] font-bold tabular-nums" style={{ color: kleur.accent }}>
+                          {!noemenswaard
+                            ? euro(0)
+                            : (overBudget ? "+ " : "− ") + euro(Math.abs(verschil))}
+                          {pct !== null && noemenswaard && (
+                            <span className="text-[13px] font-semibold ml-1.5">
+                              ({overBudget ? "+" : "−"}
+                              {Math.abs(pct).toLocaleString("nl-NL", { maximumFractionDigits: 1 })}%)
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-[12px] mt-2.5" style={{ color: kleur.tekst }}>
+                      {!noemenswaard
+                        ? "Het uitgevoerde onderhoud is precies volgens begroting uitgekomen."
+                        : overBudget
+                        ? "Het uitgevoerde onderhoud is duurder uitgevallen dan de bouwkundige had begroot."
+                        : "Het uitgevoerde onderhoud is goedkoper uitgevallen dan de bouwkundige had begroot."}
+                    </p>
+                  </div>
+                );
+              })()}
 
               {/* Reserve & onderhoudssparen */}
               <div className="bg-white rounded-xl border border-[#E7E2DB] p-4 sm:p-5 mb-5">
