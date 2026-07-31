@@ -717,10 +717,16 @@ export default function LevendMJOP({ onTerug, beheerder }) {
       `<html><head><meta charset="utf-8"><title>MJOP ${esc(naam)}</title><style>` +
       `*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}` +
       `body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#2D2D2D;margin:0;padding:0}` +
-      `.band{background:#991A21;color:#fff;padding:16px 26px}` +
-      `.band h1{font-size:19px;margin:0 0 2px;font-weight:bold}` +
-      `.band .st{font-size:11.5px;opacity:.92;margin:0}` +
-      `.band .meta{font-size:10px;opacity:.85;margin-top:5px}` +
+      `.band{background:linear-gradient(105deg,#7d1519 0%,#991A21 55%,#a81f27 100%);color:#fff;padding:20px 26px 18px;border-bottom:3px solid #2D2D2D;position:relative}` +
+      `.band .row{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}` +
+      `.band .left{min-width:0;flex:1}` +
+      `.band .afz{font-size:9px;letter-spacing:.12em;text-transform:uppercase;opacity:.82;margin:0 0 7px;font-weight:bold}` +
+      `.band h1{font-size:20px;margin:0 0 3px;font-weight:bold;line-height:1.15}` +
+      `.band .st{font-size:11.5px;opacity:.9;margin:0}` +
+      `.band .meta{font-size:9.5px;opacity:.8;margin-top:6px}` +
+      `.band .stat{text-align:right;flex-shrink:0;border-left:1px solid rgba(255,255,255,.28);padding-left:18px;align-self:stretch;display:flex;flex-direction:column;justify-content:center}` +
+      `.band .stat .big{font-size:23px;font-weight:bold;line-height:1;white-space:nowrap}` +
+      `.band .stat .sub{font-size:9px;opacity:.82;text-transform:uppercase;letter-spacing:.05em;margin-top:4px}` +
       `.page{padding:20px 26px}` +
       `.kpis{display:flex;gap:8px;margin:4px 0 6px}` +
       `.kpi{flex:1;border:1px solid #E4DED6;border-radius:6px;padding:7px 9px}` +
@@ -753,18 +759,34 @@ export default function LevendMJOP({ onTerug, beheerder }) {
       `.conc{border-radius:6px;padding:8px 12px;font-size:11px;margin:5px 0;line-height:1.45}` +
       `.conc.ok{background:#E8F5EC;color:#1E7D43}` +
       `.conc.nok{background:#FDECEC;color:#B23636}` +
+      `.bvw{display:flex;gap:0;border:1px solid #E4DED6;border-radius:7px;overflow:hidden;margin:4px 0 2px}` +
+      `.bvw .cell{flex:1;padding:9px 13px;border-right:1px solid #EEE8E0}` +
+      `.bvw .cell:last-child{border-right:none}` +
+      `.bvw .cell .l{font-size:8.5px;color:#8A847C;text-transform:uppercase;letter-spacing:.03em;margin-bottom:3px}` +
+      `.bvw .cell .v{font-size:16px;font-weight:bold;white-space:nowrap}` +
+      `.bvw .cell .pct{font-size:11px;font-weight:bold;margin-left:5px}` +
+      `.bvw.over .afw{background:#FDF6F5}` +
+      `.bvw.under .afw{background:#F4FAF6}` +
+      `.bvw-note{font-size:9px;color:#9B958E;margin:0 0 2px}` +
       `.disc{font-size:9px;color:#9B958E;margin:6px 0 0;font-style:italic}` +
       `@media print{.detail{page-break-before:always}.jaarblok{page-break-inside:avoid}h2{page-break-after:avoid}}` +
       `</style></head><body>`;
 
     html +=
-      `<div class="band"><h1>${esc(naam)}</h1>` +
+      `<div class="band"><div class="row">` +
+      `<div class="left">` +
+      `<p class="afz">Totaal VvE Beheer Den Haag</p>` +
+      `<h1>${esc(naam)}</h1>` +
       `<p class="st">Meerjarenonderhoudsplan &middot; stand van uitvoering</p>` +
       `<p class="meta">Gegenereerd op ${fmtDatum(vandaagISO())}${
         geselParent && geselParent.laatste_import_op
           ? ` &nbsp;|&nbsp; laatste import ${fmtDatum(geselParent.laatste_import_op)}`
           : ""
-      }</p></div>`;
+      }</p>` +
+      `</div>` +
+      `<div class="stat"><div class="big">${gedaan.length}<span style="font-size:14px;opacity:.7"> / ${actief.length}</span></div>` +
+      `<div class="sub">uitgevoerd</div></div>` +
+      `</div></div>`;
 
     html += `<div class="page">`;
 
@@ -776,6 +798,49 @@ export default function LevendMJOP({ onTerug, beheerder }) {
       `<div class="kpi"><div class="l">Begroot resterend</div><div class="v">${euro(totOpen)}</div></div>` +
       `<div class="kpi"><div class="l">Werkelijk uitgegeven</div><div class="v">${euro(totWerkelijk)}</div></div>` +
       `</div>`;
+
+    // Begroot vs. werkelijk — uitsluitend uitgevoerde posten mét werkelijk bedrag (optie 1)
+    const gedaanMetBedrag = gedaan.filter(
+      (r) => r.werkelijk_bedrag !== null && r.werkelijk_bedrag !== undefined && r.werkelijk_bedrag !== ""
+    );
+    if (gedaanMetBedrag.length > 0) {
+      const bvwBegroot = som(gedaanMetBedrag, "begroot_bedrag");
+      const bvwWerkelijk = som(gedaanMetBedrag, "werkelijk_bedrag");
+      const bvwVerschil = bvwWerkelijk - bvwBegroot;
+      const bvwPct = bvwBegroot > 0 ? (bvwVerschil / bvwBegroot) * 100 : null;
+      const bvwNoem = Math.abs(bvwVerschil) >= 0.005;
+      const bvwOver = bvwVerschil > 0;
+      const bvwKlasse = !bvwNoem ? "" : bvwOver ? " over" : " under";
+      const bvwAfwKleur = !bvwNoem ? "#2D2D2D" : bvwOver ? "#B23636" : "#1E7D43";
+      const bvwAfwTekst = !bvwNoem
+        ? euro(0)
+        : (bvwOver ? "+ " : "&minus; ") + euro(Math.abs(bvwVerschil));
+      const bvwPctTekst =
+        bvwPct !== null && bvwNoem
+          ? `<span class="pct" style="color:${bvwAfwKleur}">(${bvwOver ? "+" : "&minus;"}${Math.abs(
+              bvwPct
+            ).toLocaleString("nl-NL", { maximumFractionDigits: 1 })}%)</span>`
+          : "";
+      html += `<h2>Begroot vs. werkelijk</h2>`;
+      html += `<p class="bvw-note">Vergelijking van het reeds uitgevoerde onderhoud: ${gedaanMetBedrag.length} van ${gedaan.length} uitgevoerde post${
+        gedaan.length === 1 ? "" : "en"
+      } met vastgelegd werkelijk bedrag${
+        gedaanMetBedrag.length < gedaan.length ? " (posten zonder bedrag tellen niet mee)" : ""
+      }.</p>`;
+      html +=
+        `<div class="bvw${bvwKlasse}">` +
+        `<div class="cell"><div class="l">Begroot (uitgevoerd deel)</div><div class="v">${euro(bvwBegroot)}</div></div>` +
+        `<div class="cell"><div class="l">Werkelijk uitgegeven</div><div class="v">${euro(bvwWerkelijk)}</div></div>` +
+        `<div class="cell afw"><div class="l">Afwijking</div><div class="v" style="color:${bvwAfwKleur}">${bvwAfwTekst}${bvwPctTekst}</div></div>` +
+        `</div>`;
+      html += `<p class="hint">${
+        !bvwNoem
+          ? "Het uitgevoerde onderhoud is precies volgens begroting uitgekomen."
+          : bvwOver
+          ? "Het uitgevoerde onderhoud is duurder uitgevallen dan door de bouwkundige begroot."
+          : "Het uitgevoerde onderhoud is goedkoper uitgevallen dan door de bouwkundige begroot."
+      }</p>`;
+    }
 
     html += `<h2>Financieel jaaroverzicht</h2>`;
     html += `<p class="hint">Begrote bedragen per jaar volgens het onderhoudsplan. "Nog open" is het deel dat nog uitgevoerd moet worden; het cumulatief helpt bij het bepalen van de benodigde reservering.</p>`;
