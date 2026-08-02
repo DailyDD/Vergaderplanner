@@ -7,7 +7,7 @@ import VveCalculator from './VveCalculator';
 import LodBeheer, { lodSupaLoad, lodDashboardStats, initLodDeps } from './LodBeheer';
 import Offertegenerator from './Offertegenerator';
 import LevendMJOP, { initMjopDeps } from './LevendMJOP';
-import Overdrachten, { initOverdrachtenDeps } from './Overdrachten';
+import Overdrachten, { initOverdrachtenDeps, overdrachtenSupaLoad, overdrachtenDashboardStats } from './Overdrachten';
 
 // ── Huisstijl Totaal VvE Beheer ──────────────────────────────────
 // Primair: #991A21 (donkerrood), Antraciet: #2D2D2D, Achtergrond: #F2EFEC
@@ -2098,6 +2098,7 @@ useEffect(() => {
   const heeftLodToegang = isAdmin || isHoofdAdmin || isLodBeheerder;
   const heeftModule = (m) => userModules.includes(m);
   const heeftVerduurzamingToegang = isHoofdAdmin || isAdmin || heeftModule('verduurzaming');
+  const heeftOverdrachtenToegang = isHoofdAdmin || isAdmin || heeftModule('overdrachten');
   const heeftAdminToegang = isAdmin || isHoofdAdmin;
   const rolLabel = isHoofdAdmin ? "Hoofdbeheerder" : isAdmin ? "Administrator" : isLodBeheerder ? "Beheerder +" : "Beheerder";
 
@@ -2122,6 +2123,8 @@ useEffect(() => {
   const [vdStatus, setVdStatus] = useState("idle");       // idle | laden | klaar | fout
   const [adminRuw, setAdminRuw] = useState(null);
   const [adminStatus, setAdminStatus] = useState("idle"); // idle | laden | klaar | fout
+  const [odRuw, setOdRuw] = useState(null);               // ruwe verzoekenlijst
+  const [odStatus, setOdStatus] = useState("idle");       // idle | laden | klaar | fout
 
   useEffect(() => {
     if (screen !== "portaal" || !heeftVerduurzamingToegang) return;
@@ -2146,6 +2149,16 @@ useEffect(() => {
       .catch(() => { if (!afgebroken) setAdminStatus("fout"); });
     return () => { afgebroken = true; };
   }, [screen, heeftAdminToegang, beheerderList]);
+
+  useEffect(() => {
+    if (screen !== "portaal" || !heeftOverdrachtenToegang) return;
+    let afgebroken = false;
+    setOdStatus("laden");
+    overdrachtenSupaLoad()
+      .then(rows => { if (!afgebroken) { setOdRuw(rows); setOdStatus("klaar"); } })
+      .catch(() => { if (!afgebroken) setOdStatus("fout"); });
+    return () => { afgebroken = true; };
+  }, [screen, heeftOverdrachtenToegang]);
 
   // ── Navigatie ────────────────────────────────────────────────
   // `toon` bepaalt zichtbaarheid per module:
@@ -2605,6 +2618,7 @@ useEffect(() => {
     // LOD rekent op `appLods`, dat al in state staat. Verduurzaming en de
     // organisatiecijfers komen uit de effects hierboven.
     const lodStats = heeftLodToegang ? lodDashboardStats(appLods) : null;
+    const odStats = heeftOverdrachtenToegang ? overdrachtenDashboardStats(odRuw || []) : null;
 
     // Organisatiebreed overzicht — dezelfde optelling als het Admin Dashboard,
     // zodat beide schermen niet uit elkaar kunnen lopen.
@@ -2632,7 +2646,7 @@ useEffect(() => {
       };
     })();
 
-    const toonModuleWidgets = heeftLodToegang || heeftVerduurzamingToegang || heeftAdminToegang;
+    const toonModuleWidgets = heeftLodToegang || heeftVerduurzamingToegang || heeftAdminToegang || heeftOverdrachtenToegang;
 
     // ── Gedeelde widget-onderdelen ────────────────────────────────────────
     const WidgetKaart = ({ titel, sub, naar, knopTekst, children }) => (
@@ -3146,6 +3160,61 @@ useEffect(() => {
                         </div>
                       )}
                     </>
+                  )}
+                </WidgetKaart>
+              )}
+
+              {/* ── Overdrachten: open verzoeken & deadlines ── */}
+              {heeftOverdrachtenToegang && (
+                <WidgetKaart
+                  titel="Overdrachten"
+                  sub={odStats && odStats.totaalOpen > 0 ? `${odStats.totaalOpen} open ${odStats.totaalOpen === 1 ? "verzoek" : "verzoeken"}` : null}
+                  naar="overdrachten"
+                  knopTekst="Naar Overdrachten"
+                >
+                  {odStatus === "laden" && <WidgetLaden tekst="Verzoeken ophalen…" />}
+                  {odStatus === "fout" && <WidgetFout tekst="De verzoeken konden niet worden opgehaald. Open de module om het opnieuw te proberen." />}
+                  {(odStatus === "klaar" || odStatus === "idle") && odStats && (
+                    odStats.totaalOpen === 0 ? (
+                      <p className="text-[13px] text-[#9B958E]">Geen openstaande overdrachten.</p>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-3 gap-2.5 mb-4">
+                          <MiniKpi val={odStats.totaalOpen} label="Open verzoeken" />
+                          <MiniKpi val={odStats.teLaat} label="Deadline verstreken" kleur="#991A21" tint={odStats.teLaat > 0 ? "#F6ECEC" : undefined} rand={odStats.teLaat > 0 ? "#E3C9C9" : undefined} />
+                          <MiniKpi val={odStats.dezeWeek} label="Binnen 7 dagen" kleur="#B07414" tint={odStats.dezeWeek > 0 ? "#FBF3E7" : undefined} rand={odStats.dezeWeek > 0 ? "#E8D3AC" : undefined} />
+                        </div>
+
+                        {odStats.komend.length > 0 && (
+                          <div className="pt-4 border-t border-[#EFEBE4]">
+                            <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#9B958E] mb-2.5">Eerstvolgende deadlines</p>
+                            <div className="space-y-2">
+                              {odStats.komend.slice(0, 4).map(o => (
+                                <div key={o.id} className="flex items-center gap-3 text-[12.5px]">
+                                  <span
+                                    className="w-[9px] h-[9px] rounded-full shrink-0 border-2 bg-white"
+                                    style={{ borderColor: o.dagen < 0 ? "#991A21" : o.dagen <= 7 ? "#B07414" : "#C9BEB2" }}
+                                  />
+                                  <span className="font-semibold text-[#2D2D2D] truncate">{o.adres}</span>
+                                  {o.behandelaar && <span className="text-[#9B958E] shrink-0 hidden md:inline truncate">— {o.behandelaar}</span>}
+                                  <span className="ml-auto shrink-0 text-right whitespace-nowrap">
+                                    <span className="text-[#3f3d3b] tabular-nums">{fmtDate(o.deadline)}</span>
+                                    <span className={o.dagen < 0 ? "text-[#991A21] font-semibold" : "text-[#9B958E]"}> · {deadlineTekst(o.dagen)}</span>
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {odStats.zonderDeadline > 0 && (
+                          <div className="flex justify-between text-[12.5px] pt-3.5 mt-3.5 border-t border-[#EFEBE4]">
+                            <span className="text-[#6B6560]">Open zonder deadline</span>
+                            <b className="font-semibold text-[#2D2D2D] tabular-nums">{odStats.zonderDeadline}</b>
+                          </div>
+                        )}
+                      </>
+                    )
                   )}
                 </WidgetKaart>
               )}

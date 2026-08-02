@@ -17,6 +17,44 @@ export function initOverdrachtenDeps({ sbFetch, showToast }) {
   _showToast = showToast;
 }
 
+// ── Portaalwidget: open verzoeken + deadlines ────────────────────
+// Haalt de openstaande overdrachtverzoeken op voor de dashboardkaart.
+// Zelfde bron als het "Verzoeken & deadlines"-tabblad (overdracht_verzoeken).
+// Retourneert de ruwe rijen; overdrachtenDashboardStats() rekent ze uit.
+export async function overdrachtenSupaLoad() {
+  if (!_sbFetch) return [];
+  try {
+    const rows = await _sbFetch("overdracht_verzoeken?select=*&order=deadline.asc");
+    return rows || [];
+  } catch (e) {
+    console.error("overdrachten dashboard laden", e);
+    return [];
+  }
+}
+
+// Pure functie (geen fetch, geen state): vat de verzoekenlijst samen voor
+// de portaalkaart. Open = status !== "afgerond", identiek aan VerzoekenBeheer.
+export function overdrachtenDashboardStats(rijen) {
+  const lijst = Array.isArray(rijen) ? rijen : [];
+  const open = lijst.filter((v) => v.status !== "afgerond");
+  const teLaat = open.filter((v) => { const n = dagenTot(v.deadline); return n != null && n < 0; }).length;
+  const dezeWeek = open.filter((v) => { const n = dagenTot(v.deadline); return n != null && n >= 0 && n <= 7; }).length;
+  const zonderDeadline = open.filter((v) => dagenTot(v.deadline) == null).length;
+  // Eerstvolgende open verzoeken mét deadline, oplopend op datum.
+  const komend = open
+    .filter((v) => dagenTot(v.deadline) != null)
+    .map((v) => ({
+      id: v.id,
+      adres: v.adres || "—",
+      notaris: v.notaris_naam || "",
+      behandelaar: v.behandelaar || "",
+      deadline: v.deadline,
+      dagen: dagenTot(v.deadline),
+    }))
+    .sort((a, b) => (a.deadline || "").localeCompare(b.deadline || ""));
+  return { totaalOpen: open.length, teLaat, dezeWeek, zonderDeadline, komend };
+}
+
 const MAANDEN_NL = ["januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"];
 const pad2 = (n) => String(n).padStart(2, "0");
 function vandaagISO() { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
@@ -100,28 +138,24 @@ export default function Overdrachten({ onTerug, beheerder }) {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Standaard topbar (gelijk aan de overige modules) */}
-      <div className="sticky top-0 z-50 flex items-center justify-between h-14 px-6 bg-white border-b border-[#E7E2DB]">
-        <div className="flex items-center gap-[11px]">
-          <div className="w-[3px] h-[22px] bg-[#991A21] rounded-[2px]" />
-          <span className="text-[#991A21] flex">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[19px] h-[19px]">
-              <path d="M16 3l4 4-4 4" /><path d="M20 7H4" /><path d="M8 21l-4-4 4-4" /><path d="M4 17h16" />
-            </svg>
-          </span>
-          <span className="text-[14px] font-bold text-[#2D2D2D]">Overdrachten</span>
-        </div>
+      {/* Header */}
+      <div className="bg-white border-b border-[#E7E2DB] px-6 lg:px-8 pt-5">
         <button
           onClick={onTerug}
-          className="inline-flex items-center gap-1.5 text-[12.5px] px-[13px] py-[7px] bg-white border border-[#E7E2DB] rounded-[9px] text-[#6B6560] hover:border-[#991A21] hover:text-[#991A21] transition-colors"
+          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[#6B6560] hover:text-[#991A21] transition-colors mb-4"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="w-[15px] h-[15px]"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
-          Terug naar portaal
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            <path d="m15 18-6-6 6-6" />
+          </svg>
+          Terug naar dashboard
         </button>
-      </div>
 
-      {/* Tabs */}
-      <div className="bg-white border-b border-[#E7E2DB] px-6 lg:px-8">
+        <h1 className="text-[22px] font-bold text-[#2D2D2D] leading-tight">Overdrachten</h1>
+        <p className="text-[13px] text-[#8A847E] mt-0.5 mb-4">
+          Facturen en overzicht genereren, notarissen beheren en overdrachten volgen.
+        </p>
+
+        {/* Tabs */}
         <div className="flex gap-1">
           {TABS.map((t) => {
             const actief = tab === t.key;
