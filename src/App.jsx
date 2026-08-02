@@ -7,6 +7,7 @@ import VveCalculator from './VveCalculator';
 import LodBeheer, { lodSupaLoad, lodDashboardStats, initLodDeps } from './LodBeheer';
 import Offertegenerator from './Offertegenerator';
 import LevendMJOP, { initMjopDeps } from './LevendMJOP';
+import Overdrachten, { initOverdrachtenDeps } from './Overdrachten';
 
 // ── Huisstijl Totaal VvE Beheer ──────────────────────────────────
 // Primair: #991A21 (donkerrood), Antraciet: #2D2D2D, Achtergrond: #F2EFEC
@@ -307,6 +308,7 @@ function today() { return isoLokaal(new Date()); }
 // LOD module dependencies doorgeven
 initLodDeps({ sbFetch, showToast, today });
 initMjopDeps({ sbFetch, showToast, getUid });
+initOverdrachtenDeps({ sbFetch, showToast });
 function monthKey(iso) { return iso ? iso.slice(0,7) : null; }
 function isInVakantie(iso, vakanties) {
   return vakanties.some(v => v.van && v.tot && iso >= v.van && iso <= v.tot);
@@ -2163,6 +2165,7 @@ useEffect(() => {
     { key: "mail", label: "E-mail Configurator", toon: true /* TIJDELIJK: in aanbouw, voor iedereen zichtbaar met melding. Straks terug naar: isHoofdAdmin || isAdmin || heeftModule('email_configurator') */, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="2" y="4" width="20" height="16" rx="2.5"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>) },
     { key: "mjop", label: "Levend MJOP", toon: isHoofdAdmin /* alleen hoofdbeheerders */, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M3 3v18h18"/><path d="m7 14 3-3 3 3 5-5"/><path d="M17 9h3v3"/></svg>) },
     { key: "offertes", label: "Offertegenerator", toon: isHoofdAdmin || isAdmin || heeftModule('offertes'), icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>) },
+    { key: "overdrachten", label: "Overdrachten", toon: isHoofdAdmin || isAdmin || heeftModule('overdrachten'), icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>) },
     { key: "admin", label: "Admin Dashboard", toon: isAdmin || isHoofdAdmin, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>) },
   ].filter(n => n.toon);
 
@@ -2328,6 +2331,7 @@ useEffect(() => {
   if (screen==="lod") return metShell(<LodBeheer onTerug={()=>setScreen("portaal")} beheerderList={beheerderList}/>);
   if (screen==="calculator") return metShell(<VveCalculator onTerug={()=>setScreen("portaal")} snapshot={calcSnapshot} onSnapshot={setCalcSnapshot}/>);
   if (screen==="offertes") return metShell(<Offertegenerator onTerug={()=>setScreen("portaal")} />);
+  if (screen==="overdrachten") return metShell(<Overdrachten onTerug={()=>setScreen("portaal")} beheerder={beheerder}/>);
   if (screen==="mjop") return metShell(<LevendMJOP onTerug={()=>setScreen("portaal")} beheerder={beheerder}/>);
 
   if (screen==="wachtwoord-instellen") return (
