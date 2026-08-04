@@ -2109,8 +2109,12 @@ useEffect(() => {
   // Modules die nog niet af zijn: klik toont de under-construction-popup i.p.v. te navigeren.
   // Zodra een module live gaat: verwijder de key hieronder, dan navigeert het menu-item weer normaal.
   const IN_AANBOUW = ["notulen", "mail"];
+  // Modules die al wel voor hoofd_admin werken, maar voor gewone beheerders nog
+  // de "in afwachting"-melding tonen totdat de module vrijgegeven wordt.
+  const IN_AANBOUW_VOOR_BEHEERDERS = ["actiepunten"];
   const openNav = (key) => {
     if (IN_AANBOUW.includes(key)) { setUcModule(NAV.find(n => n.key === key)?.label || "Deze module"); return; }
+    if (IN_AANBOUW_VOOR_BEHEERDERS.includes(key) && !isHoofdAdmin) { setUcModule(NAV.find(n => n.key === key)?.label || "Deze module"); return; }
     setScreen(key);
   };
 
@@ -2196,7 +2200,7 @@ useEffect(() => {
     { key: "offertes", label: "Offertegenerator", toon: isHoofdAdmin || isAdmin || heeftModule('offertes'), icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>) },
     { key: "aannemers", label: "Aannemers", toon: true, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L2 19l3 3 7.3-7.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2-2z" /></svg>) },
     { key: "overdrachten", label: "Overdrachten", toon: isHoofdAdmin || isAdmin || heeftModule('overdrachten'), icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>) },
-    { key: "actiepunten", label: "Actiepunten", toon: isHoofdAdmin, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>) },
+    { key: "actiepunten", label: "Actiepunten", toon: true, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>) },
     { key: "admin", label: "Admin Dashboard", toon: isAdmin || isHoofdAdmin, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>) },
   ].filter(n => n.toon);
 
