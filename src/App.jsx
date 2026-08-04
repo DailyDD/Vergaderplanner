@@ -8,6 +8,7 @@ import LodBeheer, { lodSupaLoad, lodDashboardStats, initLodDeps } from './LodBeh
 import Offertegenerator from './Offertegenerator';
 import LevendMJOP, { initMjopDeps } from './LevendMJOP';
 import Overdrachten, { initOverdrachtenDeps, overdrachtenSupaLoad, overdrachtenDashboardStats } from './Overdrachten';
+import Actiepunten, { initActiepuntenDeps, actiepuntenSupaLoad, actiepuntenDashboardStats } from './Actiepunten';
 import Aannemers, { initAannemersDeps } from './Aannemers';
 
 // ── Huisstijl Totaal VvE Beheer ──────────────────────────────────
@@ -310,6 +311,7 @@ function today() { return isoLokaal(new Date()); }
 initLodDeps({ sbFetch, showToast, today });
 initMjopDeps({ sbFetch, showToast, getUid });
 initOverdrachtenDeps({ sbFetch, showToast });
+initActiepuntenDeps({ sbFetch, showToast });
 initAannemersDeps({ sbFetch, showToast });
 function monthKey(iso) { return iso ? iso.slice(0,7) : null; }
 function isInVakantie(iso, vakanties) {
@@ -2127,6 +2129,8 @@ useEffect(() => {
   const [adminStatus, setAdminStatus] = useState("idle"); // idle | laden | klaar | fout
   const [odRuw, setOdRuw] = useState(null);               // ruwe verzoekenlijst
   const [odStatus, setOdStatus] = useState("idle");       // idle | laden | klaar | fout
+  const [apRuw, setApRuw] = useState(null);                // ruwe actiepuntenlijst
+  const [apStatus, setApStatus] = useState("idle");        // idle | laden | klaar | fout
 
   useEffect(() => {
     if (screen !== "portaal" || !heeftVerduurzamingToegang) return;
@@ -2162,6 +2166,16 @@ useEffect(() => {
     return () => { afgebroken = true; };
   }, [screen, heeftOverdrachtenToegang]);
 
+  useEffect(() => {
+    if (screen !== "portaal" || !isHoofdAdmin) return;
+    let afgebroken = false;
+    setApStatus("laden");
+    actiepuntenSupaLoad()
+      .then(rows => { if (!afgebroken) { setApRuw(rows); setApStatus("klaar"); } })
+      .catch(() => { if (!afgebroken) setApStatus("fout"); });
+    return () => { afgebroken = true; };
+  }, [screen, isHoofdAdmin]);
+
   // ── Navigatie ────────────────────────────────────────────────
   // `toon` bepaalt zichtbaarheid per module:
   //   Vergaderplanner / Calculator  → iedereen
@@ -2182,6 +2196,7 @@ useEffect(() => {
     { key: "offertes", label: "Offertegenerator", toon: isHoofdAdmin || isAdmin || heeftModule('offertes'), icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>) },
     { key: "aannemers", label: "Aannemers", toon: true, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L2 19l3 3 7.3-7.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2-2z" /></svg>) },
     { key: "overdrachten", label: "Overdrachten", toon: isHoofdAdmin || isAdmin || heeftModule('overdrachten'), icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>) },
+    { key: "actiepunten", label: "Actiepunten", toon: isHoofdAdmin, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>) },
     { key: "admin", label: "Admin Dashboard", toon: isAdmin || isHoofdAdmin, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>) },
   ].filter(n => n.toon);
 
@@ -2348,6 +2363,7 @@ useEffect(() => {
   if (screen==="calculator") return metShell(<VveCalculator onTerug={()=>setScreen("portaal")} snapshot={calcSnapshot} onSnapshot={setCalcSnapshot}/>);
   if (screen==="offertes") return metShell(<Offertegenerator onTerug={()=>setScreen("portaal")} />);
   if (screen==="overdrachten") return metShell(<Overdrachten onTerug={()=>setScreen("portaal")} beheerder={beheerder}/>);
+  if (screen==="actiepunten") return metShell(<Actiepunten onTerug={()=>setScreen("portaal")} beheerder={beheerder}/>);
   if (screen==="aannemers") return metShell(<Aannemers onTerug={()=>setScreen("portaal")} magBewerken={isHoofdAdmin || isAdmin}/>);
   if (screen==="mjop") return metShell(<LevendMJOP onTerug={()=>setScreen("portaal")} beheerder={beheerder}/>);
 
@@ -2623,6 +2639,7 @@ useEffect(() => {
     // organisatiecijfers komen uit de effects hierboven.
     const lodStats = heeftLodToegang ? lodDashboardStats(appLods) : null;
     const odStats = heeftOverdrachtenToegang ? overdrachtenDashboardStats(odRuw || []) : null;
+    const apStats = isHoofdAdmin ? actiepuntenDashboardStats(apRuw || []) : null;
 
     // Organisatiebreed overzicht — dezelfde optelling als het Admin Dashboard,
     // zodat beide schermen niet uit elkaar kunnen lopen.
@@ -3223,7 +3240,60 @@ useEffect(() => {
                 </WidgetKaart>
               )}
 
-              {/* ── Verduurzaming & Subsidies ── */}
+              {/* ── Actiepunten: deadlines in zicht (alleen hoofd_admin, module in aanbouw) ── */}
+              {isHoofdAdmin && (
+                <WidgetKaart
+                  titel="Actiepunten"
+                  sub={apStats && apStats.totaalOpen > 0 ? `${apStats.totaalOpen} open ${apStats.totaalOpen === 1 ? "actiepunt" : "actiepunten"}` : null}
+                  naar="actiepunten"
+                  knopTekst="Naar Actiepunten"
+                >
+                  {apStatus === "laden" && <WidgetLaden tekst="Actiepunten ophalen…" />}
+                  {apStatus === "fout" && <WidgetFout tekst="De actiepunten konden niet worden opgehaald. Open de module om het opnieuw te proberen." />}
+                  {(apStatus === "klaar" || apStatus === "idle") && apStats && (
+                    apStats.totaalOpen === 0 ? (
+                      <p className="text-[13px] text-[#9B958E]">Geen openstaande actiepunten.</p>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-3 gap-2.5 mb-4">
+                          <MiniKpi val={apStats.totaalOpen} label="Open actiepunten" />
+                          <MiniKpi val={apStats.teLaat} label="Deadline verstreken" kleur="#991A21" tint={apStats.teLaat > 0 ? "#F6ECEC" : undefined} rand={apStats.teLaat > 0 ? "#E3C9C9" : undefined} />
+                          <MiniKpi val={apStats.dezeWeek} label="Binnen 7 dagen" kleur="#B07414" tint={apStats.dezeWeek > 0 ? "#FBF3E7" : undefined} rand={apStats.dezeWeek > 0 ? "#E8D3AC" : undefined} />
+                        </div>
+
+                        {apStats.komend.length > 0 && (
+                          <div className="pt-4 border-t border-[#EFEBE4]">
+                            <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#9B958E] mb-2.5">Eerstvolgende deadlines</p>
+                            <div className="space-y-2">
+                              {apStats.komend.slice(0, 4).map(a => (
+                                <div key={a.id} className="flex items-center gap-3 text-[12.5px]">
+                                  <span
+                                    className="w-[9px] h-[9px] rounded-full shrink-0 border-2 bg-white"
+                                    style={{ borderColor: a.dagen < 0 ? "#991A21" : a.dagen <= 7 ? "#B07414" : "#C9BEB2" }}
+                                  />
+                                  <span className="font-semibold text-[#2D2D2D] truncate">{a.omschrijving}</span>
+                                  <span className="text-[#9B958E] shrink-0 hidden md:inline truncate">— {a.vve}</span>
+                                  <span className="ml-auto shrink-0 text-right whitespace-nowrap">
+                                    <span className="text-[#3f3d3b] tabular-nums">{fmtDate(a.deadline)}</span>
+                                    <span className={a.dagen < 0 ? "text-[#991A21] font-semibold" : "text-[#9B958E]"}> · {deadlineTekst(a.dagen)}</span>
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {apStats.zonderDeadline > 0 && (
+                          <div className="flex justify-between text-[12.5px] pt-3.5 mt-3.5 border-t border-[#EFEBE4]">
+                            <span className="text-[#6B6560]">Open zonder deadline</span>
+                            <b className="font-semibold text-[#2D2D2D] tabular-nums">{apStats.zonderDeadline}</b>
+                          </div>
+                        )}
+                      </>
+                    )
+                  )}
+                </WidgetKaart>
+              )}
               {heeftVerduurzamingToegang && (
                 <WidgetKaart
                   titel="Verduurzaming & Subsidies"
