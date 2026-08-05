@@ -244,10 +244,12 @@ async function parsePresentielijst(bytes) {
         .sort((u, v) => v.y - u.y || u.x - v.x)
       const adresFull = adresItems.map(it => it.s).join(' ').replace(/\s+/g, ' ').trim()
       const linksDeel = adresFull.split(',')[0].trim()
-      const hm = linksDeel.match(/^(.+?)\s+(\d+\s*[A-Za-z]?)$/)
+      // Splits straat + huisnummer: alles vanaf het eerste (met spatie voorafgegane) cijfer
+      // is het huisnummer incl. toevoeging. Vangt 103, 89A, 89-A, 89 A, 12-2, 12bis.
+      const hm = linksDeel.match(/^(.+?)\s+(\d.*)$/)
       if (!hm) continue
       const straat = hm[1].trim()
-      const huisnr = hm[2].replace(/\s+/g, '')
+      const huisnr = hm[2].trim().replace(/\s+/g, '')
       const breukdeel = parseInt(a.s.trim(), 10)
       const stemItem = items.find(it => inBand(it.x, bands.stem) && Math.abs(it.y - a.y) <= 3 && /^\d+$/.test(it.s.trim()))
       const stem = stemItem ? parseInt(stemItem.s.trim(), 10) : null
@@ -256,7 +258,7 @@ async function parsePresentielijst(bytes) {
   }
   const seen = new Set()
   const uniek = units.filter(u => (seen.has(u.label) ? false : seen.add(u.label)))
-  uniek.sort((a, b) => a.straat.localeCompare(b.straat, 'nl') || a.hnr - b.hnr)
+  uniek.sort((a, b) => a.straat.localeCompare(b.straat, 'nl') || a.hnr - b.hnr || a.huisnr.localeCompare(b.huisnr, 'nl'))
   const noemer = uniek.reduce((s, u) => s + (u.breukdeel || 0), 0)
   return { units: uniek, noemer }
 }
