@@ -308,6 +308,17 @@ function addDays(iso, n) {
   d.setDate(d.getDate()+n);
   return isoLokaal(d);
 }
+// Precies 1 kalenderjaar optellen (i.p.v. 365 dagen, dat loopt fout rond
+// schrikkeljaren). 29 feb bestaat een jaar later meestal niet — dan valt
+// terug op 28 feb via setDate(0) (= laatste dag van de vorige maand).
+function addYear(iso) {
+  if (!iso) return "";
+  const [y, m, dg] = iso.split("-").map(Number);
+  if (!y || !m || !dg) return "";
+  const d = new Date(y + 1, m - 1, dg);
+  if (d.getMonth() !== m - 1) d.setDate(0);
+  return isoLokaal(d);
+}
 function today() { return isoLokaal(new Date()); }
 // LOD module dependencies doorgeven
 initLodDeps({ sbFetch, showToast, today });
@@ -730,10 +741,18 @@ return (
             {vve.datum1 && statusPaneel(st1, vve.datum1, uitgenodigd1, v=>onUpdate({...vve, uitgenodigd1: v}))}
             <div className="flex flex-col gap-2.5 pt-1">
               <Checkbox checked={vergaderd1} disabled={false}
-                onChange={v=>onUpdate({...vve, vergaderd1: v})}
+                onChange={v=>onUpdate({
+                  ...vve, vergaderd1: v,
+                  voorkeurVolgendjaar: (v && !vve.needs2e && !vve.voorkeurVolgendjaar && vve.datum1)
+                    ? addYear(vve.datum1) : vve.voorkeurVolgendjaar
+                })}
                 label="Vergadering heeft plaatsgevonden"/>
               <Checkbox checked={!!vve.needs2e} disabled={false}
-                onChange={v=>onUpdate({...vve, needs2e: v, datum2: v ? vve.datum2 : "", uitgenodigd2: false, vergaderd2: false})}
+                onChange={v=>onUpdate({
+                  ...vve, needs2e: v, datum2: v ? vve.datum2 : "", uitgenodigd2: false, vergaderd2: false,
+                  voorkeurVolgendjaar: (!v && vergaderd1 && !vve.voorkeurVolgendjaar && vve.datum1)
+                    ? addYear(vve.datum1) : vve.voorkeurVolgendjaar
+                })}
                 label="2e reglementaire vergadering nodig"/>
             </div>
             {vergaderd1 && !vve.needs2e && voorkeurBlok()}
@@ -756,7 +775,11 @@ return (
               {vve.datum2 && (
                 <div className="pt-1">
                   <Checkbox checked={vergaderd2} disabled={false}
-                    onChange={v=>onUpdate({...vve, vergaderd2: v})}
+                    onChange={v=>onUpdate({
+                      ...vve, vergaderd2: v,
+                      voorkeurVolgendjaar: (v && !vve.voorkeurVolgendjaar && vve.datum1)
+                        ? addYear(vve.datum1) : vve.voorkeurVolgendjaar
+                    })}
                     label="Vergadering heeft plaatsgevonden / is afgerond"/>
                 </div>
               )}
