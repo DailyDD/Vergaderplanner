@@ -21,6 +21,7 @@ const CSS_FONT = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:
 .calc-inp[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
 .calc-inp[type=number] { -moz-appearance:textfield; appearance:textfield; }`;
 import FeedbackBeheer, { initFeedbackDeps, feedbackSupaLoad } from './FeedbackBeheer';
+import Ideeenbox, { initFeedbackInvulDeps, FeedbackOverlay } from './FeedbackInvulkant';
 
 // ── Config ───────────────────────────────────────────────────────
 const INVITE_DAYS = 21;
@@ -313,6 +314,7 @@ initLodDeps({ sbFetch, showToast, today });
 initMjopDeps({ sbFetch, showToast, getUid });
 initOverdrachtenDeps({ sbFetch, showToast });
 initFeedbackDeps({ sbFetch, showToast, getUid });
+initFeedbackInvulDeps({ sbFetch, showToast, getUid });
 initActiepuntenDeps({ sbFetch, showToast });
 initAannemersDeps({ sbFetch, showToast });
 function monthKey(iso) { return iso ? iso.slice(0,7) : null; }
@@ -2203,6 +2205,7 @@ useEffect(() => {
     { key: "aannemers", label: "Aannemers", toon: true, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L2 19l3 3 7.3-7.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2-2z" /></svg>) },
     { key: "overdrachten", label: "Overdrachten", toon: isHoofdAdmin || isAdmin || heeftModule('overdrachten'), icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>) },
     { key: "feedback", label: "Feedback & Communicatie", toon: isHoofdAdmin, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M8 12h.01M12 12h.01M16 12h.01"/></svg>) },
+    { key: "ideeenbox", label: "Ideeënbox", toon: true, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.5.4.8 1 .9 1.6M12 2a7 7 0 0 1 4 12.7c-.5.4-.8 1-.9 1.6"/></svg>) },
     { key: "actiepunten", label: "Actiepunten", toon: true, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>) },
     { key: "admin", label: "Admin Dashboard", toon: isAdmin || isHoofdAdmin, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>) },
   ].filter(n => n.toon);
@@ -2371,6 +2374,7 @@ useEffect(() => {
   if (screen==="offertes") return metShell(<Offertegenerator onTerug={()=>setScreen("portaal")} />);
   if (screen==="overdrachten") return metShell(<Overdrachten onTerug={()=>setScreen("portaal")} beheerder={beheerder}/>);
   if (screen==="feedback") return metShell(<FeedbackBeheer onTerug={()=>setScreen("portaal")} beheerder={beheerder}/>);
+  if (screen==="ideeenbox") return metShell(<Ideeenbox onTerug={()=>setScreen("portaal")}/>);
   if (screen==="actiepunten") return metShell(<Actiepunten onTerug={()=>setScreen("portaal")} beheerder={beheerder}/>);
   if (screen==="aannemers") return metShell(<Aannemers onTerug={()=>setScreen("portaal")} magBewerken={isHoofdAdmin || isAdmin}/>);
   if (screen==="mjop") return metShell(<LevendMJOP onTerug={()=>setScreen("portaal")} beheerder={beheerder}/>);
@@ -2779,7 +2783,9 @@ useEffect(() => {
       );
     };
 
-    return metShell(
+return metShell(
+      <>
+        <FeedbackOverlay actief={!welkomstPending} />
         <div className="px-7 py-9 max-w-[1440px] mx-auto">
 
           {/* ── Begroeting ───────────────────────────────────────── */}
@@ -3363,6 +3369,7 @@ useEffect(() => {
           )}
 
         </div>
+        </>
     );
   }
 
