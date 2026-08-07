@@ -514,10 +514,18 @@ function inviteStatus(datum, uitgenodigd) {
 
 // ── Checkbox ─────────────────────────────────────────────────────
 function Checkbox({ checked, disabled, onChange, label }) {
+  // Het hele label (vinkje + tekst) is nu één klikgebied. We stoppen de
+  // propagatie hier op het label-niveau (voorkomt dat de rij in-/uitklapt)
+  // en roepen onChange precies één keer aan vanuit deze ene handler — niet
+  // ook nog los op de <div>, anders klikt de gebruiker per ongeluk twee keer
+  // (aan + direct weer uit) doordat het click-event van de div naar boven
+  // bubbelt naar het label.
   return (
-    <label className="flex items-center gap-2 cursor-pointer group shrink-0" onClick={e=>e.stopPropagation()}>
+    <label
+      className={`flex items-center gap-2 group shrink-0 ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
+      onClick={e => { e.stopPropagation(); if (!disabled) onChange(!checked); }}
+    >
       <div
-        onClick={()=>!disabled && onChange(!checked)}
         className={`w-[18px] h-[18px] rounded border flex items-center justify-center transition-colors shrink-0
           ${disabled ? "opacity-30 cursor-not-allowed" : "cursor-pointer"}
           ${checked ? "bg-[#991A21] border-[#991A21]" : "bg-white border-[#C9BEB2] group-hover:border-[#991A21]"}`}
@@ -749,7 +757,7 @@ return (
                 <div className="pt-1">
                   <Checkbox checked={vergaderd2} disabled={false}
                     onChange={v=>onUpdate({...vve, vergaderd2: v})}
-                    label="Vergadering heeft plaatsgevonden"/>
+                    label="Vergadering heeft plaatsgevonden / is afgerond"/>
                 </div>
               )}
               {vergaderd2 && voorkeurBlok()}
