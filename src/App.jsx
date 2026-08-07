@@ -1858,6 +1858,52 @@ useEffect(() => {
   }, [screen, beheerder]);
 
   const handleJaarwisselingBevestigen = async () => {
+    // ── Archiveren vóór wissen ──────────────────────────────────────
+    // De reset hieronder gooit alle vergaderdata van dit jaar weg. Leg dus
+    // eerst per VvE een snapshot vast in vergadering_historie. Alleen VvE's
+    // met een geplande/gehouden vergadering leveren een archiefrij op — een
+    // VvE zonder datum heeft geen uitkomst om te bewaren.
+    // De volgorde is kritisch: eerst archiveren, reset ALLEEN als dat lukte.
+    // Faalt het wegschrijven, dan breken we af en wissen we niets. Zo kan er
+    // nooit data verloren gaan die niet is gearchiveerd.
+    const historieRijen = data.vves
+      .filter(v => v.datum1 || v.datum2)
+      .map(v => ({
+        beheerder,
+        vve_id: v.id,
+        vve_naam: v.naam,
+        jaar: parseInt((v.datum1 || v.datum2).slice(0, 4), 10),
+        had_2e: !!v.needs2e,
+        had_extra: !!v.extraVergadering,
+        datum1: v.datum1 || null,
+        datum2: v.datum2 || null,
+        datum_extra: v.datumExtra || null,
+        tijd1: v.tijd1 || null,
+        tijd2: v.tijd2 || null,
+        tijd_extra: v.tijdExtra || null,
+        vergaderd1: !!v.vergaderd1,
+        vergaderd2: !!v.vergaderd2,
+        vergaderd_extra: !!v.vergaderdExtra,
+      }));
+
+    if (historieRijen.length) {
+      try {
+        // on_conflict + ignore-duplicates: een per ongeluk dubbel bevestigde
+        // jaarwisseling maakt geen dubbele archiefrijen (unieke sleutel
+        // beheerder + vve_id + jaar).
+        await sbFetch(`vergadering_historie?on_conflict=beheerder,vve_id,jaar`, {
+          method: "POST",
+          headers: { "Prefer": "resolution=ignore-duplicates,return=minimal" },
+          body: JSON.stringify(historieRijen),
+        });
+      } catch (e) {
+        console.error("Archiveren jaarwisseling mislukt", e);
+        showToast("Archiveren mislukt — jaarwisseling afgebroken, er is niets gewist. Probeer het opnieuw.");
+        return; // ABORT: geen reset zolang het archief niet is weggeschreven
+      }
+    }
+
+    // ── Reset: nieuw jaar klaarzetten ───────────────────────────────
     const vernieuwd = data.vves.map(v => ({
       id: v.id,
       naam: v.naam,
@@ -1865,6 +1911,9 @@ useEffect(() => {
       datum1: v.voorkeurVolgendjaar || "",
       datum2: "",
       datumExtra: "",
+      tijd1: "",
+      tijd2: "",
+      tijdExtra: "",
       uitgenodigd1: false,
       uitgenodigd2: false,
       uitgenodigdExtra: false,
@@ -1878,6 +1927,9 @@ useEffect(() => {
     await persist({ ...data, vves: vernieuwd });
     setSortedOrder(null);
     setToonJaarwisselingPrompt(false);
+    if (historieRijen.length) {
+      showToast(`${historieRijen.length} ${historieRijen.length === 1 ? "vergadering" : "vergaderingen"} gearchiveerd — nieuw jaar klaargezet.`);
+    }
   };
 
   const addVve = async () => {
