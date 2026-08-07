@@ -674,6 +674,7 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
   );
 
   const INP = "w-full bg-white border border-[#E7E2DB] rounded-lg px-3 h-10 text-[13.5px] text-[#2D2D2D] focus:outline-none focus:border-[#991A21] transition-colors";
+  const TIJD_INP = "shrink-0 w-[112px] bg-white border border-[#E7E2DB] rounded-lg px-3 h-10 text-[13.5px] text-[#2D2D2D] focus:outline-none focus:border-[#991A21] transition-colors";
   const LABEL = "text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#9B958E]";
 
   const stipKleur = afgerond ? "#3B7A57"
@@ -684,10 +685,11 @@ function VveRow({ vve, vakanties, onUpdate, onDelete, onAdd2nd, forceOpen, onFor
     : vve.datum1 ? "#9B958E"
     : "#C9BEB2";
 
-  const regelMeta = (datum, vergaderd, open, uitgenodigd, nr) => (
+  const regelMeta = (datum, tijd, vergaderd, open, uitgenodigd, nr) => (
     <span className="text-[12px] text-[#9B958E]">
       <span>{nr}</span>{" "}
       <span className={`tabular-nums font-medium ${vergaderd ? "text-[#3B7A57]" : "text-[#3f3d3b]"}`}>{fmtDate(datum)}</span>
+      {tijd && <span className="tabular-nums"> · {tijd}</span>}
       {vergaderd ? <span className="text-[#3B7A57]"> · heeft plaatsgevonden</span>
         : open ? <span className="text-[#991A21] font-medium"> · uitkomst niet vastgelegd</span>
         : uitgenodigd ? <span className="text-[#3B7A57]"> · uitnodiging verstuurd</span>
@@ -720,8 +722,8 @@ return (
             {!vergaderd2 && vve.datum2 && statusBadge(st2, "2e")}
           </div>
           <div className="flex gap-x-5 gap-y-0.5 mt-1 flex-wrap">
-            {vve.datum1 && regelMeta(vve.datum1, vergaderd1, open1, uitgenodigd1, "1e")}
-            {vve.datum2 && regelMeta(vve.datum2, vergaderd2, open2, uitgenodigd2, "2e")}
+            {vve.datum1 && regelMeta(vve.datum1, vve.tijd1, vergaderd1, open1, uitgenodigd1, "1e")}
+            {vve.datum2 && regelMeta(vve.datum2, vve.tijd2, vergaderd2, open2, uitgenodigd2, "2e")}
           </div>
         </div>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
@@ -737,7 +739,10 @@ return (
           {/* 1e vergadering */}
           <div className="space-y-2.5">
             <p className={LABEL}>1e vergadering</p>
-            <input type="date" value={vve.datum1} onChange={e=>updateDatum1(e.target.value)} className={INP}/>
+            <div className="flex gap-2">
+              <input type="date" value={vve.datum1} onChange={e=>updateDatum1(e.target.value)} className={INP + " flex-1"}/>
+              <input type="time" value={vve.tijd1||""} onChange={e=>onUpdate({...vve, tijd1: e.target.value})} className={TIJD_INP}/>
+            </div>
             {vve.datum1 && statusPaneel(st1, vve.datum1, uitgenodigd1, v=>onUpdate({...vve, uitgenodigd1: v}))}
             <div className="flex flex-col gap-2.5 pt-1">
               <Checkbox checked={vergaderd1} disabled={false}
@@ -764,6 +769,7 @@ return (
               <p className={LABEL}>2e reglementaire vergadering</p>
               <div className="flex gap-2">
                 <input type="date" value={vve.datum2||""} onChange={e=>updateDatum2(e.target.value)} className={INP + " flex-1"}/>
+                <input type="time" value={vve.tijd2||""} onChange={e=>onUpdate({...vve, tijd2: e.target.value})} className={TIJD_INP}/>
                 {vve.datum1 && !vve.datum2 && (
                   <button onClick={()=>onAdd2nd(vve)}
                     className="shrink-0 px-3 h-10 bg-white hover:bg-[#F2EFEC] text-[#6B6560] border border-[#E7E2DB] text-[12.5px] font-medium rounded-lg transition-colors whitespace-nowrap">
@@ -805,9 +811,14 @@ return (
               label="Extra vergadering"/>
             {vve.extraVergadering && (
               <div className="space-y-2.5 pl-6">
-                <input type="date" value={vve.datumExtra||""}
-                  onChange={e=>onUpdate({...vve, datumExtra: e.target.value, uitgenodigdExtra: false})}
-                  className={INP}/>
+                <div className="flex gap-2">
+                  <input type="date" value={vve.datumExtra||""}
+                    onChange={e=>onUpdate({...vve, datumExtra: e.target.value, uitgenodigdExtra: false})}
+                    className={INP + " flex-1"}/>
+                  <input type="time" value={vve.tijdExtra||""}
+                    onChange={e=>onUpdate({...vve, tijdExtra: e.target.value})}
+                    className={TIJD_INP}/>
+                </div>
                 {vve.datumExtra && statusPaneel(stE, vve.datumExtra, !!vve.uitgenodigdExtra, v=>onUpdate({...vve, uitgenodigdExtra: v}))}
                 <div className="pt-1">
                   <Checkbox checked={!!vve.vergaderdExtra} disabled={false}
@@ -955,7 +966,7 @@ const RISK_KLEUR = {
 // ── Admin Dashboard ──────────────────────────────────────────────
 function exportTotaalExcel(allData, beheerderList) {
   const year = new Date().getFullYear();
-  const rows = [["Beheerder","VvE","1e vergadering","Uitgenodigd 1e","Vergaderd 1e","2e reglementair","2e vergadering","Uitgenodigd 2e","Vergaderd 2e","Extra vergadering","Extra datum","Voorkeur volgend jaar","Notitie","Status"]];
+  const rows = [["Beheerder","VvE","1e vergadering","Tijd 1e","Uitgenodigd 1e","Vergaderd 1e","2e reglementair","2e vergadering","Tijd 2e","Uitgenodigd 2e","Vergaderd 2e","Extra vergadering","Extra datum","Tijd extra","Voorkeur volgend jaar","Notitie","Status"]];
   for (const naam of beheerderList) {
     const vves = allData[naam]?.vves || [];
     for (const v of vves) {
@@ -965,14 +976,17 @@ function exportTotaalExcel(allData, beheerderList) {
         naam,
         v.naam,
         v.datum1 ? fmtDate(v.datum1) : "",
+        v.tijd1 || "",
         v.uitgenodigd1 ? "Ja" : "Nee",
         v.vergaderd1 ? "Ja" : "Nee",
         v.needs2e ? "Ja" : "Nee",
         v.datum2 ? fmtDate(v.datum2) : "",
+        v.tijd2 || "",
         v.uitgenodigd2 ? "Ja" : "Nee",
         v.vergaderd2 ? "Ja" : "Nee",
         v.extraVergadering ? "Ja" : "Nee",
         v.datumExtra ? fmtDate(v.datumExtra) : "",
+        v.tijdExtra || "",
         v.voorkeurVolgendjaar ? fmtDate(v.voorkeurVolgendjaar) : "",
         v.notitie || "",
         status,
@@ -1939,12 +1953,12 @@ useEffect(() => {
 
   const exportExcel = () => {
     const year = new Date().getFullYear();
-    const rows = [["VvE", "1e vergadering", "Uitgenodigd 1e", "Vergaderd 1e", "2e reglementair", "2e vergadering", "Uitgenodigd 2e", "Vergaderd 2e", "Extra vergadering", "Extra datum", "Uitgenodigd extra", "Vergaderd extra", "Voorkeur volgend jaar", "Notitie"]];
+    const rows = [["VvE", "1e vergadering", "Tijd 1e", "Uitgenodigd 1e", "Vergaderd 1e", "2e reglementair", "2e vergadering", "Tijd 2e", "Uitgenodigd 2e", "Vergaderd 2e", "Extra vergadering", "Extra datum", "Tijd extra", "Uitgenodigd extra", "Vergaderd extra", "Voorkeur volgend jaar", "Notitie"]];
     data.vves.forEach(v => {
       rows.push([
-        v.naam, v.datum1 ? fmtDate(v.datum1) : "", v.uitgenodigd1 ? "Ja" : "Nee", v.vergaderd1 ? "Ja" : "Nee",
-        v.needs2e ? "Ja" : "Nee", v.datum2 ? fmtDate(v.datum2) : "", v.uitgenodigd2 ? "Ja" : "Nee", v.vergaderd2 ? "Ja" : "Nee",
-        v.extraVergadering ? "Ja" : "Nee", v.datumExtra ? fmtDate(v.datumExtra) : "", v.uitgenodigdExtra ? "Ja" : "Nee", v.vergaderdExtra ? "Ja" : "Nee",
+        v.naam, v.datum1 ? fmtDate(v.datum1) : "", v.tijd1 || "", v.uitgenodigd1 ? "Ja" : "Nee", v.vergaderd1 ? "Ja" : "Nee",
+        v.needs2e ? "Ja" : "Nee", v.datum2 ? fmtDate(v.datum2) : "", v.tijd2 || "", v.uitgenodigd2 ? "Ja" : "Nee", v.vergaderd2 ? "Ja" : "Nee",
+        v.extraVergadering ? "Ja" : "Nee", v.datumExtra ? fmtDate(v.datumExtra) : "", v.tijdExtra || "", v.uitgenodigdExtra ? "Ja" : "Nee", v.vergaderdExtra ? "Ja" : "Nee",
         v.voorkeurVolgendjaar ? fmtDate(v.voorkeurVolgendjaar) : "", v.notitie || "",
       ]);
     });
@@ -1966,10 +1980,10 @@ useEffect(() => {
       html += `<h2>${maand} (${vves.length})</h2><table><tr><th>VvE</th><th>Datum</th><th>Type</th><th>Status</th></tr>`;
       vves.forEach(v => {
         const rijen = [];
-        if (v.datum1&&v.datum1.startsWith(key)) rijen.push({datum:v.datum1,type:"1e vergadering",status:v.vergaderd1?"Afgerond":v.uitgenodigd1?"Uitgenodigd":"Open"});
-        if (v.datum2&&v.datum2.startsWith(key)) rijen.push({datum:v.datum2,type:"2e reglementair",status:v.vergaderd2?"Afgerond":v.uitgenodigd2?"Uitgenodigd":"Open"});
-        if (v.datumExtra&&v.datumExtra.startsWith(key)) rijen.push({datum:v.datumExtra,type:"Extra",status:v.vergaderdExtra?"Afgerond":v.uitgenodigdExtra?"Uitgenodigd":"Open"});
-        rijen.forEach(r => { html += `<tr><td>${v.naam}</td><td>${fmtDate(r.datum)}</td><td>${r.type}</td><td class="${r.status==="Afgerond"?"ok":r.status==="Uitgenodigd"?"warn":""}">${r.status}</td></tr>`; });
+        if (v.datum1&&v.datum1.startsWith(key)) rijen.push({datum:v.datum1,tijd:v.tijd1,type:"1e vergadering",status:v.vergaderd1?"Afgerond":v.uitgenodigd1?"Uitgenodigd":"Open"});
+        if (v.datum2&&v.datum2.startsWith(key)) rijen.push({datum:v.datum2,tijd:v.tijd2,type:"2e reglementair",status:v.vergaderd2?"Afgerond":v.uitgenodigd2?"Uitgenodigd":"Open"});
+        if (v.datumExtra&&v.datumExtra.startsWith(key)) rijen.push({datum:v.datumExtra,tijd:v.tijdExtra,type:"Extra",status:v.vergaderdExtra?"Afgerond":v.uitgenodigdExtra?"Uitgenodigd":"Open"});
+        rijen.forEach(r => { html += `<tr><td>${v.naam}</td><td>${fmtDate(r.datum)}${r.tijd?` · ${r.tijd}`:""}</td><td>${r.type}</td><td class="${r.status==="Afgerond"?"ok":r.status==="Uitgenodigd"?"warn":""}">${r.status}</td></tr>`; });
       });
       html += `</table>`;
     });
