@@ -10,6 +10,7 @@ import LevendMJOP, { initMjopDeps } from './LevendMJOP';
 import Overdrachten, { initOverdrachtenDeps, overdrachtenSupaLoad, overdrachtenDashboardStats } from './Overdrachten';
 import Actiepunten, { initActiepuntenDeps, actiepuntenSupaLoad, actiepuntenDashboardStats } from './Actiepunten';
 import Aannemers, { initAannemersDeps } from './Aannemers';
+import { initTelemetryDeps, logEvent } from './telemetry';
 
 // ── Huisstijl Totaal VvE Beheer ──────────────────────────────────
 // Primair: #991A21 (donkerrood), Antraciet: #2D2D2D, Achtergrond: #F2EFEC
@@ -86,6 +87,7 @@ function useDebouncedCallback(callback, delay) {
 // ── Supabase client ──────────────────────────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
+initTelemetryDeps({ supabaseUrl: SUPABASE_URL, anonKey: SUPABASE_ANON });
 
 // Token opslag — overleeft page refresh via sessionStorage
 const TOKEN_KEY = "vve_access_token";
@@ -94,6 +96,7 @@ let _accessToken = sessionStorage.getItem(TOKEN_KEY) || null;
 function setToken(token) {
   _accessToken = token;
   if (token) sessionStorage.setItem(TOKEN_KEY, token);
+  if (token) logEvent('test_event', { module: 'diagnostic', meta: { note: 'pre-flight' } });
   else sessionStorage.removeItem(TOKEN_KEY);
 }
 
