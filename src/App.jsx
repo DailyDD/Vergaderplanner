@@ -2219,6 +2219,7 @@ useEffect(() => {
     if (IN_AANBOUW.includes(key)) { setUcModule(NAV.find(n => n.key === key)?.label || "Deze module"); return; }
     if (IN_AANBOUW_VOOR_BEHEERDERS.includes(key) && !isHoofdAdmin) { setUcModule(NAV.find(n => n.key === key)?.label || "Deze module"); return; }
     setScreen(key);
+    logEvent('module_open', { module: key });
   };
 
   // ── Moduledata voor de portaalwidgets ────────────────────────
