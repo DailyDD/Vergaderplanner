@@ -96,7 +96,6 @@ let _accessToken = sessionStorage.getItem(TOKEN_KEY) || null;
 function setToken(token) {
   _accessToken = token;
   if (token) sessionStorage.setItem(TOKEN_KEY, token);
-  if (token) logEvent('test_event', { module: 'diagnostic', meta: { note: 'pre-flight' } });
   else sessionStorage.removeItem(TOKEN_KEY);
 }
 
