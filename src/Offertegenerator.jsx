@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
+import { logEvent } from './telemetry';
 
 // ── Huisstijl Totaal VvE Beheer ──────────────────────────────────
 const BORDEAUX = "#991A21";
@@ -163,6 +164,7 @@ export default function Offertegenerator({ onTerug }) {
       a.remove();
       URL.revokeObjectURL(url);
       setKlaar(true);
+      logEvent('offerte_generated', { module: 'offertes' });
     } catch (e) {
       setFout(e && e.message ? e.message : "Er ging iets mis bij het genereren van de offerte.");
     } finally {
