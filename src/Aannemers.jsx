@@ -17,17 +17,23 @@ export function initAannemersDeps({ sbFetch, showToast }) {
 }
 
 export const SPECIALISMEN = [
-  "Loodgieter/sanitair", "Elektra", "Dakdekker", "Lift", "Schilder", "Timmerman",
-  "Metselaar/gevel", "Schoonmaak", "Tuin/groen", "Slotenmaker", "Glaszetter",
-  "Stukadoor", "Vloeren", "Brandveiligheid", "Riolering/ontstopping",
-  "CV/verwarming", "Ventilatie", "Isolatie", "Verhuizer/ontruiming",
-  "Schoorsteenveger", "Beveiliging", "Overig",
+  "Allround onderhoud", "Balkons", "Constructie", "Dakwerk", "Elektra",
+  "Gevelwerk", "Glaszetter", "Klimaat/ventilatie", "Kozijnen", "Lekdetectie",
+  "Lift", "Loodgieter", "Metaalwerk", "MJOP/bouwinspectie", "Notaris",
+  "Ongediertebestrijding", "Reiniging", "Riolering/ontstopping", "Schadeherstel",
+  "Schilder", "Schilderadvies", "Schoonmaak", "Schoorsteenveger", "Slotenmaker",
+  "Timmerman", "Totaal onderhoud", "Vochtbestrijding", "Zonnepanelen",
 ];
+
+export const OMVANG_OPTIES = ["Klein", "Middel", "Groot"];
+export const MANDAAT_OPTIES = ["Mandaat", "Offerte", "Mandaat/Offerte", "Vrijblijvend advies"];
+export const REGIO_OPTIES = ["Den Haag", "Zuid-Holland", "Rotterdam", "Nederland"];
 
 function legeAannemer() {
   return {
     naam: "", contactpersoon: "", telefoon: "", email: "",
     werkgebied: "", specialismen: [], notities: "", status: "actief",
+    website: "", omvang: "", storing: false, mandaat_offerte: "", regio: "",
   };
 }
 
@@ -42,7 +48,9 @@ export default function Aannemers({ onTerug, magBewerken }) {
   const [lijst, setLijst] = useState([]);
   const [laden, setLaden] = useState(true);
   const [zoek, setZoek] = useState("");
-  const [werkgebiedFilter, setWerkgebiedFilter] = useState("");
+  const [regioFilter, setRegioFilter] = useState("");
+  const [omvangFilter, setOmvangFilter] = useState("");
+  const [alleenStoring, setAlleenStoring] = useState(false);
   const [toonInactief, setToonInactief] = useState(false);
   const [form, setForm] = useState(null);
   const [teVerwijderen, setTeVerwijderen] = useState(null);
@@ -72,6 +80,11 @@ export default function Aannemers({ onTerug, magBewerken }) {
       specialismen: a.specialismen || [],
       notities: (a.notities || "").trim() || null,
       status: a.status || "actief",
+      website: (a.website || "").trim() || null,
+      omvang: a.omvang || null,
+      storing: !!a.storing,
+      mandaat_offerte: a.mandaat_offerte || null,
+      regio: a.regio || null,
     };
     try {
       if (a.id) {
@@ -122,8 +135,8 @@ export default function Aannemers({ onTerug, magBewerken }) {
     }
   }
 
-  const werkgebieden = useMemo(() => {
-    const set = new Set(lijst.map((a) => (a.werkgebied || "").trim()).filter(Boolean));
+  const regios = useMemo(() => {
+    const set = new Set(lijst.map((a) => (a.regio || "").trim()).filter(Boolean));
     return [...set].sort();
   }, [lijst]);
 
@@ -131,7 +144,9 @@ export default function Aannemers({ onTerug, magBewerken }) {
     const q = zoek.trim().toLowerCase();
     return lijst
       .filter((a) => toonInactief || a.status !== "inactief")
-      .filter((a) => !werkgebiedFilter || a.werkgebied === werkgebiedFilter)
+      .filter((a) => !regioFilter || a.regio === regioFilter)
+      .filter((a) => !omvangFilter || a.omvang === omvangFilter)
+      .filter((a) => !alleenStoring || a.storing === true)
       .filter((a) => {
         if (!q) return true;
         const inSpecialismen = (a.specialismen || []).some((s) => s.toLowerCase().includes(q));
@@ -140,7 +155,7 @@ export default function Aannemers({ onTerug, magBewerken }) {
         return inSpecialismen || inNaam || inNotities;
       })
       .sort((a, b) => (b.teller || 0) - (a.teller || 0) || a.naam.localeCompare(b.naam));
-  }, [lijst, zoek, werkgebiedFilter, toonInactief]);
+  }, [lijst, zoek, regioFilter, omvangFilter, alleenStoring, toonInactief]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -181,13 +196,27 @@ export default function Aannemers({ onTerug, magBewerken }) {
           </div>
 
           <select
-            value={werkgebiedFilter}
-            onChange={(e) => setWerkgebiedFilter(e.target.value)}
+            value={regioFilter}
+            onChange={(e) => setRegioFilter(e.target.value)}
             className="h-10 px-3 text-[13px] border border-[#E7E2DB] rounded-lg text-[#2D2D2D] focus:outline-none focus:border-[#991A21]"
           >
-            <option value="">Alle werkgebieden</option>
-            {werkgebieden.map((w) => <option key={w} value={w}>{w}</option>)}
+            <option value="">Alle regio's</option>
+            {regios.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
+
+          <select
+            value={omvangFilter}
+            onChange={(e) => setOmvangFilter(e.target.value)}
+            className="h-10 px-3 text-[13px] border border-[#E7E2DB] rounded-lg text-[#2D2D2D] focus:outline-none focus:border-[#991A21]"
+          >
+            <option value="">Alle omvang</option>
+            {OMVANG_OPTIES.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+
+          <label className="flex items-center gap-2 text-[12.5px] text-[#6B6560] select-none cursor-pointer">
+            <input type="checkbox" checked={alleenStoring} onChange={(e) => setAlleenStoring(e.target.checked)} className="accent-[#991A21]" />
+            Alleen storingsdienst
+          </label>
 
           <label className="flex items-center gap-2 text-[12.5px] text-[#6B6560] select-none cursor-pointer">
             <input type="checkbox" checked={toonInactief} onChange={(e) => setToonInactief(e.target.checked)} className="accent-[#991A21]" />
@@ -231,7 +260,7 @@ export default function Aannemers({ onTerug, magBewerken }) {
           <div className="bg-white border border-[#E7E2DB] rounded-xl px-8 py-10 text-center">
             <p className="text-[14px] font-semibold text-[#2D2D2D]">Geen aannemers gevonden</p>
             <p className="text-[13px] text-[#8A847E] mt-1">
-              {zoek || werkgebiedFilter ? "Pas je zoekterm of filter aan." : "Nog geen aannemers geregistreerd."}
+              {zoek || regioFilter || omvangFilter || alleenStoring ? "Pas je zoekterm of filter aan." : "Nog geen aannemers geregistreerd."}
             </p>
           </div>
         ) : (
@@ -280,6 +309,17 @@ function AannemerKaart({ a, magBewerken, onGebruik, onBewerk, onVerwijder }) {
             {inactief && <span className="shrink-0 text-[10.5px] font-semibold px-1.5 py-0.5 rounded bg-[#F2EFEC] text-[#8A847E]">inactief</span>}
           </div>
           {a.contactpersoon && <p className="text-[12.5px] text-[#8A847E] mt-0.5">{a.contactpersoon}</p>}
+          <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+            {a.omvang && (
+              <span className="text-[10.5px] font-semibold px-1.5 py-0.5 rounded bg-[#F2EFEC] text-[#6B6560]">{a.omvang}</span>
+            )}
+            {a.storing && (
+              <span className="text-[10.5px] font-semibold px-1.5 py-0.5 rounded bg-[#FBEAEA] text-[#991A21]">Storingsdienst</span>
+            )}
+            {a.mandaat_offerte && (
+              <span className="text-[10.5px] font-semibold px-1.5 py-0.5 rounded bg-[#F2EFEC] text-[#6B6560]">{a.mandaat_offerte}</span>
+            )}
+          </div>
         </div>
         {(a.teller || 0) > 0 && (
           <span className="shrink-0 text-[11px] font-semibold px-2 py-1 rounded-full bg-[#EAF4EE] text-[#2D6A4F]">
@@ -299,7 +339,18 @@ function AannemerKaart({ a, magBewerken, onGebruik, onBewerk, onVerwijder }) {
       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-[12.5px] text-[#6B6560]">
         {a.telefoon && <span>{a.telefoon}</span>}
         {a.email && <span className="truncate">{a.email}</span>}
-        {a.werkgebied && <span>{a.werkgebied}</span>}
+        {a.regio && <span>{a.regio}</span>}
+        {a.website && (
+          <a
+            href={a.website.startsWith("http") ? a.website : `https://${a.website}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="text-[#991A21] hover:underline truncate"
+          >
+            {a.website.replace(/^https?:\/\//, "")}
+          </a>
+        )}
       </div>
 
       {a.notities && <p className="text-[12.5px] text-[#8A847E] mt-2 leading-snug">{a.notities}</p>}
@@ -352,7 +403,55 @@ function AannemerFormulier({ aannemer, onOpslaan, onSluiten }) {
             <Veld label="Telefoon" value={a.telefoon} onChange={set("telefoon")} />
             <Veld label="E-mail" value={a.email} onChange={set("email")} />
           </div>
-          <Veld label="Werkgebied" value={a.werkgebied} onChange={set("werkgebied")} placeholder="bijv. Den Haag e.o." />
+          <Veld label="Website" value={a.website} onChange={set("website")} placeholder="bijv. www.bedrijf.nl" />
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[12.5px] font-semibold text-[#6B6560] block mb-1.5">Omvang</label>
+              <select
+                value={a.omvang || ""}
+                onChange={set("omvang")}
+                className="w-full h-10 px-3 text-[13px] border border-[#E7E2DB] rounded-lg focus:outline-none focus:border-[#991A21]"
+              >
+                <option value="">Kies omvang</option>
+                {OMVANG_OPTIES.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[12.5px] font-semibold text-[#6B6560] block mb-1.5">Regio</label>
+              <select
+                value={a.regio || ""}
+                onChange={set("regio")}
+                className="w-full h-10 px-3 text-[13px] border border-[#E7E2DB] rounded-lg focus:outline-none focus:border-[#991A21]"
+              >
+                <option value="">Kies regio</option>
+                {REGIO_OPTIES.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 items-end">
+            <div>
+              <label className="text-[12.5px] font-semibold text-[#6B6560] block mb-1.5">Mandaat / offerte</label>
+              <select
+                value={a.mandaat_offerte || ""}
+                onChange={set("mandaat_offerte")}
+                className="w-full h-10 px-3 text-[13px] border border-[#E7E2DB] rounded-lg focus:outline-none focus:border-[#991A21]"
+              >
+                <option value="">Kies optie</option>
+                {MANDAAT_OPTIES.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <label className="flex items-center gap-2 h-10 text-[12.5px] text-[#6B6560] select-none cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!a.storing}
+                onChange={(e) => setA((prev) => ({ ...prev, storing: e.target.checked }))}
+                className="accent-[#991A21]"
+              />
+              Storingsdienst
+            </label>
+          </div>
 
           <div>
             <label className="text-[12.5px] font-semibold text-[#6B6560] block mb-1.5">Specialismen</label>
