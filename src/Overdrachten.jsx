@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { downloadFactuur, downloadOverzicht } from "./overdrachtPdf";
+import { logEvent } from './telemetry';
 
 // ── Overdrachten (Notarisoverdracht) ─────────────────────────────
 // Module voor notarisoverdrachten: facturen + overzicht genereren,
@@ -672,6 +673,7 @@ function VerzoekenBeheer({ notarissen, beheerder }) {
           method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify(payload),
         });
         _showToast && _showToast("Verzoek toegevoegd.", "succes");
+        logEvent('overdracht_created', { module: 'overdrachten' });
       }
       setForm(null);
       await laad();
