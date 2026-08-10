@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { logEvent } from './telemetry';
 
 // ── Feedback & Communicatie — invulkant (beheerders) ─────────────
 // De kant die gewone beheerders zien:
@@ -526,6 +527,7 @@ function IdeeForm({ onSluit, onIngediend }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ p_titel: titel.trim(), p_omschrijving: omschrijving.trim() || null, p_anoniem: anoniem }),
       });
+      if (!anoniem) logEvent('feedback_submitted', { module: 'ideeenbox' });
       _showToast && _showToast("Bedankt, je idee is ingediend.", "succes");
       onIngediend && (await onIngediend());
     } catch (e) {
