@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import * as XLSX from "xlsx";
+import { logEvent } from './telemetry';
 
 // ── Levend MJOP ────────────────────────────────────────────────────
 // Aparte module, volgt exact het patroon van LodBeheer:
@@ -512,6 +513,7 @@ export default function LevendMJOP({ onTerug, beheerder }) {
       const res = await importeerMjop(vveNaam.trim(), preview.occurrences, bestandsnaam);
       let melding = `${res.ingevoegd} werkzaamheden geïmporteerd voor "${vveNaam.trim()}"`;
       if (res.behouden > 0) melding += ` — ${res.behouden} uitgevoerde regel(s) behouden`;
+      logEvent('mjop_import', { module: 'mjop' });
       toast(melding, "success");
       setPreview(null);
       setBestandsnaam("");
