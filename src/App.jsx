@@ -11,6 +11,7 @@ import Overdrachten, { initOverdrachtenDeps, overdrachtenSupaLoad, overdrachtenD
 import Actiepunten, { initActiepuntenDeps, actiepuntenSupaLoad, actiepuntenDashboardStats } from './Actiepunten';
 import Aannemers, { initAannemersDeps } from './Aannemers';
 import { initTelemetryDeps, logEvent } from './telemetry';
+import Analytics, { initAnalyticsDeps } from './Analytics';
 
 // ── Huisstijl Totaal VvE Beheer ──────────────────────────────────
 // Primair: #991A21 (donkerrood), Antraciet: #2D2D2D, Achtergrond: #F2EFEC
@@ -330,6 +331,7 @@ initFeedbackDeps({ sbFetch, showToast, getUid });
 initFeedbackInvulDeps({ sbFetch, showToast, getUid });
 initActiepuntenDeps({ sbFetch, showToast });
 initAannemersDeps({ sbFetch, showToast });
+initAnalyticsDeps({ sbFetch });
 function monthKey(iso) { return iso ? iso.slice(0,7) : null; }
 function isInVakantie(iso, vakanties) {
   return vakanties.some(v => v.van && v.tot && iso >= v.van && iso <= v.tot);
@@ -2308,7 +2310,9 @@ useEffect(() => {
     { key: "ideeenbox", label: "Ideeënbox", toon: true, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.5.4.8 1 .9 1.6M12 2a7 7 0 0 1 4 12.7c-.5.4-.8 1-.9 1.6"/></svg>) },
     { key: "actiepunten", label: "Actiepunten", toon: true, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>) },
     { key: "admin", label: "Admin Dashboard", toon: isAdmin || isHoofdAdmin, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>) },
+    { key: "analytics", label: "Gebruiksstatistieken", toon: isHoofdAdmin, icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18h18M7 15l4-4 3 3 5-6" /></svg>) },
   ].filter(n => n.toon);
+  
 
   const uitloggen = async () => {
     await signOut();
