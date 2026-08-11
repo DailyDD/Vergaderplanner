@@ -2482,6 +2482,7 @@ useEffect(() => {
   if (screen==="actiepunten") return metShell(<Actiepunten onTerug={()=>setScreen("portaal")} beheerder={beheerder}/>);
   if (screen==="aannemers") return metShell(<Aannemers onTerug={()=>setScreen("portaal")} magBewerken={isHoofdAdmin || isAdmin}/>);
   if (screen==="mjop") return metShell(<LevendMJOP onTerug={()=>setScreen("portaal")} beheerder={beheerder}/>);
+  if (screen==="analytics") return metShell(<Analytics onTerug={()=>setScreen("portaal")} />);
 
   if (screen==="wachtwoord-instellen") return (
     <div className="min-h-screen grid grid-cols-2">
