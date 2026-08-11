@@ -121,8 +121,9 @@ export default function Overdrachten({ onTerug, beheerder }) {
   const [notarissen, setNotarissen] = useState([]);
   const [ladenNotarissen, setLadenNotarissen] = useState(true);
   const [overdracht, setOverdracht] = useState(() => legeOverdracht());
+  const [vveNamen, setVveNamen] = useState([]);
 
-  useEffect(() => { laadNotarissen(); }, []);
+  useEffect(() => { laadNotarissen(); laadVveNamen(); }, []);
 
   async function laadNotarissen() {
     if (!_sbFetch) return;
@@ -135,6 +136,46 @@ export default function Overdrachten({ onTerug, beheerder }) {
       _showToast && _showToast("Notarissen laden mislukt.", "fout");
     }
     setLadenNotarissen(false);
+  }
+
+  // ── VvE-namenlijst: autocomplete-bron voor het VvE-veld bij Algemeen ──
+  async function laadVveNamen() {
+    if (!_sbFetch) return;
+    try {
+      const rows = await _sbFetch("vve_namen?select=*&order=naam.asc");
+      setVveNamen(rows || []);
+    } catch (e) {
+      console.error("vve_namen laden", e);
+      _showToast && _showToast("VvE-lijst laden mislukt.", "fout");
+    }
+  }
+
+  async function voegVveNaamToe(naam) {
+    if (!_sbFetch) return;
+    try {
+      await _sbFetch("vve_namen", {
+        method: "POST",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ naam }),
+      });
+      await laadVveNamen();
+      _showToast && _showToast("VvE toegevoegd aan de lijst.", "succes");
+    } catch (e) {
+      console.error("vve_naam toevoegen", e);
+      _showToast && _showToast("VvE toevoegen mislukt.", "fout");
+    }
+  }
+
+  async function verwijderVveNaam(id) {
+    if (!_sbFetch) return;
+    try {
+      await _sbFetch(`vve_namen?id=eq.${id}`, { method: "DELETE" });
+      await laadVveNamen();
+      _showToast && _showToast("VvE verwijderd uit de lijst.", "succes");
+    } catch (e) {
+      console.error("vve_naam verwijderen", e);
+      _showToast && _showToast("VvE verwijderen mislukt.", "fout");
+    }
   }
 
   return (
@@ -185,6 +226,9 @@ export default function Overdrachten({ onTerug, beheerder }) {
             overdracht={overdracht}
             setOverdracht={setOverdracht}
             onReset={() => setOverdracht(legeOverdracht())}
+            vveNamen={vveNamen}
+            onVveNaamToevoegen={voegVveNaamToe}
+            onVveNaamVerwijderen={verwijderVveNaam}
           />
         )}
         {tab === "notarissen" && (
@@ -203,7 +247,7 @@ export default function Overdrachten({ onTerug, beheerder }) {
 }
 
 // ══ Nieuwe overdracht: invoerformulier ═══════════════════════════
-function NieuweOverdracht({ notarissen, overdracht, setOverdracht, onReset }) {
+function NieuweOverdracht({ notarissen, overdracht, setOverdracht, onReset, vveNamen, onVveNaamToevoegen, onVveNaamVerwijderen }) {
   const o = overdracht;
   const set = (veld) => (waarde) => setOverdracht((prev) => ({ ...prev, [veld]: waarde }));
 
@@ -260,8 +304,20 @@ function NieuweOverdracht({ notarissen, overdracht, setOverdracht, onReset }) {
       </div>
 
       <Sectie titel="Algemeen">
-        <Veld label="VvE" value={o.vve} onChange={set("vve")} placeholder="Vereniging van Eigenaars: ..." />
-        <Veld label="Betreft" value={o.betreft} onChange={set("betreft")} placeholder="Transport ... te ..." />
+        <VveAutocomplete
+          value={o.vve}
+          onChange={set("vve")}
+          vveNamen={vveNamen}
+          onNaamToevoegen={onVveNaamToevoegen}
+          onNaamVerwijderen={onVveNaamVerwijderen}
+        />
+        <Veld
+          label="Betreft"
+          value={o.betreft}
+          onChange={set("betreft")}
+          placeholder="... te Rijswijk"
+          hint='In de export komt hier automatisch "Betreft: Transport" voor'
+        />
         <div className="grid grid-cols-2 gap-3">
           <Veld label="Plaats + datum (brief)" value={o.plaats_datum} onChange={set("plaats_datum")} />
           <Veld label="Factuurdatum" type="date" value={o.factuurdatum} onChange={set("factuurdatum")} />
@@ -308,7 +364,13 @@ function NieuweOverdracht({ notarissen, overdracht, setOverdracht, onReset }) {
           <Veld label="Te verrekenen verkoper (€)" value={o.verrekenen_verkoper} onChange={set("verrekenen_verkoper")} inputMode="decimal" placeholder="100" />
           <Veld label="Factuurnummer verkoper" value={o.factuurnr_verkoper} onChange={set("factuurnr_verkoper")} placeholder="VVEVK..." />
         </div>
-        <Veld label="Omschrijving factuur verkoper" value={o.omschrijving_verkoper} onChange={set("omschrijving_verkoper")} placeholder="Bijdrage tm ... 2026" />
+        <Veld
+          label="Omschrijving factuur verkoper"
+          value={o.omschrijving_verkoper}
+          onChange={set("omschrijving_verkoper")}
+          placeholder="... 2026"
+          hint='In de export komt hier automatisch "Bijdrage tot en met:" voor'
+        />
       </Sectie>
 
       <Sectie titel="Factuur koper">
@@ -324,12 +386,30 @@ function NieuweOverdracht({ notarissen, overdracht, setOverdracht, onReset }) {
           />
           <Veld label="Factuurnummer koper" value={o.factuurnr_koper} onChange={set("factuurnr_koper")} placeholder="VVEAK..." />
         </div>
-        <Veld label="Omschrijving factuur koper" value={o.omschrijving_koper} onChange={set("omschrijving_koper")} placeholder="Bijdrage maand ... en ... 2026" />
+        <Veld
+          label="Omschrijving factuur koper"
+          value={o.omschrijving_koper}
+          onChange={set("omschrijving_koper")}
+          placeholder="... en ... 2026"
+          hint='In de export komt hier automatisch "Bijdrage maand:" voor'
+        />
       </Sectie>
 
       <Sectie titel="Betaalgegevens">
-        <Veld label="Rekeningnummer" value={o.rekeningnummer} onChange={set("rekeningnummer")} placeholder="Rekeningnummer: NL.. ABNA .." />
-        <Veld label="t.n.v." value={o.tnv} onChange={set("tnv")} placeholder="t.n.v. VvE ..." />
+        <Veld
+          label="Rekeningnummer"
+          value={o.rekeningnummer}
+          onChange={set("rekeningnummer")}
+          placeholder="NL.. ABNA .."
+          hint='In de export komt hier automatisch "Rekeningnummer:" voor'
+        />
+        <Veld
+          label="t.n.v."
+          value={o.tnv}
+          onChange={set("tnv")}
+          placeholder="..."
+          hint='In de export komt hier automatisch "t.n.v. VvE" voor'
+        />
       </Sectie>
 
       {/* Downloadknoppen */}
@@ -616,6 +696,103 @@ function Veld({ label, value, onChange, type = "text", placeholder, verplicht, a
         className="w-full h-10 px-3 rounded-lg border border-[#E0D9D3] bg-[#FAF7F2] text-[14px] text-[#2D2D2D] outline-none focus:border-[#991A21] focus:bg-white transition-colors"
       />
       {hint && <span className="block text-[11.5px] text-[#9B958E] mt-1">{hint}</span>}
+    </label>
+  );
+}
+
+// ══ VvE-autocomplete (veld Algemeen › VvE) ═══════════════════════
+// Filtert de meegegeven vveNamen-lijst tijdens typen. Bij geen exacte
+// match (op blur) wordt gevraagd of de VvE toegevoegd moet worden aan
+// public.vve_namen. Het "✕"-knopje verschijnt alleen bij namen met
+// aangemaakt_door (dus niet bij de geïmporteerde basislijst) — zo kan
+// een beheerder eigen typefouten opruimen zonder de officiële lijst
+// per ongeluk te kunnen wissen.
+function VveAutocomplete({ value, onChange, vveNamen, onNaamToevoegen, onNaamVerwijderen }) {
+  const [open, setOpen] = useState(false);
+  const [vraagToevoegen, setVraagToevoegen] = useState(false);
+  const [bezig, setBezig] = useState(false);
+
+  const norm = (s) => String(s || "").trim().toLowerCase();
+  const lijst = Array.isArray(vveNamen) ? vveNamen : [];
+  const treffers = value
+    ? lijst.filter((n) => norm(n.naam).includes(norm(value))).slice(0, 8)
+    : [];
+  const exacteMatch = lijst.some((n) => norm(n.naam) === norm(value));
+
+  function kies(naam) {
+    onChange(naam);
+    setOpen(false);
+    setVraagToevoegen(false);
+  }
+
+  function afsluiten() {
+    setOpen(false);
+    setVraagToevoegen(Boolean(value && value.trim() && !exacteMatch));
+  }
+
+  async function toevoegen() {
+    if (!onNaamToevoegen) return;
+    setBezig(true);
+    try {
+      await onNaamToevoegen(value.trim());
+    } finally {
+      setBezig(false);
+      setVraagToevoegen(false);
+    }
+  }
+
+  async function verwijderen(e, item) {
+    e.preventDefault();
+    if (!onNaamVerwijderen) return;
+    if (!window.confirm(`"${item.naam}" verwijderen uit de VvE-lijst?`)) return;
+    await onNaamVerwijderen(item.id);
+  }
+
+  return (
+    <label className="block relative">
+      <span className="block text-[12.5px] font-semibold text-[#4A4540] mb-1">VvE</span>
+      <input
+        type="text"
+        value={value || ""}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); setVraagToevoegen(false); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(afsluiten, 150)}
+        placeholder="Typ om te zoeken..."
+        className="w-full h-10 px-3 rounded-lg border border-[#E0D9D3] bg-[#FAF7F2] text-[14px] text-[#2D2D2D] outline-none focus:border-[#991A21] focus:bg-white transition-colors"
+      />
+      {open && treffers.length > 0 && (
+        <div className="absolute z-10 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-[#E0D9D3] bg-white shadow-lg">
+          {treffers.map((n) => (
+            <div
+              key={n.id}
+              onMouseDown={() => kies(n.naam)}
+              className="flex items-center justify-between gap-2 px-3 h-9 text-[13.5px] text-[#2D2D2D] hover:bg-[#FAF7F2] cursor-pointer"
+            >
+              <span className="truncate">{n.naam}</span>
+              {n.aangemaakt_door && (
+                <button
+                  onMouseDown={(e) => verwijderen(e, n)}
+                  className="shrink-0 text-[11px] text-[#8A847E] hover:text-[#991A21] px-1"
+                  title="Verwijderen uit de lijst"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {vraagToevoegen && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-[#B07414] bg-[#FBF3E4] rounded-lg px-3 py-2">
+          <span>VvE &quot;{value}&quot; komt niet voor in het systeem. Toevoegen?</span>
+          <button onClick={toevoegen} disabled={bezig} className="font-semibold text-[#991A21] hover:underline shrink-0 disabled:opacity-60">
+            {bezig ? "Bezig..." : "Ja, toevoegen"}
+          </button>
+          <button onClick={() => setVraagToevoegen(false)} className="text-[#8A847E] hover:underline shrink-0">
+            Nee
+          </button>
+        </div>
+      )}
     </label>
   );
 }

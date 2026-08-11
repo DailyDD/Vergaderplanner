@@ -41,7 +41,9 @@ function bouwFactuur(o, rol) {
   const koper = rol === "koper";
   const geadresseerde = koper ? o.naam_koper : o.naam_verkoper;
   const factuurnr = koper ? o.factuurnr_koper : o.factuurnr_verkoper;
-  const omschrijving = koper ? o.omschrijving_koper : o.omschrijving_verkoper;
+  const omschrijvingRuw = koper ? o.omschrijving_koper : o.omschrijving_verkoper;
+  const omschrijvingPrefix = koper ? "Bijdrage maand: " : "Bijdrage tot en met: ";
+  const omschrijving = omschrijvingRuw ? `${omschrijvingPrefix}${omschrijvingRuw}` : "";
   const bedrag = koper ? o.verrekenen_koper : o.verrekenen_verkoper;
 
   const doc = new jsPDF({ unit: "mm", format: "a4" });
@@ -116,8 +118,8 @@ function bouwFactuur(o, rol) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10.5);
   let by = ty + 22;
-  if (o.rekeningnummer) { doc.text(String(o.rekeningnummer), links, by); by += 5.2; }
-  if (o.tnv) doc.text(String(o.tnv), links, by);
+  if (o.rekeningnummer) { doc.text(`Rekeningnummer: ${o.rekeningnummer}`, links, by); by += 5.2; }
+  if (o.tnv) doc.text(`t.n.v. VvE ${o.tnv}`, links, by);
 
   return doc;
 }
@@ -140,7 +142,7 @@ function bouwOverzicht(o) {
   };
 
   // VvE + notaris-adres
-  regel(o.vve, { bold: true, size: 11, na: 8 });
+  regel(o.vve ? `Vereniging van Eigenaars: ${o.vve}` : "", { bold: true, size: 11, na: 8 });
   regel(o.notaris_naam);
   regel(o.notaris_adres);
   regel(o.notaris_postcode_plaats, { na: 9 });
@@ -151,7 +153,7 @@ function bouwOverzicht(o) {
   // Betreft
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10.5);
-  if (o.betreft) doc.text(`Betreft: ${o.betreft}`, links, y);
+  if (o.betreft) doc.text(`Betreft: Transport ${o.betreft}`, links, y);
   y += 9;
 
   // Aanhef + intro
