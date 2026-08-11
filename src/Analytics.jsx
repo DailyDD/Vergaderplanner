@@ -197,17 +197,26 @@ export default function Analytics({ onTerug }) {
                 <LegeStaat />
               ) : (
                 <div className="flex items-end gap-1 h-32">
-                  {dau.map((d) => (
-                    <div key={d.dag} className="flex-1 flex flex-col items-center gap-1 group relative">
+                  {dau.map((d) => {
+                    const aantal = Number(d.actieve_users) || 0;
+                    return (
                       <div
-                        className="w-full rounded-t bg-[#991A21] transition-all"
-                        style={{
-                          height: `${Math.max(4, (Number(d.actieve_users) / maxDau) * 100)}px`,
-                        }}
-                        title={`${d.dag}: ${d.actieve_users} actieve gebruiker(s)`}
-                      />
-                    </div>
-                  ))}
+                        key={d.dag}
+                        className="flex-1 flex flex-col items-center justify-end gap-0.5 group relative h-full"
+                      >
+                        <span className="text-[9px] leading-none text-[#8A847E] group-hover:text-[#991A21] group-hover:font-semibold">
+                          {aantal > 0 ? aantal : ""}
+                        </span>
+                        <div
+                          className="w-full rounded-t bg-[#991A21] transition-all group-hover:opacity-80"
+                          style={{
+                            height: `${Math.max(4, (aantal / maxDau) * 100)}px`,
+                          }}
+                          title={`${d.dag}: ${aantal} actieve gebruiker(s)`}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               {dau.length > 0 && (
