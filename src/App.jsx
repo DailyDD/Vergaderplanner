@@ -2378,14 +2378,14 @@ useEffect(() => {
       <style>{CSS_FONT}</style>
 
       {/* Sidebar — vanaf lg */}
-      <aside className="hidden lg:flex flex-col w-[248px] shrink-0 bg-white border-r border-[#E7E2DB] sticky top-0 h-screen">
-        <div className="flex items-center gap-3 px-5 h-16 border-b border-[#EFEBE4] shrink-0">
-          <div className="w-9 h-9 rounded-lg bg-[#991A21] flex items-center justify-center shrink-0">
-            <span className="text-white text-[13px] font-bold tracking-wide">VP</span>
+      <aside className="hidden lg:flex flex-col w-[248px] shrink-0 bg-[#991A21] sticky top-0 h-screen">
+        <div className="flex items-center gap-3 px-5 h-16 border-b border-white/15 shrink-0">
+          <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center shrink-0">
+            <span className="text-[#991A21] text-[13px] font-bold tracking-wide">VP</span>
           </div>
           <div className="min-w-0">
-            <p className="text-[14px] font-semibold text-[#2D2D2D] leading-tight">VvE Workspace</p>
-            <p className="text-[11px] text-[#9B958E] truncate">Totaal VvE Beheer</p>
+            <p className="text-[14px] font-semibold text-white leading-tight">VvE Workspace</p>
+            <p className="text-[11px] text-white/55 truncate">Totaal VvE Beheer</p>
           </div>
         </div>
 
@@ -2399,11 +2399,11 @@ useEffect(() => {
                 title={n.label}
                 className={`group vp-ease vp-focus w-full flex items-center gap-3 px-3 h-10 rounded-lg text-[13.5px] font-medium text-left ${
                   actief
-                    ? "bg-[#F6ECEC] text-[#991A21]"
-                    : "vp-nav text-[#6B6560] hover:bg-[#FAF8F5] hover:text-[#2D2D2D]"
+                    ? "bg-white text-[#991A21]"
+                    : "vp-nav text-white/65 hover:bg-white/10 hover:text-white"
                 }`}
               >
-                <span className={`vp-icoon shrink-0 ${actief ? "text-[#991A21]" : "text-[#9B958E]"}`}>{n.icoon}</span>
+                <span className={`vp-icoon shrink-0 ${actief ? "text-[#991A21]" : "text-white/50"}`}>{n.icoon}</span>
                 <span className="truncate">{n.label}</span>
                 {actief && <span className="ml-auto w-[3px] h-[18px] rounded-sm bg-[#991A21] shrink-0" style={{ animation: "vpIndIn .3s cubic-bezier(.34,1.56,.64,1)", transformOrigin: "center" }} />}
               </button>
@@ -2411,18 +2411,18 @@ useEffect(() => {
           })}
         </nav>
 
-        <div className="border-t border-[#EFEBE4] p-3 shrink-0">
+        <div className="border-t border-white/15 p-3 shrink-0">
           <div className="flex items-center gap-2.5 px-2 py-2 mb-1">
-            <div className="w-8 h-8 rounded-lg bg-[#991A21] flex items-center justify-center shrink-0">
-              <span className="text-white text-[12.5px] font-semibold">{beheerder.charAt(0)}</span>
+            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shrink-0">
+              <span className="text-[#991A21] text-[12.5px] font-semibold">{beheerder.charAt(0)}</span>
             </div>
             <div className="min-w-0">
-              <p className="text-[13px] font-semibold text-[#2D2D2D] leading-tight truncate">{beheerder}</p>
+              <p className="text-[13px] font-semibold text-white leading-tight truncate">{beheerder}</p>
             </div>
           </div>
           <button
             onClick={uitloggen}
-            className="group vp-ease vp-focus vp-nav w-full flex items-center gap-3 px-3 h-9 rounded-lg text-[13px] font-medium text-[#6B6560] hover:bg-[#FAF8F5] hover:text-[#991A21]"
+            className="group vp-ease vp-focus vp-nav w-full flex items-center gap-3 px-3 h-9 rounded-lg text-[13px] font-medium text-white/65 hover:bg-white/10 hover:text-white"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[17px] h-[17px] shrink-0">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/>
