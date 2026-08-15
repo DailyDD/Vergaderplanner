@@ -3010,7 +3010,7 @@ return metShell(
           ) : (
             <>
               {/* ── Statusbalk ─────────────────────────────────────── */}
-              <div className="vp-kaart bg-white border border-[#E7E2DB] rounded-xl p-5 mb-4" style={{ animation: "vpRise .5s var(--vp-ease-out) both" }}>
+              <div className="vp-kaart bg-white border border-[#E7E2DB] rounded-xl p-5 mb-4" style={{ animation: "vpRise .5s var(--vp-ease-out) .06s both" }}>
                 <div className="flex items-baseline justify-between mb-3.5 flex-wrap gap-2">
                   <p className="text-[13px] font-semibold text-[#2D2D2D]">
                     Status van je {data.vves.length} VvE's <span className="text-[#9B958E] font-normal">· planjaar {new Date().getFullYear()}</span>
@@ -3040,7 +3040,7 @@ return metShell(
               </div>
 
               {/* ── Voortgang + Eerstvolgende | Actie vereist ──────── */}
-              <div className="grid grid-cols-1 lg:grid-cols-[480px_1fr] gap-5 mb-8 items-start" style={{ animation: "vpRise .5s var(--vp-ease-out) .08s both" }}>
+              <div className="grid grid-cols-1 lg:grid-cols-[480px_1fr] gap-5 mb-8 items-start" style={{ animation: "vpRise .5s var(--vp-ease-out) .14s both" }}>
 
                 {/* ── Linkerkolom: Voortgang + Eerstvolgende ── */}
                 <div className="flex flex-col gap-4">
@@ -3217,7 +3217,7 @@ return metShell(
               module, dan staat de kaart er. Geen namen, geen uitzonderingen —
               rechten komen uit user_roles. */}
           {toonModuleWidgets && (
-            <div className="space-y-5" style={{ animation: "vpRise .5s var(--vp-ease-out) .16s both" }}>
+            <div className="space-y-5" style={{ animation: "vpRise .5s var(--vp-ease-out) .22s both" }}>
 
               {/* ── Organisatie-overzicht (admin / hoofd_admin) ── */}
               {heeftAdminToegang && (
