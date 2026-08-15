@@ -17,6 +17,24 @@ import Analytics, { initAnalyticsDeps } from './Analytics';
 // Primair: #991A21 (donkerrood), Antraciet: #2D2D2D, Achtergrond: #F2EFEC
 const CSS_FONT = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
 * { font-family: 'DM Sans', sans-serif !important; }
+
+/* Motion- & dieptetokens (gedeeld) - curves + schaduwen op een plek.
+   Reduced-motion zet alle beweging op instant voor toegankelijkheid. */
+:root {
+  --vp-ease-out: cubic-bezier(.22,1,.36,1);
+  --vp-ease-veer: cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes vpRise { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: translateY(0) } }
+@keyframes vpIndIn { from { transform: scaleY(0) } to { transform: scaleY(1) } }
+@keyframes vpFill { from { width: 0 } to { width: var(--vp-doel, 0%) } }
+.vp-ease { transition: transform .2s var(--vp-ease-out), box-shadow .2s var(--vp-ease-out), background-color .14s ease, color .14s ease !important; }
+.vp-focus:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(153,26,33,.12); }
+.vp-nav:hover { transform: translateY(-1px); box-shadow: 0 6px 16px -6px rgba(45,45,45,.14); }
+.vp-icoon { transition: transform .2s var(--vp-ease-out); }
+.group:hover .vp-icoon { transform: translateX(1px); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0ms !important; transition-duration: .001ms !important; }
+}
 .calc-inp { width:100%; padding:8px 11px; border:1.5px solid #E5DEDA; border-radius:8px; font-family:monospace !important; font-size:14px; color:#1A1614; background:#FAF7F2; outline:none; box-sizing:border-box; }
 .calc-inp:focus { border-color:#991A21 !important; background:#fff !important; }
 .calc-inp[type=number]::-webkit-inner-spin-button,
@@ -2348,13 +2366,15 @@ useEffect(() => {
                 key={n.key}
                 onClick={() => openNav(n.key)}
                 title={n.label}
-                className={`w-full flex items-center gap-3 px-3 h-10 rounded-lg text-[13.5px] font-medium text-left transition-colors ${
-                  actief ? "bg-[#F6ECEC] text-[#991A21]" : "text-[#6B6560] hover:bg-[#FAF8F5] hover:text-[#2D2D2D]"
+                className={`group vp-ease vp-focus w-full flex items-center gap-3 px-3 h-10 rounded-lg text-[13.5px] font-medium text-left ${
+                  actief
+                    ? "bg-[#F6ECEC] text-[#991A21]"
+                    : "vp-nav text-[#6B6560] hover:bg-[#FAF8F5] hover:text-[#2D2D2D]"
                 }`}
               >
-                <span className={`shrink-0 ${actief ? "text-[#991A21]" : "text-[#9B958E]"}`}>{n.icoon}</span>
+                <span className={`vp-icoon shrink-0 ${actief ? "text-[#991A21]" : "text-[#9B958E]"}`}>{n.icoon}</span>
                 <span className="truncate">{n.label}</span>
-                {actief && <span className="ml-auto w-[3px] h-[18px] rounded-sm bg-[#991A21] shrink-0" />}
+                {actief && <span className="ml-auto w-[3px] h-[18px] rounded-sm bg-[#991A21] shrink-0" style={{ animation: "vpIndIn .3s cubic-bezier(.34,1.56,.64,1)", transformOrigin: "center" }} />}
               </button>
             );
           })}
@@ -2371,7 +2391,7 @@ useEffect(() => {
           </div>
           <button
             onClick={uitloggen}
-            className="w-full flex items-center gap-3 px-3 h-9 rounded-lg text-[13px] font-medium text-[#6B6560] hover:bg-[#FAF8F5] hover:text-[#991A21] transition-colors"
+            className="group vp-ease vp-focus vp-nav w-full flex items-center gap-3 px-3 h-9 rounded-lg text-[13px] font-medium text-[#6B6560] hover:bg-[#FAF8F5] hover:text-[#991A21]"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[17px] h-[17px] shrink-0">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/>
