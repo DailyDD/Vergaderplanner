@@ -32,6 +32,7 @@ const CSS_FONT = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:
 .vp-nav:hover { transform: translateY(-1px); box-shadow: 0 6px 16px -6px rgba(45,45,45,.14); }
 .vp-icoon { transition: transform .2s var(--vp-ease-out); }
 .group:hover .vp-icoon { transform: translateX(1px); }
+.vp-kaart { box-shadow: 0 1px 2px rgba(45,45,45,.05); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0ms !important; transition-duration: .001ms !important; }
 }
@@ -1665,6 +1666,35 @@ function AdminDashboard({ beheerderList }) {
 }
 
 // ── Main App ─────────────────────────────────────────────────────
+// Laat een getal bij eerste weergave van 0 naar zijn waarde lopen. Animeert
+// alleen bij de eerste mount; een latere data-refresh toont de nieuwe waarde
+// direct, zodat cijfers niet telkens opnieuw oplopen. Respecteert reduced-motion.
+function CountUp({ value, duration = 900, suffix = "" }) {
+  const doel = Number.isFinite(value) ? value : 0;
+  const [weergave, setWeergave] = useState(() => {
+    if (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return doel;
+    return 0;
+  });
+  const alGelopen = useRef(false);
+  useEffect(() => {
+    if (alGelopen.current) { setWeergave(doel); return; }
+    alGelopen.current = true;
+    const reduce = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || doel === 0) { setWeergave(doel); return; }
+    let raf, begin = null;
+    const stap = (t) => {
+      if (begin === null) begin = t;
+      const p = Math.min((t - begin) / duration, 1);
+      const e = 1 - Math.pow(1 - p, 3);
+      setWeergave(Math.round(doel * e));
+      if (p < 1) raf = requestAnimationFrame(stap);
+    };
+    raf = requestAnimationFrame(stap);
+    return () => { if (raf) cancelAnimationFrame(raf); };
+  }, [doel, duration]);
+  return <>{weergave}{suffix}</>;
+}
+
 export default function App() {
   const [screen, setScreen] = useState(RECOVERY && RECOVERY.token ? "wachtwoord-instellen" : "login"); // login | wachtwoord-instellen | portaal | vergaderingen | calculator | admin | lod
   // Modules die nog in ontwikkeling zijn: klik toont een "under construction"-popup i.p.v. te navigeren.
@@ -2808,7 +2838,7 @@ useEffect(() => {
 
     // ── Gedeelde widget-onderdelen ────────────────────────────────────────
     const WidgetKaart = ({ titel, sub, naar, knopTekst, children }) => (
-      <div className="bg-white border border-[#E7E2DB] rounded-xl overflow-hidden flex flex-col">
+      <div className="vp-kaart bg-white border border-[#E7E2DB] rounded-xl overflow-hidden flex flex-col">
         <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-[#EFEBE4]">
           <div className="flex items-center gap-2.5 min-w-0">
             <span className="w-[3px] h-[15px] rounded-sm bg-[#991A21] shrink-0" />
@@ -2980,7 +3010,7 @@ return metShell(
           ) : (
             <>
               {/* ── Statusbalk ─────────────────────────────────────── */}
-              <div className="bg-white border border-[#E7E2DB] rounded-xl p-5 mb-4">
+              <div className="vp-kaart bg-white border border-[#E7E2DB] rounded-xl p-5 mb-4" style={{ animation: "vpRise .5s var(--vp-ease-out) both" }}>
                 <div className="flex items-baseline justify-between mb-3.5 flex-wrap gap-2">
                   <p className="text-[13px] font-semibold text-[#2D2D2D]">
                     Status van je {data.vves.length} VvE's <span className="text-[#9B958E] font-normal">· planjaar {new Date().getFullYear()}</span>
@@ -3010,13 +3040,13 @@ return metShell(
               </div>
 
               {/* ── Voortgang + Eerstvolgende | Actie vereist ──────── */}
-              <div className="grid grid-cols-1 lg:grid-cols-[480px_1fr] gap-5 mb-8 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-[480px_1fr] gap-5 mb-8 items-start" style={{ animation: "vpRise .5s var(--vp-ease-out) .08s both" }}>
 
                 {/* ── Linkerkolom: Voortgang + Eerstvolgende ── */}
                 <div className="flex flex-col gap-4">
 
                 {/* Voortgang */}
-                <div className="bg-white border border-[#E7E2DB] rounded-xl overflow-hidden">
+                <div className="vp-kaart bg-white border border-[#E7E2DB] rounded-xl overflow-hidden">
                   <div className="flex items-center gap-2.5 px-5 py-4 border-b border-[#EFEBE4]">
                     <span className="w-[3px] h-[15px] rounded-sm bg-[#991A21]" />
                     <p className="text-[14px] font-semibold text-[#2D2D2D]">Voortgang {new Date().getFullYear()}</p>
@@ -3025,19 +3055,19 @@ return metShell(
                     <div className="mb-3.5">
                       <div className="flex justify-between text-[12.5px] mb-1.5">
                         <span className="text-[#6B6560]">Jaar verstreken</span>
-                        <b className="font-semibold text-[#2D2D2D]">{yearPct}%</b>
+                        <b className="font-semibold text-[#2D2D2D]"><CountUp value={yearPct} suffix="%" /></b>
                       </div>
                       <div className="h-2 rounded-full bg-[#FAF8F5] overflow-hidden">
-                        <span className="block h-full rounded-full bg-[#2D2D2D] opacity-30" style={{width: `${Math.min(yearPct,100)}%`}} />
+                        <span className="block h-full rounded-full bg-[#2D2D2D] opacity-30" style={{ "--vp-doel": `${Math.min(yearPct,100)}%`, width: `${Math.min(yearPct,100)}%`, animation: "vpFill 1s var(--vp-ease-out) both" }} />
                       </div>
                     </div>
                     <div>
                       <div className="flex justify-between text-[12.5px] mb-1.5">
                         <span className="text-[#6B6560]">Vergaderingen afgerond</span>
-                        <b className="font-semibold text-[#2D2D2D]">{afgerondPct}%</b>
+                        <b className="font-semibold text-[#2D2D2D]"><CountUp value={afgerondPct} suffix="%" /></b>
                       </div>
                       <div className="h-2 rounded-full bg-[#FAF8F5] overflow-hidden">
-                        <span className="block h-full rounded-full bg-[#3B7A57]" style={{width: `${Math.min(afgerondPct,100)}%`}} />
+                        <span className="block h-full rounded-full bg-[#3B7A57]" style={{ "--vp-doel": `${Math.min(afgerondPct,100)}%`, width: `${Math.min(afgerondPct,100)}%`, animation: "vpFill 1s var(--vp-ease-out) both" }} />
                       </div>
                     </div>
 
@@ -3077,7 +3107,7 @@ return metShell(
                 </div>
 
                 {/* Eerstvolgende vergaderingen */}
-                <div className="bg-white border border-[#E7E2DB] rounded-xl overflow-hidden">
+                <div className="vp-kaart bg-white border border-[#E7E2DB] rounded-xl overflow-hidden">
                   <div className="flex items-center gap-2.5 px-5 py-4 border-b border-[#EFEBE4]">
                     <span className="w-[3px] h-[15px] rounded-sm bg-[#991A21]" />
                     <p className="text-[14px] font-semibold text-[#2D2D2D]">Eerstvolgende vergaderingen</p>
@@ -3114,7 +3144,7 @@ return metShell(
                 </div>{/* einde linkerkolom */}
 
                 {/* Actie vereist */}
-                <div className="bg-white border border-[#E7E2DB] rounded-xl overflow-hidden">
+                <div className="vp-kaart bg-white border border-[#E7E2DB] rounded-xl overflow-hidden">
                   <div className="flex items-center justify-between px-5 py-4 border-b border-[#EFEBE4]">
                     <div className="flex items-center gap-2.5">
                       <span className="w-[3px] h-[15px] rounded-sm bg-[#991A21]" />
@@ -3187,7 +3217,7 @@ return metShell(
               module, dan staat de kaart er. Geen namen, geen uitzonderingen —
               rechten komen uit user_roles. */}
           {toonModuleWidgets && (
-            <div className="space-y-5">
+            <div className="space-y-5" style={{ animation: "vpRise .5s var(--vp-ease-out) .16s both" }}>
 
               {/* ── Organisatie-overzicht (admin / hoofd_admin) ── */}
               {heeftAdminToegang && (
