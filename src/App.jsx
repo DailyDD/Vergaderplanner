@@ -27,6 +27,7 @@ const CSS_FONT = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:
 @keyframes vpRise { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: translateY(0) } }
 @keyframes vpIndIn { from { transform: scaleY(0) } to { transform: scaleY(1) } }
 @keyframes vpFill { from { width: 0 } to { width: var(--vp-doel, 0%) } }
+@keyframes vpFade { from { opacity: 0 } to { opacity: 1 } }
 .vp-ease { transition: transform .2s var(--vp-ease-out), box-shadow .2s var(--vp-ease-out), background-color .14s ease, color .14s ease !important; }
 .vp-focus:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(153,26,33,.12); }
 .vp-nav:hover { transform: translateY(-1px); box-shadow: 0 6px 16px -6px rgba(45,45,45,.14); }
@@ -2458,7 +2459,7 @@ useEffect(() => {
           </div>
         </div>
 
-        <div className="flex-1 min-w-0">{inhoud}</div>
+        <div key={screen} className="flex-1 min-w-0" style={{ animation: "vpFade .3s var(--vp-ease-out) both" }}>{inhoud}</div>
       </div>
 
       {/* Under-construction popup — toont voor modules die nog in ontwikkeling zijn */}
