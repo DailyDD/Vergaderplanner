@@ -2459,7 +2459,7 @@ useEffect(() => {
           </div>
         </div>
 
-        <div key={screen} className="flex-1 min-w-0" style={{ animation: "vpFade .3s var(--vp-ease-out) both" }}>{inhoud}</div>
+        <div key={screen} className="flex-1 min-w-0" style={{ animation: "vpFade .45s ease-out both" }}>{inhoud}</div>
       </div>
 
       {/* Under-construction popup — toont voor modules die nog in ontwikkeling zijn */}
