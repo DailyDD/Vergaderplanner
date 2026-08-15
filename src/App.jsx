@@ -33,7 +33,7 @@ const CSS_FONT = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:
 .vp-nav:hover { transform: translateY(-1px); box-shadow: 0 6px 16px -6px rgba(45,45,45,.14); }
 .vp-icoon { transition: transform .2s var(--vp-ease-out); }
 .group:hover .vp-icoon { transform: translateX(1px); }
-.vp-kaart { box-shadow: 0 2px 6px -1px rgba(45,45,45,.07), 0 10px 24px -4px rgba(45,45,45,.12); }
+.vp-kaart, [class~="bg-white"][class~="border-[#E7E2DB]"][class~="rounded-xl"] { box-shadow: 0 2px 6px -1px rgba(45,45,45,.08), 0 16px 44px -6px rgba(45,45,45,.17); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0ms !important; transition-duration: .001ms !important; }
 }
