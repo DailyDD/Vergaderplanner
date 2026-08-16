@@ -19,6 +19,7 @@ const C = {
   bordeaux: "#991A21", bordeauxDonker: "#7A1419", bordeauxTint: "#F6ECEC", bordeauxRand: "#E3C9C9",
   papier: "#F2EFEC", wit: "#FFFFFF", inset: "#FAF8F5",
   lijn: "#E7E2DB", lijnZacht: "#EFEBE4", randHover: "#C9BEB2",
+  schaduw: '0 2px 6px -1px rgba(45,45,45,.08), 0 16px 44px -6px rgba(45,45,45,.17)',
   groen: "#3B7A57", groenTint: "#EAF2EC", groenRand: "#CFE0D5",
   amber: "#B07414", amberTint: "#F7EEDD", amberRand: "#E8D5B0",
   blauw: "#4A6B8A", blauwTint: "#EAEFF4", blauwRand: "#C4D2DE",
@@ -67,7 +68,7 @@ const I = {
 
 // ── Sub-componenten ──
 function LodCard({children}) {
-  return <div style={{background:C.wit,border:'1px solid '+C.lijn,borderRadius:12,overflow:'hidden',marginBottom:14}}>{children}</div>;
+  return <div style={{background:C.wit,border:'1px solid '+C.lijn,borderRadius:12,overflow:'hidden',marginBottom:14,boxShadow:C.schaduw}}>{children}</div>;
 }
 function LodCardHdr({icon, bg, title, sub}) {
   return <div style={{padding:'14px 20px',borderBottom:'1px solid '+C.lijn,display:'flex',alignItems:'center',gap:10}}><div style={{width:30,height:30,borderRadius:7,background:bg,display:'flex',alignItems:'center',justifyContent:'center'}}>{icon}</div><div><div style={{fontSize:13,fontWeight:600,color:C.ink}}>{title}</div>{sub&&<div style={{fontSize:11,color:C.tekst2,marginTop:1}}>{sub}</div>}</div></div>;

@@ -38,6 +38,7 @@ const C = {
   bordeaux: "#991A21", bordeauxDonker: "#7A1419", bordeauxTint: "#F6ECEC", bordeauxRand: "#E3C9C9",
   papier: "#F2EFEC", wit: "#FFFFFF", inset: "#FAF8F5",
   lijn: "#E7E2DB", lijnZacht: "#EFEBE4", randHover: "#C9BEB2",
+  schaduw: '0 2px 6px -1px rgba(45,45,45,.08), 0 16px 44px -6px rgba(45,45,45,.17)',
   groen: "#3B7A57", groenTint: "#EAF2EC", groenRand: "#CFE0D5",
   amber: "#B07414", amberTint: "#F7EEDD", amberRand: "#E8D5B0",
   blauw: "#4A6B8A", blauwTint: "#EAEFF4", blauwRand: "#C4D2DE",
@@ -810,7 +811,7 @@ function VveKaart({ vve, onUpdate, onSave, onDelete, openId, setOpenId, beheerde
   const tabs = [["info", "Dossier"], ["trajecten", `Trajecten (${(vve.trajecten || []).length})`], ["offertes", `Offertes (${(vve.offertes || []).length})`], ["log", `Log (${(vve.communicatielog || []).length})`], ["tijdlijn", "Tijdlijn"], ["audit", "Audittrail"]];
 
   return (
-    <div style={{ background: inactief ? C.inset : C.wit, border: `1px solid ${randKleur}`, borderRadius: 12, overflow: "hidden", marginBottom: 10, boxShadow: open ? "0 4px 16px rgba(153,26,33,.07)" : "0 1px 2px rgba(0,0,0,.03)", transition: "border-color .2s, box-shadow .2s", opacity: inactief ? 0.82 : 1 }}>
+    <div style={{ background: inactief ? C.inset : C.wit, border: `1px solid ${randKleur}`, borderRadius: 12, overflow: "hidden", marginBottom: 10, boxShadow: open ? "0 6px 20px -2px rgba(153,26,33,.12), 0 16px 44px -6px rgba(45,45,45,.17)" : C.schaduw, transition: "border-color .2s, box-shadow .2s", opacity: inactief ? 0.82 : 1 }}>
       {/* Kaartkop */}
       <div onClick={() => setOpenId(open ? null : vve.id)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 16px", cursor: "pointer", userSelect: "none", borderLeft: `3px solid ${inactief ? C.lijn : DOSSIER_STATUS[vve.status]?.kleur || C.bordeaux}` }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -1040,7 +1041,7 @@ function VveKaart({ vve, onUpdate, onSave, onDelete, openId, setOpenId, beheerde
    ══════════════════════════════════════════════════════════════════════ */
 function KpiKaart({ label, waarde, kleur, subtekst }) {
   return (
-    <div style={{ background: C.wit, border: `1px solid ${C.lijn}`, borderRadius: 12, padding: "16px 18px", boxShadow: "0 1px 2px rgba(0,0,0,.03)" }}>
+    <div style={{ background: C.wit, border: `1px solid ${C.lijn}`, borderRadius: 12, padding: "16px 18px", boxShadow: C.schaduw }}>
       <p style={{ fontSize: 10.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: C.tekst3, marginBottom: 6 }}>{label}</p>
       <p style={{ fontSize: 30, fontWeight: 700, color: kleur, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{waarde}</p>
       {subtekst && <p style={{ fontSize: 11, color: C.tekst3, marginTop: 6 }}>{subtekst}</p>}
@@ -1127,7 +1128,7 @@ function FinancieelScherm({ vves }) {
         </div>
 
         {/* Per traject */}
-        <div style={{ background: C.wit, border: `1px solid ${C.lijn}`, borderRadius: 12, overflow: "hidden", marginTop: 16 }}>
+        <div style={{ background: C.wit, border: `1px solid ${C.lijn}`, borderRadius: 12, overflow: "hidden", marginTop: 16, boxShadow: C.schaduw }}>
           <div style={{ padding: "11px 18px", borderBottom: `1px solid ${C.lijnZacht}`, background: C.inset }}>
             <p style={{ fontSize: 10.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: C.tekst3 }}>Per traject</p>
           </div>
@@ -1152,7 +1153,7 @@ function FinancieelScherm({ vves }) {
         </div>
 
         {/* Detailtabel per VvE */}
-        <div style={{ background: C.wit, border: `1px solid ${C.lijn}`, borderRadius: 12, overflow: "hidden", marginTop: 16 }}>
+        <div style={{ background: C.wit, border: `1px solid ${C.lijn}`, borderRadius: 12, overflow: "hidden", marginTop: 16, boxShadow: C.schaduw }}>
           <div style={{ padding: "11px 18px", borderBottom: `1px solid ${C.lijnZacht}`, background: C.inset, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <p style={{ fontSize: 10.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: C.tekst3 }}>Te factureren per VvE</p>
             <span style={{ fontSize: 11, color: C.tekst3 }}>{rijen.length} regel{rijen.length !== 1 ? "s" : ""}</span>
@@ -1187,7 +1188,7 @@ function FinancieelScherm({ vves }) {
 /* ── Actielijst ── */
 function ActielijstScherm({ acties }) {
   if (!acties.length) return (
-    <div style={{ background: C.wit, border: `1px solid ${C.lijn}`, borderRadius: 12, padding: "48px 24px", textAlign: "center", boxShadow: "0 1px 2px rgba(0,0,0,.03)" }}>
+    <div style={{ background: C.wit, border: `1px solid ${C.lijn}`, borderRadius: 12, padding: "48px 24px", textAlign: "center", boxShadow: C.schaduw }}>
       <div style={{ display: "inline-flex", width: 44, height: 44, borderRadius: "50%", background: C.groenTint, color: C.groen, alignItems: "center", justifyContent: "center", marginBottom: 12 }}><Ico.check width={22} height={22} /></div>
       <p style={{ fontSize: 14, fontWeight: 600, color: C.ink, marginBottom: 4 }}>Geen openstaande acties</p>
       <p style={{ fontSize: 12.5, color: C.tekst3 }}>Alle actieve dossiers zijn bij.</p>
@@ -1200,7 +1201,7 @@ function ActielijstScherm({ acties }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {beheerders.map(beh => (
-        <div key={beh} style={{ background: C.wit, border: `1px solid ${C.lijn}`, borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 2px rgba(0,0,0,.03)" }}>
+        <div key={beh} style={{ background: C.wit, border: `1px solid ${C.lijn}`, borderRadius: 12, overflow: "hidden", boxShadow: C.schaduw }}>
           <div style={{ padding: "11px 18px", borderBottom: `1px solid ${C.lijnZacht}`, background: C.inset, display: "flex", alignItems: "center", justifyContent: "space-between", borderLeft: `3px solid ${C.bordeaux}` }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{beh}</span>
             <span style={{ fontSize: 11, fontWeight: 600, color: C.tekst2, background: C.papier, padding: "2px 9px", borderRadius: 999 }}>{perBeh[beh].length} acties</span>
@@ -1356,7 +1357,7 @@ export default function VerduurzamingBeheer({ onTerug, beheerder, beheerderList 
             </div>
 
             {zichtbaar.length === 0 ? (
-              <div style={{ background: C.wit, border: `1px solid ${C.lijn}`, borderRadius: 12, padding: "56px 24px", textAlign: "center", boxShadow: "0 1px 2px rgba(0,0,0,.03)" }}>
+              <div style={{ background: C.wit, border: `1px solid ${C.lijn}`, borderRadius: 12, padding: "56px 24px", textAlign: "center", boxShadow: C.schaduw }}>
                 <div style={{ display: "inline-flex", width: 48, height: 48, borderRadius: "50%", background: C.groenTint, color: C.groen, alignItems: "center", justifyContent: "center", marginBottom: 14 }}><Ico.leaf width={24} height={24} /></div>
                 <p style={{ fontSize: 14, fontWeight: 600, color: C.ink, marginBottom: 4 }}>{vves.length === 0 ? "Nog geen VvE's toegevoegd" : "Geen resultaten"}</p>
                 <p style={{ fontSize: 12.5, color: C.tekst3 }}>{vves.length === 0 ? "Klik op 'VvE toevoegen' om te beginnen." : "Pas de filters aan om meer te zien."}</p>
