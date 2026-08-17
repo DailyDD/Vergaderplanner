@@ -28,8 +28,18 @@ const CSS_FONT = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:
 @keyframes vpIndIn { from { transform: scaleY(0) } to { transform: scaleY(1) } }
 @keyframes vpFill { from { width: 0 } to { width: var(--vp-doel, 0%) } }
 @keyframes vpFade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes vpShimmer { 0% { background-position: -120% 0 } 100% { background-position: 120% 0 } }
+.vp-skelet { border-radius: 6px; background: linear-gradient(90deg, #EFEBE4 25%, #F7F4EF 37%, #EFEBE4 63%); background-size: 400% 100%; animation: vpShimmer 1.4s ease-in-out infinite; }
 .vp-ease { transition: transform .2s var(--vp-ease-out), box-shadow .2s var(--vp-ease-out), background-color .14s ease, color .14s ease !important; }
 .vp-focus:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(153,26,33,.12); }
+/* Universeel reageert-signaal: elke standaard knop veert iets in bij klik.
+   :not([disabled]) zodat uitgegrijsde knoppen niet meebewegen. */
+button:not([disabled]) { transition: transform .1s ease, background-color .14s ease, box-shadow .2s var(--vp-ease-out); }
+button:not([disabled]):active { transform: scale(.97); }
+/* Focus-ring app-breed (niet alleen sidebar) voor toetsenbordnavigatie. */
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+  outline: none; box-shadow: 0 0 0 3px rgba(153,26,33,.12);
+}
 .vp-nav:hover { transform: translateY(-1px); box-shadow: 0 6px 16px -6px rgba(45,45,45,.14); }
 .vp-icoon { transition: transform .2s var(--vp-ease-out); }
 .group:hover .vp-icoon { transform: translateX(1px); }
@@ -2871,9 +2881,12 @@ useEffect(() => {
     );
 
     const WidgetLaden = ({ tekst }) => (
-      <div className="flex items-center gap-2.5 text-[12.5px] text-[#9B958E] py-1">
-        <span className="w-[6px] h-[6px] rounded-full bg-[#C9BEB2] animate-pulse shrink-0" />
-        {tekst}
+      <div className="py-1">
+        <div className="space-y-2">
+          <div className="vp-skelet h-[11px] w-[85%]" />
+          <div className="vp-skelet h-[11px] w-[60%]" />
+        </div>
+        {tekst && <p className="text-[11px] text-[#9B958E] mt-2">{tekst}</p>}
       </div>
     );
 
@@ -3141,61 +3154,6 @@ return metShell(
                     )}
                   </div>
                 </div>
-
-                {/* Actiepunten: deadlines in zicht (alleen hoofd_admin, module in aanbouw) */}
-                {isHoofdAdmin && (
-                  <WidgetKaart
-                    titel="Actiepunten"
-                    sub={apStats && apStats.totaalOpen > 0 ? `${apStats.totaalOpen} open ${apStats.totaalOpen === 1 ? "actiepunt" : "actiepunten"}` : null}
-                    naar="actiepunten"
-                    knopTekst="Naar Actiepunten"
-                  >
-                    {apStatus === "laden" && <WidgetLaden tekst="Actiepunten ophalen…" />}
-                    {apStatus === "fout" && <WidgetFout tekst="De actiepunten konden niet worden opgehaald. Open de module om het opnieuw te proberen." />}
-                    {(apStatus === "klaar" || apStatus === "idle") && apStats && (
-                      apStats.totaalOpen === 0 ? (
-                        <p className="text-[13px] text-[#9B958E]">Geen openstaande actiepunten.</p>
-                      ) : (
-                        <>
-                          <div className="grid grid-cols-3 gap-2.5 mb-4">
-                            <MiniKpi val={apStats.totaalOpen} label="Open actiepunten" />
-                            <MiniKpi val={apStats.teLaat} label="Deadline verstreken" kleur="#991A21" tint={apStats.teLaat > 0 ? "#F6ECEC" : undefined} rand={apStats.teLaat > 0 ? "#E3C9C9" : undefined} />
-                            <MiniKpi val={apStats.dezeWeek} label="Binnen 7 dagen" kleur="#B07414" tint={apStats.dezeWeek > 0 ? "#FBF3E7" : undefined} rand={apStats.dezeWeek > 0 ? "#E8D3AC" : undefined} />
-                          </div>
-
-                          {apStats.komend.length > 0 && (
-                            <div className="pt-4 border-t border-[#EFEBE4]">
-                              <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#9B958E] mb-2.5">Eerstvolgende deadlines</p>
-                              <div className="space-y-2">
-                                {apStats.komend.slice(0, 4).map(a => (
-                                  <div key={a.id} className="flex items-center gap-3 text-[12.5px]">
-                                    <span
-                                      className="w-[9px] h-[9px] rounded-full shrink-0 border-2 bg-white"
-                                      style={{ borderColor: a.dagen < 0 ? "#991A21" : a.dagen <= 7 ? "#B07414" : "#C9BEB2" }}
-                                    />
-                                    <span className="font-semibold text-[#2D2D2D] truncate">{a.omschrijving}</span>
-                                    <span className="text-[#9B958E] shrink-0 hidden md:inline truncate">— {a.vve}</span>
-                                    <span className="ml-auto shrink-0 text-right whitespace-nowrap">
-                                      <span className="text-[#3f3d3b] tabular-nums">{fmtDate(a.deadline)}</span>
-                                      <span className={a.dagen < 0 ? "text-[#991A21] font-semibold" : "text-[#9B958E]"}> · {deadlineTekst(a.dagen)}</span>
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {apStats.zonderDeadline > 0 && (
-                            <div className="flex justify-between text-[12.5px] pt-3.5 mt-3.5 border-t border-[#EFEBE4]">
-                              <span className="text-[#6B6560]">Open zonder deadline</span>
-                              <b className="font-semibold text-[#2D2D2D] tabular-nums">{apStats.zonderDeadline}</b>
-                            </div>
-                          )}
-                        </>
-                      )
-                    )}
-                  </WidgetKaart>
-                )}
 
                 </div>{/* einde linkerkolom */}
 
@@ -3465,6 +3423,60 @@ return metShell(
                 </WidgetKaart>
               )}
 
+              {/* ── Actiepunten: deadlines in zicht (alleen hoofd_admin, module in aanbouw) ── */}
+              {isHoofdAdmin && (
+                <WidgetKaart
+                  titel="Actiepunten"
+                  sub={apStats && apStats.totaalOpen > 0 ? `${apStats.totaalOpen} open ${apStats.totaalOpen === 1 ? "actiepunt" : "actiepunten"}` : null}
+                  naar="actiepunten"
+                  knopTekst="Naar Actiepunten"
+                >
+                  {apStatus === "laden" && <WidgetLaden tekst="Actiepunten ophalen…" />}
+                  {apStatus === "fout" && <WidgetFout tekst="De actiepunten konden niet worden opgehaald. Open de module om het opnieuw te proberen." />}
+                  {(apStatus === "klaar" || apStatus === "idle") && apStats && (
+                    apStats.totaalOpen === 0 ? (
+                      <p className="text-[13px] text-[#9B958E]">Geen openstaande actiepunten.</p>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-3 gap-2.5 mb-4">
+                          <MiniKpi val={apStats.totaalOpen} label="Open actiepunten" />
+                          <MiniKpi val={apStats.teLaat} label="Deadline verstreken" kleur="#991A21" tint={apStats.teLaat > 0 ? "#F6ECEC" : undefined} rand={apStats.teLaat > 0 ? "#E3C9C9" : undefined} />
+                          <MiniKpi val={apStats.dezeWeek} label="Binnen 7 dagen" kleur="#B07414" tint={apStats.dezeWeek > 0 ? "#FBF3E7" : undefined} rand={apStats.dezeWeek > 0 ? "#E8D3AC" : undefined} />
+                        </div>
+
+                        {apStats.komend.length > 0 && (
+                          <div className="pt-4 border-t border-[#EFEBE4]">
+                            <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#9B958E] mb-2.5">Eerstvolgende deadlines</p>
+                            <div className="space-y-2">
+                              {apStats.komend.slice(0, 4).map(a => (
+                                <div key={a.id} className="flex items-center gap-3 text-[12.5px]">
+                                  <span
+                                    className="w-[9px] h-[9px] rounded-full shrink-0 border-2 bg-white"
+                                    style={{ borderColor: a.dagen < 0 ? "#991A21" : a.dagen <= 7 ? "#B07414" : "#C9BEB2" }}
+                                  />
+                                  <span className="font-semibold text-[#2D2D2D] truncate">{a.omschrijving}</span>
+                                  <span className="text-[#9B958E] shrink-0 hidden md:inline truncate">— {a.vve}</span>
+                                  <span className="ml-auto shrink-0 text-right whitespace-nowrap">
+                                    <span className="text-[#3f3d3b] tabular-nums">{fmtDate(a.deadline)}</span>
+                                    <span className={a.dagen < 0 ? "text-[#991A21] font-semibold" : "text-[#9B958E]"}> · {deadlineTekst(a.dagen)}</span>
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {apStats.zonderDeadline > 0 && (
+                          <div className="flex justify-between text-[12.5px] pt-3.5 mt-3.5 border-t border-[#EFEBE4]">
+                            <span className="text-[#6B6560]">Open zonder deadline</span>
+                            <b className="font-semibold text-[#2D2D2D] tabular-nums">{apStats.zonderDeadline}</b>
+                          </div>
+                        )}
+                      </>
+                    )
+                  )}
+                </WidgetKaart>
+              )}
               {heeftVerduurzamingToegang && (
                 <WidgetKaart
                   titel="Verduurzaming & Subsidies"
