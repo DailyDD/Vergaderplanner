@@ -3142,6 +3142,61 @@ return metShell(
                   </div>
                 </div>
 
+                {/* Actiepunten: deadlines in zicht (alleen hoofd_admin, module in aanbouw) */}
+                {isHoofdAdmin && (
+                  <WidgetKaart
+                    titel="Actiepunten"
+                    sub={apStats && apStats.totaalOpen > 0 ? `${apStats.totaalOpen} open ${apStats.totaalOpen === 1 ? "actiepunt" : "actiepunten"}` : null}
+                    naar="actiepunten"
+                    knopTekst="Naar Actiepunten"
+                  >
+                    {apStatus === "laden" && <WidgetLaden tekst="Actiepunten ophalen…" />}
+                    {apStatus === "fout" && <WidgetFout tekst="De actiepunten konden niet worden opgehaald. Open de module om het opnieuw te proberen." />}
+                    {(apStatus === "klaar" || apStatus === "idle") && apStats && (
+                      apStats.totaalOpen === 0 ? (
+                        <p className="text-[13px] text-[#9B958E]">Geen openstaande actiepunten.</p>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-3 gap-2.5 mb-4">
+                            <MiniKpi val={apStats.totaalOpen} label="Open actiepunten" />
+                            <MiniKpi val={apStats.teLaat} label="Deadline verstreken" kleur="#991A21" tint={apStats.teLaat > 0 ? "#F6ECEC" : undefined} rand={apStats.teLaat > 0 ? "#E3C9C9" : undefined} />
+                            <MiniKpi val={apStats.dezeWeek} label="Binnen 7 dagen" kleur="#B07414" tint={apStats.dezeWeek > 0 ? "#FBF3E7" : undefined} rand={apStats.dezeWeek > 0 ? "#E8D3AC" : undefined} />
+                          </div>
+
+                          {apStats.komend.length > 0 && (
+                            <div className="pt-4 border-t border-[#EFEBE4]">
+                              <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#9B958E] mb-2.5">Eerstvolgende deadlines</p>
+                              <div className="space-y-2">
+                                {apStats.komend.slice(0, 4).map(a => (
+                                  <div key={a.id} className="flex items-center gap-3 text-[12.5px]">
+                                    <span
+                                      className="w-[9px] h-[9px] rounded-full shrink-0 border-2 bg-white"
+                                      style={{ borderColor: a.dagen < 0 ? "#991A21" : a.dagen <= 7 ? "#B07414" : "#C9BEB2" }}
+                                    />
+                                    <span className="font-semibold text-[#2D2D2D] truncate">{a.omschrijving}</span>
+                                    <span className="text-[#9B958E] shrink-0 hidden md:inline truncate">— {a.vve}</span>
+                                    <span className="ml-auto shrink-0 text-right whitespace-nowrap">
+                                      <span className="text-[#3f3d3b] tabular-nums">{fmtDate(a.deadline)}</span>
+                                      <span className={a.dagen < 0 ? "text-[#991A21] font-semibold" : "text-[#9B958E]"}> · {deadlineTekst(a.dagen)}</span>
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {apStats.zonderDeadline > 0 && (
+                            <div className="flex justify-between text-[12.5px] pt-3.5 mt-3.5 border-t border-[#EFEBE4]">
+                              <span className="text-[#6B6560]">Open zonder deadline</span>
+                              <b className="font-semibold text-[#2D2D2D] tabular-nums">{apStats.zonderDeadline}</b>
+                            </div>
+                          )}
+                        </>
+                      )
+                    )}
+                  </WidgetKaart>
+                )}
+
                 </div>{/* einde linkerkolom */}
 
                 {/* Actie vereist */}
@@ -3410,60 +3465,6 @@ return metShell(
                 </WidgetKaart>
               )}
 
-              {/* ── Actiepunten: deadlines in zicht (alleen hoofd_admin, module in aanbouw) ── */}
-              {isHoofdAdmin && (
-                <WidgetKaart
-                  titel="Actiepunten"
-                  sub={apStats && apStats.totaalOpen > 0 ? `${apStats.totaalOpen} open ${apStats.totaalOpen === 1 ? "actiepunt" : "actiepunten"}` : null}
-                  naar="actiepunten"
-                  knopTekst="Naar Actiepunten"
-                >
-                  {apStatus === "laden" && <WidgetLaden tekst="Actiepunten ophalen…" />}
-                  {apStatus === "fout" && <WidgetFout tekst="De actiepunten konden niet worden opgehaald. Open de module om het opnieuw te proberen." />}
-                  {(apStatus === "klaar" || apStatus === "idle") && apStats && (
-                    apStats.totaalOpen === 0 ? (
-                      <p className="text-[13px] text-[#9B958E]">Geen openstaande actiepunten.</p>
-                    ) : (
-                      <>
-                        <div className="grid grid-cols-3 gap-2.5 mb-4">
-                          <MiniKpi val={apStats.totaalOpen} label="Open actiepunten" />
-                          <MiniKpi val={apStats.teLaat} label="Deadline verstreken" kleur="#991A21" tint={apStats.teLaat > 0 ? "#F6ECEC" : undefined} rand={apStats.teLaat > 0 ? "#E3C9C9" : undefined} />
-                          <MiniKpi val={apStats.dezeWeek} label="Binnen 7 dagen" kleur="#B07414" tint={apStats.dezeWeek > 0 ? "#FBF3E7" : undefined} rand={apStats.dezeWeek > 0 ? "#E8D3AC" : undefined} />
-                        </div>
-
-                        {apStats.komend.length > 0 && (
-                          <div className="pt-4 border-t border-[#EFEBE4]">
-                            <p className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-[#9B958E] mb-2.5">Eerstvolgende deadlines</p>
-                            <div className="space-y-2">
-                              {apStats.komend.slice(0, 4).map(a => (
-                                <div key={a.id} className="flex items-center gap-3 text-[12.5px]">
-                                  <span
-                                    className="w-[9px] h-[9px] rounded-full shrink-0 border-2 bg-white"
-                                    style={{ borderColor: a.dagen < 0 ? "#991A21" : a.dagen <= 7 ? "#B07414" : "#C9BEB2" }}
-                                  />
-                                  <span className="font-semibold text-[#2D2D2D] truncate">{a.omschrijving}</span>
-                                  <span className="text-[#9B958E] shrink-0 hidden md:inline truncate">— {a.vve}</span>
-                                  <span className="ml-auto shrink-0 text-right whitespace-nowrap">
-                                    <span className="text-[#3f3d3b] tabular-nums">{fmtDate(a.deadline)}</span>
-                                    <span className={a.dagen < 0 ? "text-[#991A21] font-semibold" : "text-[#9B958E]"}> · {deadlineTekst(a.dagen)}</span>
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {apStats.zonderDeadline > 0 && (
-                          <div className="flex justify-between text-[12.5px] pt-3.5 mt-3.5 border-t border-[#EFEBE4]">
-                            <span className="text-[#6B6560]">Open zonder deadline</span>
-                            <b className="font-semibold text-[#2D2D2D] tabular-nums">{apStats.zonderDeadline}</b>
-                          </div>
-                        )}
-                      </>
-                    )
-                  )}
-                </WidgetKaart>
-              )}
               {heeftVerduurzamingToegang && (
                 <WidgetKaart
                   titel="Verduurzaming & Subsidies"
