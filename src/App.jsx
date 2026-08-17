@@ -17,6 +17,16 @@ import Analytics, { initAnalyticsDeps } from './Analytics';
 // Primair: #991A21 (donkerrood), Antraciet: #2D2D2D, Achtergrond: #F2EFEC
 const CSS_FONT = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
 * { font-family: 'DM Sans', sans-serif !important; }
+/* TEST: Geist alleen binnen het dashboard, scope via .vp-geist-test. Verwijderen na test. */
+@font-face {
+  font-family: 'Geist Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url(https://cdn.jsdelivr.net/fontsource/fonts/geist:vf@5.3.0/latin-wght-normal.woff2) format('woff2-variations');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+.vp-geist-test, .vp-geist-test * { font-family: 'Geist Variable', sans-serif !important; }
 
 /* Motion- & dieptetokens (gedeeld) - curves + schaduwen op een plek.
    Reduced-motion zet alle beweging op instant voor toegankelijkheid. */
@@ -30,6 +40,7 @@ const CSS_FONT = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:
 @keyframes vpFade { from { opacity: 0 } to { opacity: 1 } }
 @keyframes vpShimmer { 0% { background-position: -120% 0 } 100% { background-position: 120% 0 } }
 .vp-skelet { border-radius: 6px; background: linear-gradient(90deg, #EFEBE4 25%, #F7F4EF 37%, #EFEBE4 63%); background-size: 400% 100%; animation: vpShimmer 1.4s ease-in-out infinite; }
+@keyframes vpToastIn { from { opacity: 0; transform: translateX(16px) } to { opacity: 1; transform: translateX(0) } }
 .vp-ease { transition: transform .2s var(--vp-ease-out), box-shadow .2s var(--vp-ease-out), background-color .14s ease, color .14s ease !important; }
 .vp-focus:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(153,26,33,.12); }
 /* Universeel reageert-signaal: elke standaard knop veert iets in bij klik.
@@ -493,10 +504,10 @@ class ToastBridge extends React.Component {
     const color = toast.type === "succes" ? "#2D6A4F" : "#991A21";
     const icon = toast.type === "succes" ? "✓" : "⚠";
     return (
-      <div style={{position:"fixed",top:20,right:20,zIndex:9999,background:bg,border:`1.5px solid ${border}`,borderRadius:10,padding:"12px 18px",fontSize:13,fontWeight:600,color,boxShadow:"0 4px 16px rgba(0,0,0,0.12)",display:"flex",alignItems:"center",gap:8,maxWidth:340}}>
+      <div key={toast.bericht + toast.type} style={{position:"fixed",top:20,right:20,zIndex:9999,background:bg,border:`1.5px solid ${border}`,borderRadius:10,padding:"12px 18px",fontSize:13,fontWeight:600,color,boxShadow:"0 4px 16px rgba(0,0,0,0.12)",display:"flex",alignItems:"center",gap:8,maxWidth:340,animation:"vpToastIn .3s var(--vp-ease-out) both"}}>
         <span>{icon}</span>
         <span>{toast.bericht}</span>
-        <button onClick={()=>this.setState({toast:null})} style={{marginLeft:8,background:"none",border:"none",cursor:"pointer",fontSize:16,color,lineHeight:1}}>×</button>
+        <button onClick={()=>this.setState({toast:null})} style={{marginLeft:8,background:"none",border:"none",cursor:"pointer",fontSize:16,color,lineHeight:1,transition:"opacity .14s ease",opacity:.7}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=.7}>×</button>
       </div>
     );
   }
@@ -2955,7 +2966,7 @@ useEffect(() => {
 return metShell(
       <>
         <FeedbackOverlay actief={!welkomstPending} />
-        <div className="px-7 py-9 max-w-[1440px] mx-auto">
+        <div className="vp-geist-test px-7 py-9 max-w-[1440px] mx-auto">
 
           {/* ── Begroeting ───────────────────────────────────────── */}
           <div className="mb-7">
