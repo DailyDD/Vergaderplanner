@@ -43,7 +43,7 @@ const STIJL = `
   cursor:pointer; padding:6px 2px; display:inline-flex; align-items:center; gap:6px; }
 .ofg-terug:hover { text-decoration:underline; }
 .ofg-titel { font-size:22px; font-weight:700; color:${ANTRACIET}; margin:0; }
-.ofg-kaart { background:#fff; border:1px solid #E9E2DD; border-radius:12px; padding:20px 22px; margin-bottom:16px; }
+.ofg-kaart { background:#fff; border:1px solid #E9E2DD; border-radius:12px; padding:20px 22px; margin-bottom:16px; box-shadow: 0 2px 6px -1px rgba(45,45,45,.08), 0 16px 44px -6px rgba(45,45,45,.17); }
 .ofg-kop { font-size:13px; font-weight:700; color:${BORDEAUX}; text-transform:uppercase;
   letter-spacing:.04em; margin:0 0 14px; }
 .ofg-rij { display:grid; grid-template-columns:1fr 1fr; gap:14px 16px; }

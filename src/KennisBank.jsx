@@ -10,6 +10,7 @@ const C = {
   bordeaux: "#991A21", bordeauxDonker: "#7A1419", bordeauxTint: "#F6ECEC", bordeauxRand: "#E3C9C9",
   papier: "#F2EFEC", wit: "#FFFFFF", inset: "#FAF8F5",
   lijn: "#E7E2DB", lijnZacht: "#EFEBE4", randHover: "#C9BEB2",
+  schaduw: '0 2px 6px -1px rgba(45,45,45,.08), 0 16px 44px -6px rgba(45,45,45,.17)',
   groen: "#3B7A57", groenTint: "#EAF2EC", groenRand: "#CFE0D5",
   amber: "#B07414", amberTint: "#F7EEDD", amberRand: "#E8D5B0",
   blauw: "#4A6B8A", blauwTint: "#EAEFF4", blauwRand: "#C4D2DE",
@@ -114,7 +115,7 @@ function categoriseerVraag(item) {
 /* ── Resultaatkaart ── */
 function ResultaatKaart({ item, index, zoekWoorden, open, onToggle }) {
   return (
-    <div style={{ background: C.wit, border: `1px solid ${open ? C.bordeaux : C.lijn}`, borderRadius: 12, marginBottom: 8, overflow: "hidden", transition: "border-color .15s, box-shadow .15s", boxShadow: open ? "0 3px 14px rgba(153,26,33,.07)" : "0 1px 2px rgba(0,0,0,.03)" }}>
+    <div style={{ background: C.wit, border: `1px solid ${open ? C.bordeaux : C.lijn}`, borderRadius: 12, marginBottom: 8, overflow: "hidden", transition: "border-color .15s, box-shadow .15s", boxShadow: open ? "0 6px 20px -2px rgba(153,26,33,.12), 0 16px 44px -6px rgba(45,45,45,.17)" : C.schaduw }}>
       <button onClick={onToggle} style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 18px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
         <span style={{ flexShrink: 0, width: 24, height: 24, borderRadius: "50%", background: open ? C.bordeaux : C.papier, color: open ? "#fff" : C.tekst3, fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1, transition: "all .15s", border: `1px solid ${open ? C.bordeaux : C.lijn}` }}>{index + 1}</span>
         <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: C.ink, lineHeight: 1.55 }}>
@@ -204,7 +205,7 @@ export default function KennisBank({ onTerug }) {
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 24px 80px" }}>
 
         {/* Zoekkaart */}
-        <div style={{ background: C.wit, border: `1px solid ${C.lijn}`, borderRadius: 14, padding: "28px 28px 24px", boxShadow: "0 2px 10px rgba(0,0,0,.04)", marginBottom: 24 }}>
+        <div style={{ background: C.wit, border: `1px solid ${C.lijn}`, borderRadius: 14, padding: "28px 28px 24px", boxShadow: C.schaduw, marginBottom: 24 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
             <div style={{ width: 42, height: 42, background: C.bordeaux, borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: "#fff" }}><Ico.lightbulb width={22} height={22} /></div>
             <div>
@@ -283,7 +284,7 @@ export default function KennisBank({ onTerug }) {
 
         {/* Geen resultaten */}
         {geenResultaten && (
-          <div style={{ background: C.wit, border: `1px solid ${C.lijn}`, borderRadius: 14, padding: "48px 28px", textAlign: "center", boxShadow: "0 2px 8px rgba(0,0,0,.03)" }}>
+          <div style={{ background: C.wit, border: `1px solid ${C.lijn}`, borderRadius: 14, padding: "48px 28px", textAlign: "center", boxShadow: C.schaduw }}>
             <div style={{ display: "inline-flex", width: 48, height: 48, borderRadius: "50%", background: C.amberTint, color: C.amber, alignItems: "center", justifyContent: "center", marginBottom: 14 }}><Ico.search width={24} height={24} /></div>
             <h2 style={{ fontSize: 16, fontWeight: 700, color: C.ink, marginBottom: 8 }}>Geen resultaat gevonden</h2>
             <p style={{ fontSize: 13, color: C.tekst2, lineHeight: 1.65, maxWidth: 440, margin: "0 auto 20px" }}>
@@ -308,7 +309,7 @@ export default function KennisBank({ onTerug }) {
               { label: "Categorieen", waarde: CATEGORIEEN.length, kleur: C.bordeaux },
               { label: "Gem. antwoordlengte", waarde: Math.round(KENNISBANK.reduce((a, i) => a + i.a.length, 0) / KENNISBANK.length) + " tekens", kleur: C.tekst2 },
             ].map(s => (
-              <div key={s.label} style={{ background: C.wit, border: `1px solid ${C.lijn}`, borderRadius: 12, padding: "16px 18px", boxShadow: "0 1px 2px rgba(0,0,0,.03)" }}>
+              <div key={s.label} style={{ background: C.wit, border: `1px solid ${C.lijn}`, borderRadius: 12, padding: "16px 18px", boxShadow: C.schaduw }}>
                 <p style={{ fontSize: 10.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: C.tekst3, marginBottom: 6 }}>{s.label}</p>
                 <p style={{ fontSize: 22, fontWeight: 700, color: s.kleur, fontVariantNumeric: "tabular-nums" }}>{s.waarde}</p>
               </div>
