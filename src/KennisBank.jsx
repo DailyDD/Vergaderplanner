@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { KENNISBANK } from "./kennisbank_data";
 
 const CSS_FONT = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
-* { font-family: 'DM Sans', sans-serif !important; }`;
+* { font-family: 'Geist Variable', sans-serif !important; }`;
 
 /* ── Warme huisstijl-ramp ── */
 const C = {

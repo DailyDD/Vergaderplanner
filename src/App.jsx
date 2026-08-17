@@ -16,8 +16,7 @@ import Analytics, { initAnalyticsDeps } from './Analytics';
 // ── Huisstijl Totaal VvE Beheer ──────────────────────────────────
 // Primair: #991A21 (donkerrood), Antraciet: #2D2D2D, Achtergrond: #F2EFEC
 const CSS_FONT = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
-* { font-family: 'DM Sans', sans-serif !important; }
-/* TEST: Geist alleen binnen het dashboard, scope via .vp-geist-test. Verwijderen na test. */
+* { font-family: 'Geist Variable', sans-serif !important; }
 @font-face {
   font-family: 'Geist Variable';
   font-style: normal;
@@ -26,7 +25,6 @@ const CSS_FONT = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:
   src: url(https://cdn.jsdelivr.net/fontsource/fonts/geist:vf@5.3.0/latin-wght-normal.woff2) format('woff2-variations');
   unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
 }
-.vp-geist-test, .vp-geist-test * { font-family: 'Geist Variable', sans-serif !important; }
 
 /* Motion- & dieptetokens (gedeeld) - curves + schaduwen op een plek.
    Reduced-motion zet alle beweging op instant voor toegankelijkheid. */
@@ -2966,7 +2964,7 @@ useEffect(() => {
 return metShell(
       <>
         <FeedbackOverlay actief={!welkomstPending} />
-        <div className="vp-geist-test px-7 py-9 max-w-[1440px] mx-auto">
+        <div className="px-7 py-9 max-w-[1440px] mx-auto">
 
           {/* ── Begroeting ───────────────────────────────────────── */}
           <div className="mb-7">

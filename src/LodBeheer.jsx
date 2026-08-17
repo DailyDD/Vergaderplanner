@@ -36,7 +36,7 @@ let _calcId = 0
 const calcUid = () => ++_calcId
 
 const CSS_FONT = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
-* { font-family: 'DM Sans', sans-serif !important; }`;
+* { font-family: 'Geist Variable', sans-serif !important; }`;
 
 // ── Inline input styling ──
 const lodInp = {
