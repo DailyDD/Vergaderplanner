@@ -2281,10 +2281,10 @@ useEffect(() => {
 
   // Modules die nog niet af zijn: klik toont de under-construction-popup i.p.v. te navigeren.
   // Zodra een module live gaat: verwijder de key hieronder, dan navigeert het menu-item weer normaal.
-  const IN_AANBOUW = ["notulen", "mail"];
+  const IN_AANBOUW = [];
   // Modules die al wel voor hoofd_admin werken, maar voor gewone beheerders nog
   // de "in afwachting"-melding tonen totdat de module vrijgegeven wordt.
-  const IN_AANBOUW_VOOR_BEHEERDERS = ["actiepunten"];
+  const IN_AANBOUW_VOOR_BEHEERDERS = ["actiepunten", "notulen", "mail"];
   const openNav = (key) => {
     if (IN_AANBOUW.includes(key)) { setUcModule(NAV.find(n => n.key === key)?.label || "Deze module"); return; }
     if (IN_AANBOUW_VOOR_BEHEERDERS.includes(key) && !isHoofdAdmin) { setUcModule(NAV.find(n => n.key === key)?.label || "Deze module"); return; }
