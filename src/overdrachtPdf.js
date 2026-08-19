@@ -68,21 +68,20 @@ function tekenBriefpapier(doc) {
   });
   hy += 3;
 
-  // Links (website + e-mail), onderstreept en in sjabloonblauw, rechts uitgelijnd als groep
+  // Links (website + e-mail), elk op eigen regel, onderstreept, in sjabloonblauw
   doc.setTextColor(32, 94, 158); // #205E9E
-  const siteText = "www.totaalvve.nl";
-  const emailText = "info@totaalvve.nl";
-  const tussenruimte = doc.getTextWidth(" ");
-  const emailBreedte = doc.getTextWidth(emailText);
-  const siteBreedte = doc.getTextWidth(siteText);
-  const siteX = rechtsRand - emailBreedte - tussenruimte - siteBreedte;
-  const emailX = rechtsRand - emailBreedte;
-  doc.textWithLink(siteText, siteX, hy, { url: "https://www.totaalvve.nl" });
-  doc.textWithLink(emailText, emailX, hy, { url: "mailto:info@totaalvve.nl" });
-  // Onderstreping, zoals in het sjabloon
   doc.setDrawColor(32, 94, 158);
   doc.setLineWidth(0.15);
+  const siteText = "www.totaalvve.nl";
+  const emailText = "info@totaalvve.nl";
+  const siteBreedte = doc.getTextWidth(siteText);
+  const emailBreedte = doc.getTextWidth(emailText);
+  const siteX = rechtsRand - siteBreedte;
+  const emailX = rechtsRand - emailBreedte;
+  doc.textWithLink(siteText, siteX, hy, { url: "https://www.totaalvve.nl" });
   doc.line(siteX, hy + 0.8, siteX + siteBreedte, hy + 0.8);
+  hy += 3;
+  doc.textWithLink(emailText, emailX, hy, { url: "mailto:info@totaalvve.nl" });
   doc.line(emailX, hy + 0.8, emailX + emailBreedte, hy + 0.8);
 
   // Terug naar standaard tekstkleur voor de rest van het document
