@@ -1251,6 +1251,32 @@ ${r.mnd05 !== null ? '<div class="sec-title">Vaste lasten (jaarlijks)</div><div 
             <button onClick={() => calcExportPDF(result)} style={{ width:'100%', padding:'11px 16px', background:C.wit, border:'1.5px solid '+C.bordeaux, borderRadius:10, fontFamily:"'DM Sans',sans-serif", fontSize:14, color:C.bordeaux, cursor:'pointer', fontWeight:500, marginBottom:14, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
               {Icn.printer(16, C.bordeaux)} Exporteer als PDF / Afdrukken
             </button>
+            {result.reserveInfo && (
+              <CCard header={<CCardHdr icon={Icn.piggy(16, C.groen)} bg={C.groenTint} title="Reservefonds & verzekering" sub="Actuele stand en dekking — wordt zo getoond in het rapport" />}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr' }}>
+                  <div style={{ borderRight:'1px solid '+C.lijn }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', padding:'10px 18px', borderBottom:'1px solid '+C.lijn, fontSize:13 }}>
+                      <span style={{ color:C.tekst2 }}>Stand per {calcFmtDatum(result.reserveInfo.peildatum)}</span>
+                      <span style={{ fontVariantNumeric:'tabular-nums', fontWeight:600 }}>{result.reserveInfo.bedrag !== null ? fmt(result.reserveInfo.bedrag) : '—'}</span>
+                    </div>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', padding:'10px 18px', fontSize:13 }}>
+                      <span style={{ color:C.tekst2 }}>Herbouwwaarde</span>
+                      <span style={{ fontVariantNumeric:'tabular-nums', fontWeight:600 }}>{fmt(result.herbouwwaarde)}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ padding:'10px 18px', borderBottom:'1px solid '+C.lijn, fontSize:13 }}>
+                      <span style={{ color:C.tekst2 }}>Verzekeraar: </span>
+                      <span style={{ fontWeight:600 }}>{result.reserveInfo.verzekeraar || '—'}</span>
+                    </div>
+                    <div style={{ padding:'10px 18px', fontSize:13 }}>
+                      <span style={{ color:C.tekst2 }}>Dekking: </span>
+                      <span style={{ fontWeight:600 }}>{result.reserveInfo.dekking.length ? result.reserveInfo.dekking.join(', ') : '—'}</span>
+                    </div>
+                  </div>
+                </div>
+              </CCard>
+            )}
             {!result.alleenEenmalig && (
               <>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:14 }}>
