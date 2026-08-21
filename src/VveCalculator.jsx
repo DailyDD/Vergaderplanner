@@ -22,8 +22,21 @@ const calcFmt = (n) => {
   return '€ ' + Number(n).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 const calcToday = () => new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })
+const calcFmtDatum = (iso) => {
+  if (!iso) return '—'
+  const d = new Date(iso + 'T00:00:00')
+  if (isNaN(d.getTime())) return iso
+  return d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })
+}
 let _calcId = 0
 const calcUid = () => ++_calcId
+const DEKKING_OPTIES = [
+  { key: 'opstal', label: 'Opstal' },
+  { key: 'aansprakelijkheid', label: 'Aansprakelijkheid' },
+  { key: 'glas', label: 'Glas' },
+  { key: 'rechtsbijstand', label: 'Rechtsbijstand' },
+  { key: 'bestuurdersaansprakelijkheid', label: 'Bestuurdersaansprakelijkheid' },
+]
 
 // ── SVG-iconen (fill=none, stroke=currentColor, strokeWidth=1.75) ──
 const Icn = {
@@ -102,6 +115,15 @@ function calcExportPDF(r) {
     + '<button class="print-btn" onclick="window.print()">Afdrukken / PDF</button>'
     + '<div class="hdr"><div><h1>' + (r.alleenEenmalig ? 'Eenmalige Bijdrage Rapport' : 'Reservefonds Bijdrage Rapport') + '</h1><div class="meta">' + r.complexNaam + ' · Opgesteld op ' + calcToday() + '</div></div></div>'
     + '<div class="intro"><strong>' + r.complexNaam + '</strong><br>' + (r.alleenEenmalig ? 'Berekening eenmalige bijdragen per eigenaar — opgesteld ' + calcToday() + '.' : 'Berekening minimale maandelijkse bijdrage reservefonds conform art. 5:126 BW — opgesteld ' + calcToday() + '.') + '</div>'
+    + (r.reserveInfo ? (
+        '<div class="sec">Reservefonds &amp; verzekering</div>'
+        + '<div class="grid2"><div class="block"><div class="bh"><div class="tag">Reservefonds</div><div class="name">Actuele stand</div></div>'
+        + rr('Stand per ' + calcFmtDatum(r.reserveInfo.peildatum), r.reserveInfo.bedrag !== null ? calcFmt(r.reserveInfo.bedrag) : '—')
+        + rr('Herbouwwaarde', calcFmt(r.herbouwwaarde))
+        + '</div><div class="block"><div class="bh"><div class="tag">Verzekering</div><div class="name">' + (r.reserveInfo.verzekeraar || 'Verzekeraar onbekend') + '</div></div>'
+        + rr('Dekking', r.reserveInfo.dekking.length ? r.reserveInfo.dekking.join(', ') : '—')
+        + '</div></div>'
+      ) : '')
     + (r.alleenEenmalig ? '' :
         '<div class="sec">Methode 1 — Op basis van MJOP (wettelijke voorkeur)</div>'
       + '<div class="grid2"><div class="block"><div class="bh"><div class="tag">MJOP berekening</div><div class="name">Jaarlijkse dotatie</div></div>'
@@ -329,6 +351,10 @@ export default function VveCalculator({ onTerug, snapshot, onSnapshot }) {
   const [bankkosten,    setBankkosten]    = useState(snapshot?.bankkosten ?? '')
   const [overig,        setOverig]        = useState(snapshot?.overig ?? '')
   const [extraKosten,   setExtraKosten]   = useState(snapshot?.extraKosten ?? [])
+  const [reserveHuidigStand, setReserveHuidigStand] = useState(snapshot?.reserveHuidigStand ?? '')
+  const [reservePeildatum,   setReservePeildatum]   = useState(snapshot?.reservePeildatum ?? new Date().toISOString().slice(0, 10))
+  const [verzekeraarNaam,    setVerzekeraarNaam]    = useState(snapshot?.verzekeraarNaam ?? '')
+  const [dekking, setDekking] = useState(snapshot?.dekking ?? { opstal: false, aansprakelijkheid: false, glas: false, rechtsbijstand: false, bestuurdersaansprakelijkheid: false })
   const [bulkTekst,         setBulkTekst]         = useState('')
   const [bulkOpen,          setBulkOpen]          = useState(false)
   const [bulkFout,          setBulkFout]          = useState('')
@@ -362,6 +388,7 @@ export default function VveCalculator({ onTerug, snapshot, onSnapshot }) {
     complexNaam, herbouwwaarde, mjopTotaal, planPeriode, verzekering, administratie,
     bankkosten, overig, extraKosten, vasteNoemer, eenmaligAan, eenmaligItems,
     rows, result, calcTab, wfBedrag, wfLooptijd, wfRente, wfResult,
+    reserveHuidigStand, reservePeildatum, verzekeraarNaam, dekking,
   }
   useEffect(() => () => { if (onSnapshot) onSnapshot(snapshotRef.current) }, [])
 
@@ -629,13 +656,23 @@ export default function VveCalculator({ onTerug, snapshot, onSnapshot }) {
       const perEigenaar = noemer > 0 ? eigenaren.map(e => ({ naam: e.naam, aandeel: e.aandeel, korting: kortingPerEigenaar, bijdrage: tekort > 0 ? e.aandeel * tekort : 0 })) : []
       return { omschrijving: item.omschrijving || 'Eenmalige bijdrage', offerte, nettoOfferte, totaleKorting, kortingPerEigenaar, reserve, buffer, beschikbaar, tekort, perEigenaar }
     }) : []
+    const dekkingActief = DEKKING_OPTIES.filter(o => dekking[o.key]).map(o => o.label)
+    const reserveInfo = (reserveHuidigStand !== '' || verzekeraarNaam.trim() || dekkingActief.length > 0)
+      ? {
+          bedrag: reserveHuidigStand !== '' ? (parseFloat(reserveHuidigStand) || 0) : null,
+          peildatum: reservePeildatum,
+          verzekeraar: verzekeraarNaam.trim(),
+          dekking: dekkingActief,
+        }
+      : null
     setResult({
       complexNaam: complexNaam || 'Complex', mjopTotaal: mt, planPeriode: pp, dotatie,
       verzekering: vz, administratie: ad, bankkosten: bk, overig: ov,
       extraKosten: extraKosten.map(e => ({ naam: e.naam, bedrag: parseFloat(e.bedrag) || 0 })),
       exploitatie: exploit, jaarMjop, mndMjop, hasMjop: mt > 0,
       herbouwwaarde: hv, jaar05, jaar05Totaal: jaarTot05, mnd05, has05: hv > 0, eigenaren,
-      jaarResHuidig, jaarResMjop, jaarRes05, eenmaligAan, alleenEenmalig, eenmaligBerekend
+      jaarResHuidig, jaarResMjop, jaarRes05, eenmaligAan, alleenEenmalig, eenmaligBerekend,
+      reserveInfo,
     })
     setTimeout(() => document.getElementById('calc-res-anker')?.scrollIntoView({ behavior: 'smooth' }), 50)
   }
@@ -971,6 +1008,37 @@ ${r.mnd05 !== null ? '<div class="sec-title">Vaste lasten (jaarlijks)</div><div 
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, padding:'18px 20px' }}>
             <CField label="Naam complex"><CInp placeholder="bijv. VvE Reinkenstraat 1–24" value={complexNaam} onChange={e => setComplexNaam(e.target.value)} /></CField>
             <CField label="Herbouwwaarde (€)"><CInp type="number" placeholder="bijv. 2500000" value={herbouwwaarde} onChange={e => setHerbouwwaarde(e.target.value)} /></CField>
+          </div>
+        </CCard>
+
+        <CCard header={<CCardHdr icon={Icn.piggy(16, C.groen)} bg={C.groenTint} title="Reservefonds & verzekering" sub="Optioneel — wordt getoond in het rapport indien ingevuld" />}>
+          <div style={{ padding:'18px 20px 16px' }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:16 }}>
+              <CField label="Huidige stand reservefonds (€)">
+                <CInp type="number" placeholder="bijv. 42500" value={reserveHuidigStand} onChange={e => setReserveHuidigStand(e.target.value)} />
+              </CField>
+              <CField label="Peildatum">
+                <CInp type="date" value={reservePeildatum} onChange={e => setReservePeildatum(e.target.value)} />
+              </CField>
+            </div>
+            <div style={{ marginBottom:16 }}>
+              <CField label="Naam verzekeraar">
+                <CInp placeholder="bijv. Achmea Zakelijk" value={verzekeraarNaam} onChange={e => setVerzekeraarNaam(e.target.value)} />
+              </CField>
+            </div>
+            <div>
+              <label style={{ display:'block', fontSize:11, fontWeight:600, color:C.tekst2, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:9 }}>Dekking op de verzekering</label>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:'9px 22px' }}>
+                {DEKKING_OPTIES.map(o => (
+                  <label key={o.key} style={{ display:'flex', alignItems:'center', gap:7, cursor:'pointer', fontSize:13, color:C.ink }}>
+                    <input type="checkbox" checked={dekking[o.key]}
+                      onChange={e => setDekking(p => ({ ...p, [o.key]: e.target.checked }))}
+                      style={{ width:16, height:16, accentColor:C.bordeaux, cursor:'pointer' }} />
+                    {o.label}
+                  </label>
+                ))}
+              </div>
+            </div>
           </div>
         </CCard>
 
