@@ -234,7 +234,7 @@ function bouwOverzicht(o) {
   y += slot.length * 5.2 + 10;
 
   // Ondertekening
-  regel("Met vriendelijke groet,", { na: 5.2 });
+  regel("Met vriendelijke groet,", { na: 10.4 });
   regel("Totaal VvE Beheer Den Haag en Omstreken B.V.", { na: 10.4 });
   regel("Nick Sleeking");
 
