@@ -68,21 +68,17 @@ function tekenBriefpapier(doc) {
   });
   hy += 3;
 
-  // Links (website + e-mail), elk op eigen regel, onderstreept, in sjabloonblauw
-  doc.setTextColor(32, 94, 158); // #205E9E
-  doc.setDrawColor(32, 94, 158);
-  doc.setLineWidth(0.15);
+  // Links (website + e-mail), elk op eigen regel, zwart, geen hyperlink
+  doc.setTextColor(35, 31, 32); // #231F20, zelfde kleur als adresblok erboven
   const siteText = "www.totaalvve.nl";
   const emailText = "info@totaalvve.nl";
   const siteBreedte = doc.getTextWidth(siteText);
   const emailBreedte = doc.getTextWidth(emailText);
   const siteX = rechtsRand - siteBreedte;
   const emailX = rechtsRand - emailBreedte;
-  doc.textWithLink(siteText, siteX, hy, { url: "https://www.totaalvve.nl" });
-  doc.line(siteX, hy + 0.8, siteX + siteBreedte, hy + 0.8);
+  doc.text(siteText, siteX, hy);
   hy += 3;
-  doc.textWithLink(emailText, emailX, hy, { url: "mailto:info@totaalvve.nl" });
-  doc.line(emailX, hy + 0.8, emailX + emailBreedte, hy + 0.8);
+  doc.text(emailText, emailX, hy);
 
   // Terug naar standaard tekstkleur voor de rest van het document
   doc.setTextColor(45, 45, 45);
@@ -188,10 +184,10 @@ function bouwOverzicht(o) {
   regel(o.vve ? `Vereniging van Eigenaars: ${o.vve}` : "", { bold: true, size: 11, na: 8 });
   regel(o.notaris_naam);
   regel(o.notaris_adres);
-  regel(o.notaris_postcode_plaats, { na: 9 });
+  regel(o.notaris_postcode_plaats, { na: 14.2 });
 
   // Plaats + datum
-  regel(o.plaats_datum, { na: 9 });
+  regel(o.plaats_datum, { na: 14.2 });
 
   // Betreft
   doc.setFont("helvetica", "bold");
@@ -238,9 +234,9 @@ function bouwOverzicht(o) {
   y += slot.length * 5.2 + 10;
 
   // Ondertekening
-  regel("Met vriendelijke groet,", { na: 20 });
+  regel("Met vriendelijke groet,", { na: 5.2 });
+  regel("Totaal VvE Beheer Den Haag en Omstreken B.V.", { na: 10.4 });
   regel("Nick Sleeking");
-  regel("Totaal VvE Beheer Den-Haag en Omstreken B.V.");
 
   return doc;
 }
