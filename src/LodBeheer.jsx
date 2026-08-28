@@ -203,6 +203,11 @@ function lodFmtDt(iso) {
   if (!iso) return '';
   return new Date(iso).toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
 }
+// Tijdlijn-waarden zijn ofwel een oude plain ISO-string, ofwel {ts, door}.
+// lodTs/lodDoor lezen beide vormen; lodStamp schrijft altijd de nieuwe vorm.
+function lodTs(v) { return typeof v === 'string' ? v : (v?.ts || null); }
+function lodDoor(v) { return typeof v === 'string' ? null : (v?.door || null); }
+function lodStamp(door) { return { ts: lodNow(), door: door || null }; }
 
 function berekenAutoStatus(lod) {
   const s = lod.status;
@@ -232,7 +237,10 @@ function LodStatusBadge({ status }) {
 
 function buildTijdlijn(lod) {
   const events = [];
-  const add = (ts,tekst,kleur) => { if(ts) events.push({ts,tekst,kleur}); };
+  const add = (v,tekst,kleur) => {
+    const ts = lodTs(v);
+    if (ts) events.push({ts, door:lodDoor(v), tekst, kleur});
+  };
   add(lod.tijdlijn?.vveGenotificeerd,          'VvE in kennis gesteld',                C.blauw);
   add(lod.tijdlijn?.vergaderingUitgeschreven,  'Vergadering uitgeschreven',            C.bordeaux);
   (lod.offertes||[]).forEach(o=>{
@@ -312,7 +320,7 @@ function lodExportPDF(lod, eenmaligResult) {
     <tr style="background:${i%2===0?'#fff':'${C.inset}'}"><td>${i+1}</td><td>${o.omschrijving||'-'}</td></tr>`).join('');
 
   const tijdlijnRijen = tijdlijn.map(e=>`
-    <tr><td style="white-space:nowrap;color:${C.tekst2}">${lodFmtDt(e.ts)}</td><td style="color:${e.kleur};font-weight:500">${e.tekst}</td></tr>`).join('');
+    <tr><td style="white-space:nowrap;color:${C.tekst2}">${lodFmtDt(e.ts)}</td><td style="color:${e.kleur};font-weight:500">${e.tekst}</td><td style="color:${C.tekst2}">${e.door||'-'}</td></tr>`).join('');
 
   const voortgangRijen = stappen.map(s=>`
     <tr><td style="color:${s.ok?C.groen:C.tekst3}">${s.ok?'✓':'○'} ${s.lbl}</td></tr>`).join('');
@@ -377,7 +385,7 @@ function lodExportPDF(lod, eenmaligResult) {
     <table><thead><tr><th>Partij</th><th style="text-align:right">Bedrag</th><th style="text-align:center">Aangevraagd</th><th style="text-align:center">Ontvangen</th><th style="text-align:center">VvE voorgelegd</th><th style="text-align:center">VvE akkoord</th><th style="text-align:center">Opdracht</th></tr></thead><tbody>${offerteRijen||'<tr><td colspan=7 style="color:'+C.tekst3+'">Geen offertes</td></tr>'}</tbody></table>
     ${eenmaligHTML}
     <div class="sec">Tijdlijn dossier</div>
-    <table><thead><tr><th>Datum en tijd</th><th>Actie</th></tr></thead><tbody>${tijdlijnRijen||'<tr><td colspan=2 style="color:'+C.tekst3+'">Geen tijdlijn</td></tr>'}</tbody></table>
+    <table><thead><tr><th>Datum en tijd</th><th>Actie</th><th>Door</th></tr></thead><tbody>${tijdlijnRijen||'<tr><td colspan=3 style="color:'+C.tekst3+'">Geen tijdlijn</td></tr>'}</tbody></table>
     <div class="footer"><span>Totaal VvE Beheer Den Haag en omstreken B.V. · Rijswijk</span><span>Last onder Dwangsom module</span></div>
     </body></html>`;
 
@@ -625,7 +633,7 @@ function LodEenmaligTab({ lod, onUpdate }) {
 }
 
 // ── LodKaart ─────────────────────────────────────────────────────
-function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList }) {
+function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList, eigenNaam }) {
   const open = openId===lod.id;
   const dagen = lodDagenTot(lod.deadlineAlgemeen);
   const [tabKaart, setTabKaart] = useState('details');
@@ -642,7 +650,7 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
 
   const toggleCheck = (field, tlKey, value) => {
     const tl = {...(lod.tijdlijn||{})};
-    if (value&&!tl[tlKey]) tl[tlKey] = lodNow();
+    if (value&&!tl[tlKey]) tl[tlKey] = lodStamp(eigenNaam);
     else if (!value) delete tl[tlKey];
     update({[field]:value, tijdlijn:tl});
   };
@@ -656,7 +664,7 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
   const toggleOfferteCheck = (idx, field, tlKey, value) => {
     const offertes = [...(lod.offertes||[])];
     const tl = {...(offertes[idx].tijdlijn||{})};
-    if (value&&!tl[tlKey]) tl[tlKey] = lodNow();
+    if (value&&!tl[tlKey]) tl[tlKey] = lodStamp(eigenNaam);
     else if (!value) delete tl[tlKey];
     offertes[idx] = {...offertes[idx],[field]:value,tijdlijn:tl};
     update({offertes});
@@ -669,7 +677,7 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
   const updOnderdeel= (idx,val) => {const o=[...(lod.onderdelen||[])];o[idx]={...o[idx],omschrijving:val};update({onderdelen:o});};
 
   const markeerAfgerond = () => {
-    const tl = {...(lod.tijdlijn||{}),afgerond:lodNow(),gemeenteBevestigd:lodNow()};
+    const tl = {...(lod.tijdlijn||{}),afgerond:lodStamp(eigenNaam),gemeenteBevestigd:lodStamp(eigenNaam)};
     onUpdate({...lod,status:'afgerond',gemeenteBevestigd:true,tijdlijn:tl});
     setOpenId(null);
   };
@@ -708,9 +716,9 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
             {lod.deadlineAlgemeen&&(
               <span style={{fontSize:11,...(lod.status==='afgerond'?{color:C.tekst3}:lodDeadlineStijl(dagen))}}>
                 Deadline: {new Date(lod.deadlineAlgemeen).toLocaleDateString('nl-NL')}
-                {lod.status==='afgerond'&&lod.tijdlijn?.afgerond&&(
+                {lod.status==='afgerond'&&lodTs(lod.tijdlijn?.afgerond)&&(
                   <span style={{marginLeft:8,color:C.groen,fontWeight:600}}>
-                    Afgerond: {new Date(lod.tijdlijn.afgerond).toLocaleDateString('nl-NL')}
+                    Afgerond: {new Date(lodTs(lod.tijdlijn.afgerond)).toLocaleDateString('nl-NL')}
                   </span>
                 )}
               </span>
@@ -799,7 +807,7 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
                     <Chk checked={!!lod.uitstelAangevraagd} color={C.amber} />
                     <input type="checkbox" checked={!!lod.uitstelAangevraagd} onChange={e=>{
                       const tl = {...(lod.tijdlijn||{})};
-                      if (e.target.checked && !tl.uitstelAangevraagd) tl.uitstelAangevraagd = lodNow();
+                      if (e.target.checked && !tl.uitstelAangevraagd) tl.uitstelAangevraagd = lodStamp(eigenNaam);
                       else if (!e.target.checked) { delete tl.uitstelAangevraagd; delete tl.uitstelGoedgekeurd; }
                       update({uitstelAangevraagd:e.target.checked, uitstelGoedgekeurd: e.target.checked ? lod.uitstelGoedgekeurd : false, tijdlijn:tl});
                     }} style={{display:'none'}} />
@@ -816,7 +824,7 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
                         <Chk checked={!!lod.uitstelGoedgekeurd} color={C.groen} />
                         <input type="checkbox" checked={!!lod.uitstelGoedgekeurd} onChange={e=>{
                           const tl = {...(lod.tijdlijn||{})};
-                          if (e.target.checked && !tl.uitstelGoedgekeurd) tl.uitstelGoedgekeurd = lodNow();
+                          if (e.target.checked && !tl.uitstelGoedgekeurd) tl.uitstelGoedgekeurd = lodStamp(eigenNaam);
                           else if (!e.target.checked) delete tl.uitstelGoedgekeurd;
                           update({uitstelGoedgekeurd:e.target.checked, tijdlijn:tl});
                         }} style={{display:'none'}} />
@@ -931,7 +939,10 @@ function LodKaart({ lod, onUpdate, onDelete, openId, setOpenId, beheerderList })
                     {tijdlijn.map((e,i)=>(
                       <div key={i} style={{position:'relative',marginBottom:16}}>
                         <div style={{position:'absolute',left:-20,top:3,width:10,height:10,borderRadius:'50%',background:e.kleur,border:'2px solid #fff',boxShadow:'0 0 0 2px '+e.kleur}} />
-                        <div style={{fontSize:11,color:C.tekst2,marginBottom:2}}>{lodFmtDt(e.ts)}</div>
+                        <div style={{fontSize:11,color:C.tekst2,marginBottom:2}}>
+                          {lodFmtDt(e.ts)}
+                          {e.door && <span style={{marginLeft:6,padding:'1px 7px',borderRadius:999,background:C.lijnZacht,color:C.tekst2,fontWeight:600,fontSize:10}}>{e.door}</span>}
+                        </div>
                         <div style={{fontSize:13,fontWeight:600,color:e.kleur}}>{e.tekst}</div>
                       </div>
                     ))}
@@ -998,7 +1009,7 @@ function LodKalender({ lods }) {
 
 
 // ── LodBeheer (hoofd-component) ──────────────────────────────────
-export default function LodBeheer({ onTerug, beheerderList }) {
+export default function LodBeheer({ onTerug, beheerderList, eigenNaam }) {
   const [lods, setLods] = useState([]);
   const [openId, setOpenId] = useState(null);
   const [zoek, setZoek] = useState('');
@@ -1236,7 +1247,7 @@ export default function LodBeheer({ onTerug, beheerderList }) {
                   <div style={{fontSize:12}}>{lods.length===0?"Klik op + Nieuwe LOD om te beginnen.":"Probeer een andere zoekterm of filter."}</div>
                 </div>
               ):zichtbaar.map(lod=>(
-                <LodKaart key={lod.id} lod={lod} onUpdate={updateLod} onDelete={()=>deleteLod(lod.id)} openId={openId} setOpenId={setOpenId} beheerderList={beheerderList} />
+                <LodKaart key={lod.id} lod={lod} onUpdate={updateLod} onDelete={()=>deleteLod(lod.id)} openId={openId} setOpenId={setOpenId} beheerderList={beheerderList} eigenNaam={eigenNaam} />
               ))}
             </div>
           </div>

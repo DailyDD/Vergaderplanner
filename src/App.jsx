@@ -2543,7 +2543,7 @@ useEffect(() => {
   if (screen==="notulen") return metShell(<NotulenAssistent onTerug={()=>setScreen("portaal")} />);
   if (screen==="kennisbank") return metShell(<KennisBank onTerug={()=>setScreen("portaal")} />);
   if (screen==="admin") return metShell(<AdminDashboard beheerderList={beheerderList}/>);
-  if (screen==="lod") return metShell(<LodBeheer onTerug={()=>setScreen("portaal")} beheerderList={beheerderList}/>);
+  if (screen==="lod") return metShell(<LodBeheer onTerug={()=>setScreen("portaal")} beheerderList={beheerderList} eigenNaam={eigenNaam}/>);
   if (screen==="calculator") return metShell(<VveCalculator onTerug={()=>setScreen("portaal")} snapshot={calcSnapshot} onSnapshot={setCalcSnapshot}/>);
   if (screen==="offertes") return metShell(<Offertegenerator onTerug={()=>setScreen("portaal")} />);
   if (screen==="overdrachten") return metShell(<Overdrachten onTerug={()=>setScreen("portaal")} beheerder={beheerder}/>);
