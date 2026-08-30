@@ -14,7 +14,7 @@ export function initLodDeps({ sbFetch, showToast, today }) {
 }
 
 // ── Warme kleurconstanten (C-ramp) ──
-const C = {
+export const C = {
   ink: "#2D2D2D", inkSoft: "#3f3d3b", tekst2: "#6B6560", tekst3: "#9B958E",
   bordeaux: "#991A21", bordeauxDonker: "#7A1419", bordeauxTint: "#F6ECEC", bordeauxRand: "#E3C9C9",
   papier: "#F2EFEC", wit: "#FFFFFF", inset: "#FAF8F5",
@@ -141,7 +141,7 @@ async function lodSupaDelete(id) {
   }
 }
 
-function lodDagenTot(deadline) {
+export function lodDagenTot(deadline) {
   if (!deadline) return null;
   const now = new Date(); now.setHours(0,0,0,0);
   return Math.ceil((new Date(deadline) - now) / 86400000);
@@ -199,7 +199,7 @@ export function lodDashboardStats(lods) {
   };
 }
 function lodNow() { return new Date().toISOString(); }
-function lodFmtDt(iso) {
+export function lodFmtDt(iso) {
   if (!iso) return '';
   return new Date(iso).toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
 }
@@ -225,7 +225,7 @@ function berekenAutoStatus(lod) {
   return 'nieuw';
 }
 
-function LodStatusBadge({ status }) {
+export function LodStatusBadge({ status }) {
   const s = LOD_STATUS[status]||LOD_STATUS.nieuw;
   return (
     <span style={{display:'inline-flex',alignItems:'center',gap:5,padding:'3px 9px',borderRadius:999,background:s.bg,color:s.color,fontSize:11,fontWeight:600}}>
@@ -235,7 +235,7 @@ function LodStatusBadge({ status }) {
   );
 }
 
-function buildTijdlijn(lod) {
+export function buildTijdlijn(lod) {
   const events = [];
   const add = (v,tekst,kleur) => {
     const ts = lodTs(v);

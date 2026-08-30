@@ -4,7 +4,8 @@ import VerduurzamingBeheer, { vdDashboardStats } from './VerduurzamingBeheer';
 import NotulenAssistent from './NotulenAssistent_deel2';
 import KennisBank from './KennisBank';
 import VveCalculator from './VveCalculator';
-import LodBeheer, { lodSupaLoad, lodDashboardStats, initLodDeps } from './LodBeheer';
+import LodBeheer, { lodSupaLoad, lodDashboardStats, initLodDeps } from './LodBeheer';
+import LodOverzichtBeheerder from './LodOverzichtBeheerder';
 import Offertegenerator from './Offertegenerator';
 import LevendMJOP, { initMjopDeps } from './LevendMJOP';
 import Overdrachten, { initOverdrachtenDeps, overdrachtenSupaLoad, overdrachtenDashboardStats } from './Overdrachten';
@@ -2366,7 +2367,7 @@ useEffect(() => {
     { key: "vergaderingen", label: "Vergaderplanner", toon: true, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="3" y="4" width="18" height="18" rx="2.5"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>) },
     { key: "calculator", label: "VvE Calculator", toon: true, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="4" y="2" width="16" height="20" rx="2.5"/><path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 19h4"/></svg>) },
     { key: "verduurzaming", label: "Verduurzaming", toon: heeftVerduurzamingToegang, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg>) },
-    { key: "lod", label: "LOD Beheer", toon: heeftLodToegang, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="m10.3 3.2-8.5 14.6A2 2 0 0 0 3.5 21h17a2 2 0 0 0 1.7-3.2L13.7 3.2a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>) },
+    { key: "lod", label: "LOD Beheer", toon: heeftLodToegang || userRol === "beheerder", icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="m10.3 3.2-8.5 14.6A2 2 0 0 0 3.5 21h17a2 2 0 0 0 1.7-3.2L13.7 3.2a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>) },
     { key: "notulen", label: "Notulen Assistent", toon: true /* TIJDELIJK: in aanbouw, voor iedereen zichtbaar met melding. Straks terug naar: isHoofdAdmin || isAdmin || heeftModule('notulen_assistent') */, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M15 13H9M15 17H9M11 9H9"/></svg>) },
     { key: "kennisbank", label: "Kennisbank", toon: true, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>) },
     { key: "mail", label: "E-mail Configurator", toon: true /* TIJDELIJK: in aanbouw, voor iedereen zichtbaar met melding. Straks terug naar: isHoofdAdmin || isAdmin || heeftModule('email_configurator') */, icoon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><rect x="2" y="4" width="20" height="16" rx="2.5"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>) },
@@ -2543,7 +2544,11 @@ useEffect(() => {
   if (screen==="notulen") return metShell(<NotulenAssistent onTerug={()=>setScreen("portaal")} />);
   if (screen==="kennisbank") return metShell(<KennisBank onTerug={()=>setScreen("portaal")} />);
   if (screen==="admin") return metShell(<AdminDashboard beheerderList={beheerderList}/>);
-  if (screen==="lod") return metShell(<LodBeheer onTerug={()=>setScreen("portaal")} beheerderList={beheerderList} eigenNaam={eigenNaam}/>);
+  if (screen==="lod") return metShell(
+    heeftLodToegang
+      ? <LodBeheer onTerug={()=>setScreen("portaal")} beheerderList={beheerderList} eigenNaam={eigenNaam}/>
+      : <LodOverzichtBeheerder onTerug={()=>setScreen("portaal")} eigenNaam={eigenNaam}/>
+  );
   if (screen==="calculator") return metShell(<VveCalculator onTerug={()=>setScreen("portaal")} snapshot={calcSnapshot} onSnapshot={setCalcSnapshot}/>);
   if (screen==="offertes") return metShell(<Offertegenerator onTerug={()=>setScreen("portaal")} />);
   if (screen==="overdrachten") return metShell(<Overdrachten onTerug={()=>setScreen("portaal")} beheerder={beheerder}/>);
