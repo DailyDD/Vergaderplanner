@@ -155,7 +155,7 @@ function parseMjopWorkbook(arrayBuffer) {
 
   header.forEach((h, i) => {
     const hn = normStr(h).toLowerCase();
-    if (hn === "nl/sfb" || hn === "nl sfb" || hn === "sfb") col.nl_sfb = i;
+    if (hn === "nl/sfb" || hn === "nl sfb" || hn === "sfb" || hn === "basiscode") col.nl_sfb = i;
     else if (hn === "element") col.element = i;
     else if (hn === "locatie") col.locatie = i;
     else if (hn === "hoeveelheid") col.hoeveelheid = i;
