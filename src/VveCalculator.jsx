@@ -53,6 +53,7 @@ const Icn = {
   check: (sz=16,clr="currentColor") => <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke={clr} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
   piggy: (sz=16,clr="currentColor") => <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke={clr} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M19 5c-1.5 0-2.8 1.4-3 2-3.5-1.5-11-.3-11 5 0 1.8 0 3 2 4.5V20h4v-2h3v2h4v-4c1-.5 1.7-1 2-2h2v-4h-2c0-1-.5-1.5-1-2"/><path d="M2 9.5a.5.5 0 11 0-1 .5.5 0 010 1z"/></svg>,
   arrowLeft: (sz=16,clr="currentColor") => <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke={clr} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>,
+  trash: (sz=16,clr="currentColor") => <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke={clr} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>,
 }
 
 function calcBuildExploitatieRows(r) {
@@ -392,6 +393,51 @@ export default function VveCalculator({ onTerug, snapshot, onSnapshot }) {
   }
   useEffect(() => () => { if (onSnapshot) onSnapshot(snapshotRef.current) }, [])
 
+  // Wis alles: zet elk veld terug naar zijn beginwaarde (alsof snapshot=null),
+  // en committeert dat meteen ook naar de parent-snapshot — anders overleeft
+  // de oude invoer een module-wissel toch weer via snapshotRef bij unmount.
+  const wisAlles = () => {
+    if (!confirm('Alle ingevulde gegevens in de calculator wissen? Dit kan niet ongedaan worden gemaakt.')) return
+    setComplexNaam('')
+    setHerbouwwaarde('')
+    setMjopTotaal('')
+    setPlanPeriode('10')
+    setVerzekering('')
+    setAdministratie('')
+    setBankkosten('')
+    setOverig('')
+    setExtraKosten([])
+    setReserveHuidigStand('')
+    setReservePeildatum(new Date().toISOString().slice(0, 10))
+    setVerzekeraarNaam('')
+    setDekking({ opstal: false, aansprakelijkheid: false, glas: false, rechtsbijstand: false, bestuurdersaansprakelijkheid: false })
+    setBulkTekst('')
+    setBulkOpen(false)
+    setBulkFout('')
+    setBulkBijdrageTekst('')
+    setBulkBijdrageOpen(false)
+    setBulkBijdrageFout('')
+    setVasteNoemer('')
+    setEenmaligAan(false)
+    setEenmaligItems([{ id: uid(), omschrijving: '', bedrag: '', reserveStand: '', buffer: '2500', kortingAan: false, kortingBedrag: '' }])
+    setRows([
+      { id: uid(), naam: '', teller: '', huidig: '' },
+      { id: uid(), naam: '', teller: '', huidig: '' },
+      { id: uid(), naam: '', teller: '', huidig: '' },
+    ])
+    setResult(null)
+    setError('')
+    setWfBedrag('')
+    setWfLooptijd('120')
+    setWfRente('')
+    setWfResult(null)
+    setWfError('')
+    setPdfFout('')
+    setXlsFout('')
+    setXlsInfo('')
+    if (onSnapshot) onSnapshot(null)
+  }
+
   // PDF-import van presentielijst
   const [pdfBezig, setPdfBezig] = useState(false)
   const [pdfFout,  setPdfFout]  = useState('')
@@ -690,9 +736,14 @@ export default function VveCalculator({ onTerug, snapshot, onSnapshot }) {
             <span style={{ fontSize:14, fontWeight:700, color:C.ink }}>VvE Calculator</span>
           </div>
         </div>
-        <button onClick={onTerug} style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, padding:'6px 12px', background:C.wit, border:'1px solid '+C.lijn, borderRadius:10, color:C.tekst2, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", transition:'all .15s' }}>
-          {Icn.arrowLeft(14, C.tekst2)} Terug naar portaal
-        </button>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <button onClick={wisAlles} title="Alle ingevulde gegevens wissen" style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, padding:'6px 12px', background:C.bordeauxTint, border:'1px solid '+C.bordeauxRand, borderRadius:10, color:C.bordeaux, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", fontWeight:600, transition:'all .15s' }}>
+            {Icn.trash(14, C.bordeaux)} Wis alles
+          </button>
+          <button onClick={onTerug} style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, padding:'6px 12px', background:C.wit, border:'1px solid '+C.lijn, borderRadius:10, color:C.tekst2, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", transition:'all .15s' }}>
+            {Icn.arrowLeft(14, C.tekst2)} Terug naar portaal
+          </button>
+        </div>
       </div>
 
       {/* Tabblad navigatie */}
