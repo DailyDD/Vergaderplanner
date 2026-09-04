@@ -1051,9 +1051,16 @@ function IdeeenTab({ users }) {
 
   async function bewaarStatus(idee, status, reden) {
     try {
+      // Alleen een echte statusovergang meldt zich bij de indiener — alleen de
+      // toelichting aanpassen terwijl de status gelijk blijft triggert niets.
+      // Anonieme ideeën hebben geen indiener om te melden.
+      const statusGewijzigd = status !== idee.status;
       await _sbFetch(`ideeen?id=eq.${idee.id}`, {
         method: "PATCH", headers: { Prefer: "return=representation" },
-        body: JSON.stringify({ status, status_reden: reden || null }),
+        body: JSON.stringify({
+          status, status_reden: reden || null,
+          ...(statusGewijzigd && !idee.anoniem ? { status_ongelezen: true } : {}),
+        }),
       });
       _showToast && _showToast("Status bijgewerkt.", "succes");
       setBewerk(null);

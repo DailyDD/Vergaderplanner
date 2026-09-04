@@ -51,11 +51,13 @@ export function FeedbackOverlay({ actief }) {
     (async () => {
       setLaden(true);
       try {
-        const [berichten, gelezen, enquetes, responses] = await Promise.all([
+        const uid = _getUid ? _getUid() : null;
+        const [berichten, gelezen, enquetes, responses, ideeUpdates] = await Promise.all([
           _sbFetch("berichten?status=eq.gepubliceerd&select=*&order=created_at.asc"),
           _sbFetch("bericht_gelezen?select=bericht_id"),
           _sbFetch("enquetes?status=eq.gepubliceerd&select=*&order=created_at.asc"),
           _sbFetch("enquete_responses?select=enquete_id"),
+          uid ? _sbFetch(`ideeen?ingediend_door=eq.${uid}&status_ongelezen=eq.true&select=*`) : Promise.resolve([]),
         ]);
         const gelezenIds = new Set((gelezen || []).map((g) => g.bericht_id));
         const ingevuldIds = new Set((responses || []).map((r) => r.enquete_id));
@@ -63,6 +65,8 @@ export function FeedbackOverlay({ actief }) {
         const openBerichten = (berichten || [])
           .filter((b) => !gelezenIds.has(b.id) && binnenLooptijd(b))
           .map((b) => ({ soort: "bericht", data: b }));
+
+        const ideeStatusItems = (ideeUpdates || []).map((i) => ({ soort: "idee_status", data: i }));
 
         const openEnquetes = (enquetes || []).filter(
           (e) => !ingevuldIds.has(e.id) && binnenLooptijd(e) && !sessieGesloten.has(e.id)
@@ -76,8 +80,9 @@ export function FeedbackOverlay({ actief }) {
         }
 
         if (!afgebroken) {
-          // Berichten eerst (kort), dan enquêtes (inspanning)
-          setQueue([...openBerichten, ...metVragen]);
+          // Berichten eerst (kort), dan je eigen idee-updates (persoonlijk,
+          // ook kort), dan enquêtes (kost tijd — die laatste in de rij).
+          setQueue([...openBerichten, ...ideeStatusItems, ...metVragen]);
           setIdx(0);
           setLaden(false);
         }
@@ -96,6 +101,8 @@ export function FeedbackOverlay({ actief }) {
 
   return huidig.soort === "bericht" ? (
     <BerichtModal bericht={huidig.data} onKlaar={volgende} />
+  ) : huidig.soort === "idee_status" ? (
+    <IdeeStatusModal idee={huidig.data} onKlaar={volgende} />
   ) : (
     <EnqueteModal enquete={huidig.data} vragen={huidig.vragen} onKlaar={volgende} />
   );
@@ -138,6 +145,61 @@ function BerichtModal({ bericht, onKlaar }) {
               className="h-10 px-5 rounded-lg bg-[#991A21] text-white text-[13px] font-semibold hover:bg-[#7d151b] transition-colors disabled:opacity-50"
             >
               {bezig ? "Even geduld…" : "Gelezen"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
+function IdeeStatusModal({ idee, onKlaar }) {
+  const [bezig, setBezig] = useState(false);
+  const st = IDEE_STATUS[idee.status] || IDEE_STATUS.ontvangen;
+  async function markeerGezien() {
+    setBezig(true);
+    try {
+      await _sbFetch(`ideeen?id=eq.${idee.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status_ongelezen: false }),
+      });
+    } catch (e) {
+      // Netwerkfout: niet blokkeren, komt volgende keer gewoon terug.
+      console.error("idee status_ongelezen", e);
+    }
+    setBezig(false);
+    onKlaar();
+  }
+  return (
+    <Overlay>
+      <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-xl">
+        <div className="h-1.5 bg-[#991A21]" />
+        <div className="p-6">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-[#FBEAEB]">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#991A21" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
+            </span>
+            <span className="text-[11px] font-bold uppercase tracking-wide text-[#991A21]">Update op je idee</span>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap mb-2">
+            <h2 className="text-[17px] font-bold text-[#2D2D2D]">{idee.titel}</h2>
+            <Badge {...st} />
+          </div>
+          <p className="text-[13.5px] text-[#5A5550] leading-relaxed">
+            De status van je idee is gewijzigd naar <strong>{st.label}</strong>.
+          </p>
+          {idee.status_reden && (
+            <p className="text-[12.5px] text-[#5A5550] mt-3 bg-[#FAF8F5] border border-[#F2EFEC] rounded-lg px-3 py-2">
+              <span className="font-semibold">Reactie beheer:</span> {idee.status_reden}
+            </p>
+          )}
+          <div className="flex justify-end mt-6">
+            <button
+              onClick={markeerGezien}
+              disabled={bezig}
+              className="h-10 px-5 rounded-lg bg-[#991A21] text-white text-[13px] font-semibold hover:bg-[#7d151b] transition-colors disabled:opacity-50"
+            >
+              {bezig ? "Even geduld…" : "Gezien"}
             </button>
           </div>
         </div>
