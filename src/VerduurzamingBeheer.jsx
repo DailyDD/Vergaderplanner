@@ -835,16 +835,21 @@ function VveKaart({ vve, onUpdate, onSave, onDelete, openId, setOpenId, beheerde
 
       {open && (
         <div style={{ borderTop: `1px solid ${C.lijn}`, background: C.inset }}>
-          {/* Tabbalk + opslaan */}
-          <div style={{ display: "flex", borderBottom: `1px solid ${C.lijn}`, background: C.wit, paddingLeft: 16, overflowX: "auto", alignItems: "center" }}>
-            {tabs.map(([k, l]) => (
-              <button key={k} onClick={() => setTab(k)} style={{ padding: "10px 14px", border: "none", borderBottom: `2px solid ${tab === k ? C.bordeaux : "transparent"}`, background: "transparent", fontSize: 12.5, fontWeight: tab === k ? 600 : 500, color: tab === k ? C.bordeaux : C.tekst2, cursor: "pointer", whiteSpace: "nowrap" }}>{l}</button>
-            ))}
-            <div style={{ marginLeft: "auto", paddingRight: 12, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-              {heeftWijzigingen && saveStatus !== "saved" && <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, color: C.amber, background: C.amberTint, padding: "3px 9px", borderRadius: 999, fontWeight: 600, border: `1px solid ${C.amberRand}` }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: C.amber }} />Niet opgeslagen</span>}
-              {saveStatus === "error" && <span style={{ fontSize: 10.5, color: C.bordeaux, background: C.bordeauxTint, padding: "3px 9px", borderRadius: 999, fontWeight: 600, border: `1px solid ${C.bordeauxRand}` }}>Opslaan mislukt</span>}
-              <button onClick={opslaanNaarSupabase} disabled={saveStatus === "saving" || (!heeftWijzigingen && saveStatus !== "error")} style={{ padding: "6px 15px", borderRadius: 9, border: "none", fontSize: 12.5, fontWeight: 600, cursor: (saveStatus === "saving" || (!heeftWijzigingen && saveStatus !== "error")) ? "not-allowed" : "pointer", background: saveStatus === "saved" ? C.groenTint : heeftWijzigingen || saveStatus === "error" ? C.bordeaux : C.lijnZacht, color: saveStatus === "saved" ? C.groen : heeftWijzigingen || saveStatus === "error" ? "#fff" : C.tekst3, transition: "all .2s" }}>
-                {saveStatus === "saving" ? "Opslaan…" : saveStatus === "saved" ? "Opgeslagen" : saveStatus === "error" ? "Opnieuw" : "Opslaan"}
+          {/* Tabbalk + opslaan — de opslaan-sectie zit BUITEN de scrollende
+              tabbalk, anders schuift 'ie op smalle schermen mee de kant op
+              en kan de opslaan-status onbereikbaar worden. */}
+          <div style={{ display: "flex", borderBottom: `1px solid ${C.lijn}`, background: C.wit, alignItems: "center" }}>
+            <div style={{ display: "flex", overflowX: "auto", paddingLeft: 16, minWidth: 0, flex: 1 }}>
+              {tabs.map(([k, l]) => (
+                <button key={k} onClick={() => setTab(k)} style={{ padding: "10px 14px", border: "none", borderBottom: `2px solid ${tab === k ? C.bordeaux : "transparent"}`, background: "transparent", fontSize: 12.5, fontWeight: tab === k ? 600 : 500, color: tab === k ? C.bordeaux : C.tekst2, cursor: "pointer", whiteSpace: "nowrap" }}>{l}</button>
+              ))}
+            </div>
+            <div style={{ paddingLeft: 10, paddingRight: 12, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+              {heeftWijzigingen && saveStatus !== "saved" && saveStatus !== "error" && <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: C.amber, background: C.amberTint, padding: "4px 10px", borderRadius: 999, fontWeight: 600, border: `1px solid ${C.amberRand}` }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: C.amber }} />Niet opgeslagen</span>}
+              {saveStatus === "error" && <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: C.bordeaux, background: C.bordeauxTint, padding: "5px 11px", borderRadius: 999, fontWeight: 700, border: `1.5px solid ${C.bordeaux}` }}><Ico.alert width={13} height={13} />Opslaan mislukt</span>}
+              <button onClick={opslaanNaarSupabase} disabled={saveStatus === "saving" || (!heeftWijzigingen && saveStatus !== "error")} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 20px", borderRadius: 9, border: "none", fontSize: 13.5, fontWeight: 700, cursor: (saveStatus === "saving" || (!heeftWijzigingen && saveStatus !== "error")) ? "not-allowed" : "pointer", background: saveStatus === "saved" ? C.groenTint : heeftWijzigingen || saveStatus === "error" ? C.bordeaux : C.lijnZacht, color: saveStatus === "saved" ? C.groen : heeftWijzigingen || saveStatus === "error" ? "#fff" : C.tekst3, transition: "all .2s" }}>
+                {saveStatus === "saved" && <Ico.check width={14} height={14} />}
+                {saveStatus === "saving" ? "Opslaan…" : saveStatus === "saved" ? "Opgeslagen" : saveStatus === "error" ? "Opnieuw proberen" : "Opslaan"}
               </button>
             </div>
           </div>
