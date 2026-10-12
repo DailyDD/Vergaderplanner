@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import { BlokkOpening, BlokkStemgerechtigden, BlokkNotulenVorig, BlokkOnderhoud, BlokkFinancien, BlokkRondvraag, BlokkSluiting, Sectie, Inp, Txa, Sel, Veld, Chk, RadioOptie, CSS_FONT, ROOD, SUPABASE_URL, SUPABASE_ANON, nu, uid } from "./NotulenAssistent_deel1";
+import Presentie, { berekenStemmen } from "./NotulenAssistent_presentie";
+import { exportNotuleWord } from "./NotulenAssistent_export";
 
 // ── Tekstgeneratie op basis van ingevulde data ─────────────────────────────
-function genereerTekst(vergadering, blokken, vrij) {
+function genereerTekst(vergadering, blokken, vrij, owners = []) {
   const lijnen = [];
   const r = (t) => lijnen.push(t);
   const leeg = () => lijnen.push("");
@@ -33,7 +35,13 @@ function genereerTekst(vergadering, blokken, vrij) {
     r(`Tijdens een tweede reglementaire vergadering zoals hier is bedoeld kunnen er, ongeacht het aantal aanwezige stemmen, rechtsgeldige besluiten worden genomen.`);
     leeg();
   }
-  if (st.aanwezig || st.totaal) {
+  // Nieuw: wanneer de presentietabel is ingevuld, wordt de stemmen-passage
+  // automatisch daaruit opgebouwd. Is die leeg, dan val terug op de
+  // handmatige velden in het stemgerechtigden-blok (achterwaarts compatibel).
+  const stem = berekenStemmen(owners);
+  if (stem.aantal > 0) {
+    r(`Er zijn in totaal ${stem.totaal} stemmen. Ter vergadering zijn ${stem.vertegenwoordigd} stemmen aanwezig of vertegenwoordigd${stem.volmacht ? ` (waarvan ${stem.volmacht} bij volmacht)` : ""}, ofwel ${stem.pct}% van het totaal aantal stemmen.`);
+  } else if (st.aanwezig || st.totaal) {
     r(`Aanwezig en/of vertegenwoordigd: ${st.aanwezig || "—"} stemmen${st.vertegenwoordigd ? ` (waarvan ${st.vertegenwoordigd} vertegenwoordigd)` : ""}. Totaal aantal stemmen: ${st.totaal || "—"}.`);
   }
   leeg();
@@ -252,6 +260,7 @@ export default function NotulenAssistent({ onTerug }) {
     onderhoud: {}, financien: {}, rondvraag: { uitkomst: "geen" }, sluiting: {}
   });
   const [vrij, setVrij] = useState([]);
+  const [owners, setOwners] = useState([]);            // ← presentie & volmachten
   const [output, setOutput] = useState("");
   const [gekopieerd, setGekopieerd] = useState(false);
   const [toonOutput, setToonOutput] = useState(false);
@@ -266,7 +275,7 @@ export default function NotulenAssistent({ onTerug }) {
   const delVrij = (id) => setVrij(v => v.filter(p => p.id !== id));
 
   const genereer = () => {
-    const tekst = genereerTekst(vergadering, blokken, vrij);
+    const tekst = genereerTekst(vergadering, blokken, vrij, owners);
     setOutput(tekst);
     setToonOutput(true);
   };
@@ -301,7 +310,13 @@ export default function NotulenAssistent({ onTerug }) {
           <div className="w-px h-5 bg-gray-200" />
           <span className="text-sm font-bold text-[#2D2D2D]">Notulen Assistent</span>
         </div>
-        <button onClick={onTerug} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-gray-600 hover:text-[#991A21] transition-colors">← Terug naar portaal</button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => exportNotuleWord(output, vergadering)} disabled={!output}
+            className="text-xs px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-gray-600 hover:text-[#991A21] hover:border-[#991A21] disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+            ↓ Word (.doc)
+          </button>
+          <button onClick={onTerug} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-gray-600 hover:text-[#991A21] transition-colors">← Terug naar portaal</button>
+        </div>
       </div>
 
       <div className="p-6 max-w-6xl mx-auto">
@@ -313,12 +328,18 @@ export default function NotulenAssistent({ onTerug }) {
             <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-4">
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Vergaderdetails</p>
               <div className="grid grid-cols-1 gap-3">
-                <Veld label="Naam vereniging" required><Inp value={vergadering.naam} onChange={v => setVergadering(d => ({ ...d, naam: v }))} placeholder="bijv. VvE Willem Pijperlaan 36-64" /></Veld>
+                <Veld label="Naam vereniging" required hint="Officiële naam van de VvE zoals in de splitsingsakte."><Inp value={vergadering.naam} onChange={v => setVergadering(d => ({ ...d, naam: v }))} placeholder="bijv. VvE Willem Pijperlaan 36-64" /></Veld>
                 <div className="grid grid-cols-2 gap-3">
-                  <Veld label="Datum vergadering" required><Inp value={vergadering.datum} onChange={v => setVergadering(d => ({ ...d, datum: v }))} placeholder="bijv. 12 mei 2026" /></Veld>
-                  <Veld label="Locatie"><Inp value={vergadering.locatie} onChange={v => setVergadering(d => ({ ...d, locatie: v }))} placeholder="zaal, adres..." /></Veld>
+                  <Veld label="Datum vergadering" required hint="Vergaderdatum. Controleer bij een tweede reglementaire vergadering de oproeptermijn."><Inp value={vergadering.datum} onChange={v => setVergadering(d => ({ ...d, datum: v }))} placeholder="bijv. 12 mei 2026" /></Veld>
+                  <Veld label="Locatie" hint="Vergaderlocatie of digitale vergaderomgeving."><Inp value={vergadering.locatie} onChange={v => setVergadering(d => ({ ...d, locatie: v }))} placeholder="zaal, adres..." /></Veld>
                 </div>
               </div>
+            </div>
+
+            {/* Presentie & volmachten */}
+            <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-4">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Presentie &amp; volmachten</p>
+              <Presentie owners={owners} onChange={setOwners} />
             </div>
 
             {/* Vaste agendapunten */}

@@ -24,8 +24,38 @@ function Sel({ value, onChange, children, className = "" }) {
   return <select value={value} onChange={e => onChange(e.target.value)}
     className={`w-full bg-[#FAF7F2] border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#2D2D2D] focus:outline-none focus:border-[#991A21] transition-colors ${className}`}>{children}</select>;
 }
-function Veld({ label, children, required = false }) {
-  return <div><label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">{label}{required && <span className="text-[#991A21] ml-0.5">*</span>}</label>{children}</div>;
+
+// Klein hulp-icoontje (?) dat bij klikken een korte uitleg toont. Werkt op elk
+// veld via de hint-prop van Veld. (Let op: binnen de inklapbare agendablokken,
+// die overflow-hidden gebruiken, kan de popover worden afgekapt — voor de
+// gewone formuliervelden werkt het probleemloos.)
+function InfoTip({ tekst }) {
+  const [open, setOpen] = useState(false);
+  if (!tekst) return null;
+  return (
+    <span className="relative inline-flex align-middle">
+      <button type="button" onClick={() => setOpen(o => !o)} onBlur={() => setOpen(false)}
+        aria-label="Uitleg"
+        className="w-4 h-4 inline-flex items-center justify-center rounded-full border border-[#991A21] text-[#991A21] text-[10px] font-bold leading-none normal-case hover:bg-[#991A21] hover:text-white transition-colors">?</button>
+      {open && (
+        <span className="absolute left-5 -top-1 z-30 w-56 bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-[11px] font-normal normal-case tracking-normal text-gray-600">
+          {tekst}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function Veld({ label, children, required = false, hint }) {
+  return (
+    <div>
+      <label className="flex items-center gap-1 text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">
+        {label}{required && <span className="text-[#991A21] ml-0.5">*</span>}
+        <InfoTip tekst={hint} />
+      </label>
+      {children}
+    </div>
+  );
 }
 function Chk({ checked, onChange, label }) {
   return <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -103,6 +133,7 @@ function BlokkStemgerechtigden({ data, onChange }) {
         <Veld label="Vertegenwoordigd"><Inp type="number" value={data.vertegenwoordigd || ""} onChange={v => onChange({ ...data, vertegenwoordigd: v })} /></Veld>
         <Veld label="Totaal stemmen"><Inp type="number" value={data.totaal || ""} onChange={v => onChange({ ...data, totaal: v })} placeholder="bijv. 10" /></Veld>
       </div>
+      <p className="text-[11px] text-gray-400">Tip: vul je de presentietabel bovenaan in, dan worden deze velden automatisch overschreven in de notule.</p>
     </div>
   );
 }
@@ -329,4 +360,4 @@ function BlokkSluiting({ data, onChange }) {
   );
 }
 
-export { BlokkOpening, BlokkStemgerechtigden, BlokkNotulenVorig, BlokkOnderhoud, BlokkFinancien, BlokkRondvraag, BlokkSluiting, Sectie, Inp, Txa, Sel, Veld, Chk, RadioOptie, CSS_FONT, ROOD, SUPABASE_URL, SUPABASE_ANON, nu, uid };
+export { BlokkOpening, BlokkStemgerechtigden, BlokkNotulenVorig, BlokkOnderhoud, BlokkFinancien, BlokkRondvraag, BlokkSluiting, Sectie, Inp, Txa, Sel, Veld, Chk, RadioOptie, InfoTip, CSS_FONT, ROOD, SUPABASE_URL, SUPABASE_ANON, nu, uid };
