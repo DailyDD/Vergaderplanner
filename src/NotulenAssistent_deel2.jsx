@@ -32,7 +32,7 @@ function genereerTekst(vergadering, blokken, vrij, owners = [], gekozen = {}) {
   const heeftInhoud = (p) => p.titel && p.titel.trim() && ((p.besproken || "").trim() || (p.besluit || "").trim());
   const vrijePunten = (plaats) => (vrij || []).filter(p => heeftInhoud(p) && (p.plaats || "financien") === plaats);
   const vrijBlok = (p) => {
-    kop(p.titel.trim().toUpperCase());
+    kop(p.titel.trim());
     if ((p.besproken || "").trim()) r(p.besproken.trim());
     if ((p.besluit || "").trim()) {
       if ((p.besproken || "").trim()) leeg();
@@ -75,16 +75,18 @@ function genereerTekst(vergadering, blokken, vrij, owners = [], gekozen = {}) {
     teksten.forEach((t) => { r(t); leeg(); });
   };
 
-  r(`NOTULEN VERGADERING`);
+  const tweede = (blokken.stemgerechtigden || {}).type === "tweede";
+  r(`Notulen ${tweede ? "Tweede Reglementaire Vergadering" : "Algemene Ledenvergadering"}`);
+  leeg();
   r(`Vereniging : ${vergadering.naam || "[NAAM VERENIGING]"}`);
   r(`Datum      : ${vergadering.datum || "[DATUM]"}`);
-  r(`Locatie    : ${vergadering.locatie || "[LOCATIE]"}`);
+  r(`Plaats     : ${vergadering.locatie || "[LOCATIE]"}`);
   leeg();
   r(`─────────────────────────────────────────────────────────`);
   leeg();
 
   // 1. Opening | Mededelingen | Ingekomen stukken (incl. vaststellen stemgerechtigden)
-  kop(`OPENING | MEDEDELINGEN | INGEKOMEN STUKKEN`);
+  kop(`Opening | Mededelingen | Ingekomen stukken`);
   const op = blokken.opening || {};
   if (op.voorzitter) r(`De vergadering wordt geopend door de voorzitter, ${op.voorzitter}.`);
   if (vergadering.naam) r(`Totaal VvE Beheer Den Haag en omstreken B.V. is aangenomen als bestuurder van ${vergadering.naam}; een formaliteit.`);
@@ -112,7 +114,7 @@ function genereerTekst(vergadering, blokken, vrij, owners = [], gekozen = {}) {
   leeg();
 
   // 2. Algemene mededelingen van de bestuurder (administrateur)
-  kop(`ALGEMENE MEDEDELINGEN VAN DE BESTUURDER (ADMINISTRATEUR)`);
+  kop(`Algemene mededelingen van de bestuurder (administrateur)`);
   const md = blokken.mededelingen || {};
   if (md.totaalPortaal) r(`De bestuurder licht het gebruik van het Totaal Portaal toe, waaronder het (digitaal) indienen van reparatiemeldingen door de eigenaars.`);
   if (md.extra && md.extra.trim()) {
@@ -120,7 +122,7 @@ function genereerTekst(vergadering, blokken, vrij, owners = [], gekozen = {}) {
   }
 
   // 3. Vaststellen Raad van Toezicht | Technische commissie | Kascommissie
-  kop(`VASTSTELLEN RAAD VAN TOEZICHT | TECHNISCHE COMMISSIE | KASCOMMISSIE`);
+  kop(`Vaststellen Raad van Toezicht | Technische commissie | Kascommissie`);
   const co = blokken.commissies || {};
   const commissieRegel = (d, naam) => {
     const status = d && d.status;
@@ -135,14 +137,14 @@ function genereerTekst(vergadering, blokken, vrij, owners = [], gekozen = {}) {
   commissieRegel(co.kc, "Kascommissie");
 
   // 4. Vaststellen notulen vorige vergadering
-  kop(`VASTSTELLEN NOTULEN VORIGE VERGADERING${blokken.notulenVorig?.datum ? ` | ${blokken.notulenVorig.datum}` : ""}`);
+  kop(`Vaststellen notulen vorige vergadering${blokken.notulenVorig?.datum ? ` | ${blokken.notulenVorig.datum}` : ""}`);
   const nv = blokken.notulenVorig || {};
   if (nv.uitkomst === "vastgesteld") r(`De vergadering stelt de notulen van de vorige vergadering${nv.datum ? ` d.d. ${nv.datum}` : ""} vast.`);
   else if (nv.uitkomst === "aanpassingen") r(`De notulen van de vorige vergadering${nv.datum ? ` d.d. ${nv.datum}` : ""} worden na aanpassingen${nv.aanpassingen ? ` (${nv.aanpassingen})` : ""} vastgesteld.`);
   leeg();
 
   // 5. Onderhoud gebouw
-  kop(`ONDERHOUD GEBOUW`);
+  kop(`Onderhoud gebouw`);
   const on = blokken.onderhoud || {};
 
   // MJOP
@@ -189,7 +191,7 @@ function genereerTekst(vergadering, blokken, vrij, owners = [], gekozen = {}) {
   vrijePunten("onderhoud").forEach(vrijBlok);
 
   // 6. Financiën | Verzekeringen
-  kop(`FINANCIËN | VERZEKERINGEN`);
+  kop(`Financiën | Verzekeringen`);
   const fi = blokken.financien || {};
 
   if (fi.bijdrageKeuze === "verhogen") {
@@ -249,7 +251,7 @@ function genereerTekst(vergadering, blokken, vrij, owners = [], gekozen = {}) {
   vrijePunten("financien").forEach(vrijBlok);
 
   // Rondvraag
-  kop(`RONDVRAAG`);
+  kop(`Rondvraag`);
   const rv = blokken.rondvraag || {};
   if (rv.uitkomst === "geen") r(`Geen.`);
   else if (rv.uitkomst === "beantwoord") r(`De bestuurder beantwoordt de vragen naar tevredenheid van de eigenaars.`);
@@ -257,7 +259,7 @@ function genereerTekst(vergadering, blokken, vrij, owners = [], gekozen = {}) {
   leeg();
 
   // Sluiting
-  kop(`VASTSTELLEN NIEUWE VERGADERING | SLUITING`);
+  kop(`Vaststellen nieuwe vergadering | Sluiting`);
   const sl = blokken.sluiting || {};
   if (sl.datum) r(`De volgende vergadering wordt vastgesteld op ${sl.datum}${sl.locatie ? `, ${sl.locatie}` : ""}.`);
   r(`De vergadering wordt gesloten.`);
@@ -397,7 +399,7 @@ export default function NotulenAssistent({ onTerug }) {
         <div className="flex items-center gap-2">
           <button onClick={() => exportNotuleWord(output, vergadering)} disabled={!output}
             className="text-xs px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-gray-600 hover:text-[#991A21] hover:border-[#991A21] disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-            ↓ Word (.doc)
+            ↓ Word (.docx)
           </button>
           <button onClick={onTerug} className="text-xs px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-gray-600 hover:text-[#991A21] transition-colors">← Terug naar portaal</button>
         </div>
