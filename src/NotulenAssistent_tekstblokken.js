@@ -38,6 +38,7 @@ export const TEKSTBLOKKEN = [
     id: "tweede-reglementaire",
     agendapunt: "stemgerechtigden",
     titel: "Tweede reglementaire vergadering",
+    staatInApp: true,
     tekst:
       "Tijdens een tweede reglementaire vergadering zoals hier is bedoeld kunnen er, ongeacht het aantal aanwezige stemmen, rechtsgeldige besluiten worden genomen.",
     letOp:

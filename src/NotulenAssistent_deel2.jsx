@@ -3,12 +3,14 @@ import { BlokkOpening, BlokkStemgerechtigden, BlokkMededelingen, BlokkCommissies
 import Presentie, { berekenStemmen } from "./NotulenAssistent_presentie";
 import { exportNotuleWord } from "./NotulenAssistent_export";
 import Acties from "./NotulenAssistent_acties";
+import Bibliotheek, { tekstVanKeuze } from "./NotulenAssistent_bibliotheek";
+import { blokVolgensId, openVelden } from "./NotulenAssistent_tekstblokken";
 
 // ── Tekstgeneratie op basis van ingevulde data ─────────────────────────────
 // De agenda volgt de vaste 8-punts indeling van Totaal VvE Beheer. De nummering
 // wordt dynamisch opgebouwd (kop()), zodat extra agendapunten vanzelf meetellen
 // en er nooit een hardgecodeerd nummer scheef kan lopen.
-function genereerTekst(vergadering, blokken, vrij, owners = []) {
+function genereerTekst(vergadering, blokken, vrij, owners = [], gekozen = {}) {
   const lijnen = [];
   const r = (t) => lijnen.push(t);
   const leeg = () => lijnen.push("");
@@ -46,6 +48,31 @@ function genereerTekst(vergadering, blokken, vrij, owners = []) {
       r(regel);
     }
     leeg();
+  };
+
+  // TVB-tekstbibliotheek: gekozen blokken per agendapunt. Een blok dat "altijdMet"
+  // een ander blok heeft (bijv. de opmerking over de Akte van Splitsing) krijgt dat
+  // blok er één keer achter, ook als er meerdere blokken gekozen zijn.
+  const bibliotheek = (sleutel) => {
+    const keuzes = (gekozen && gekozen[sleutel]) || [];
+    if (!keuzes.length) return;
+    if (lijnen.length && lijnen[lijnen.length - 1] !== "") leeg();
+    const teksten = [];
+    const alGekozen = new Set(keuzes.map(k => k.blokId));
+    const extraIds = [];
+    keuzes.forEach((k) => {
+      const t = tekstVanKeuze(k);
+      if (t) teksten.push(t);
+      const blok = blokVolgensId(k.blokId);
+      if (blok && blok.altijdMet && !alGekozen.has(blok.altijdMet) && !extraIds.includes(blok.altijdMet)) {
+        extraIds.push(blok.altijdMet);
+      }
+    });
+    extraIds.forEach((id) => {
+      const b = blokVolgensId(id);
+      if (b) teksten.push(tekstVanKeuze({ blokId: id, waarden: {} }));
+    });
+    teksten.forEach((t) => { r(t); leeg(); });
   };
 
   r(`NOTULEN VERGADERING`);
@@ -156,6 +183,8 @@ function genereerTekst(vergadering, blokken, vrij, owners = []) {
     leeg();
   }
 
+  bibliotheek("onderhoud");
+
   // Extra agendapunten die de beheerder na Onderhoud heeft geplaatst
   vrijePunten("onderhoud").forEach(vrijBlok);
 
@@ -164,7 +193,7 @@ function genereerTekst(vergadering, blokken, vrij, owners = []) {
   const fi = blokken.financien || {};
 
   if (fi.bijdrageKeuze === "verhogen") {
-    r(`De vergadering beslist met algemene stemmen de (huidige) maandelijkse bijdrage ad. € ${fi.bijdrageHuidig || "[HUIDIG]"} per appartementsrecht per 1 ${fi.bijdrageDatum || "[DATUM]"} te verhogen naar € ${fi.bijdrageNieuw || "[NIEUW]"}.`);
+    r(`De vergadering beslist met algemene stemmen de (huidige) maandelijkse bijdrage ad. € ${fi.bijdrageHuidig || "[HUIDIG]"} per appartementsrecht per ${fi.bijdrageDatum || "[DATUM]"} te verhogen naar € ${fi.bijdrageNieuw || "[NIEUW]"}.`);
     if ((fi.bijdragen || []).length > 0) {
       leeg();
       r(`Maandelijkse bijdragen | ${fi.bijdrageDatum || "[DATUM]"}`);
@@ -213,6 +242,8 @@ function genereerTekst(vergadering, blokken, vrij, owners = []) {
     r(`Het incassomandaat wordt vastgesteld (herhaling).`);
     leeg();
   }
+
+  bibliotheek("financien");
 
   // Extra agendapunten die na Financiën zijn geplaatst (standaard)
   vrijePunten("financien").forEach(vrijBlok);
@@ -303,6 +334,7 @@ export default function NotulenAssistent({ onTerug }) {
   });
   const [vrij, setVrij] = useState([]);
   const [owners, setOwners] = useState([]);            // ← presentie & volmachten
+  const [gekozen, setGekozen] = useState({ onderhoud: [], financien: [] });   // ← TVB-tekstbibliotheek
   const [tab, setTab] = useState("notule");             // "notule" | "acties"
   const [output, setOutput] = useState("");
   const [gekopieerd, setGekopieerd] = useState(false);
@@ -315,7 +347,7 @@ export default function NotulenAssistent({ onTerug }) {
   const delVrij = (id) => setVrij(v => v.filter(p => p.id !== id));
 
   const genereer = () => {
-    const tekst = genereerTekst(vergadering, blokken, vrij, owners);
+    const tekst = genereerTekst(vergadering, blokken, vrij, owners, gekozen);
     setOutput(tekst);
     setToonOutput(true);
   };
@@ -332,8 +364,18 @@ export default function NotulenAssistent({ onTerug }) {
     { key: "mededelingen", nr: "2", titel: "Algemene mededelingen bestuurder", comp: <BlokkMededelingen data={blokken.mededelingen} onChange={v => updBlok("mededelingen", v)} /> },
     { key: "commissies", nr: "3", titel: "Raad van Toezicht | Technische commissie | Kascommissie", comp: <BlokkCommissies data={blokken.commissies} onChange={v => updBlok("commissies", v)} /> },
     { key: "notulenVorig", nr: "4", titel: "Vaststellen notulen vorige vergadering", comp: <BlokkNotulenVorig data={blokken.notulenVorig} onChange={v => updBlok("notulenVorig", v)} /> },
-    { key: "onderhoud", nr: "5", titel: "Onderhoud gebouw", comp: <BlokkOnderhoud data={blokken.onderhoud} onChange={v => updBlok("onderhoud", v)} /> },
-    { key: "financien", nr: "6", titel: "Financiën | Verzekeringen", comp: <BlokkFinancien data={blokken.financien} onChange={v => updBlok("financien", v)} /> },
+    { key: "onderhoud", nr: "5", titel: "Onderhoud gebouw", comp: (
+      <div className="space-y-5">
+        <BlokkOnderhoud data={blokken.onderhoud} onChange={v => updBlok("onderhoud", v)} />
+        <Bibliotheek agendapunten={["onderhoud", "mandaat"]} keuzes={gekozen.onderhoud} onChange={v => setGekozen(g => ({ ...g, onderhoud: v }))} />
+      </div>
+    ) },
+    { key: "financien", nr: "6", titel: "Financiën | Verzekeringen", comp: (
+      <div className="space-y-5">
+        <BlokkFinancien data={blokken.financien} onChange={v => updBlok("financien", v)} />
+        <Bibliotheek agendapunten={["financien", "verzekeringen"]} keuzes={gekozen.financien} onChange={v => setGekozen(g => ({ ...g, financien: v }))} />
+      </div>
+    ) },
     { key: "rondvraag", nr: "7", titel: "Rondvraag", comp: <BlokkRondvraag data={blokken.rondvraag} onChange={v => updBlok("rondvraag", v)} /> },
     { key: "sluiting", nr: "8", titel: "Vaststellen nieuwe vergadering | Sluiting", comp: <BlokkSluiting data={blokken.sluiting} onChange={v => updBlok("sluiting", v)} /> },
   ];
@@ -442,6 +484,12 @@ export default function NotulenAssistent({ onTerug }) {
                 </button>
               )}
             </div>
+            {output && openVelden(output).length > 0 && (
+              <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-[11px] text-amber-700 leading-snug">
+                Let op: nog {openVelden(output).length} invulveld{openVelden(output).length === 1 ? "" : "en"} niet ingevuld:{" "}
+                {openVelden(output).map(v => `[${v}]`).join(", ")}. Vul ze in of pas de tekst hieronder aan voordat je de notule gebruikt.
+              </div>
+            )}
             {!output ? (
               <div className="flex-1 flex items-center justify-center">
                 <div className="text-center text-gray-400">
