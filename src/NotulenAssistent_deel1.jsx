@@ -138,6 +138,57 @@ function BlokkStemgerechtigden({ data, onChange }) {
   );
 }
 
+// Agendapunt 2: Algemene mededelingen van de bestuurder (administrateur)
+function BlokkMededelingen({ data, onChange }) {
+  return (
+    <div className="space-y-4">
+      <Chk
+        checked={!!data.totaalPortaal}
+        onChange={v => onChange({ ...data, totaalPortaal: v })}
+        label="Totaal Portaal en (digitale) reparatiemeldingen toegelicht"
+      />
+      <Veld label="Overige mededelingen bestuurder" hint="Eén mededeling per regel. Elke regel komt als aparte alinea in de notule.">
+        <Txa value={data.extra || ""} onChange={v => onChange({ ...data, extra: v })} placeholder="Optioneel — bijv. wijziging contactpersoon, aankondiging onderhoud…" rows={3} />
+      </Veld>
+    </div>
+  );
+}
+
+// Agendapunt 3: Vaststellen Raad van Toezicht | Technische commissie | Kascommissie
+function CommissieRij({ naam, data, onChange }) {
+  const d = data || {};
+  const set = (veld, val) => onChange({ ...d, [veld]: val });
+  return (
+    <div className="bg-[#FAF7F2] rounded-xl p-4 space-y-3">
+      <p className="text-xs font-bold text-[#2D2D2D]">{naam}</p>
+      <div className="flex gap-2 flex-wrap">
+        <RadioOptie actief={!d.status || d.status === "niet"} label="Niet behandeld" onClick={() => set("status", "niet")} />
+        <RadioOptie actief={d.status === "herkozen"} label="Herkozen" onClick={() => set("status", "herkozen")} />
+        <RadioOptie actief={d.status === "nieuw"} label="Nieuw gekozen" onClick={() => set("status", "nieuw")} />
+        <RadioOptie actief={d.status === "vacature"} label="Vacature" onClick={() => set("status", "vacature")} />
+      </div>
+      {(d.status === "herkozen" || d.status === "nieuw") && (
+        <Veld label="Leden (namen)" hint="Namen zoals ze in de notule moeten komen, bijvoorbeeld door komma's gescheiden.">
+          <Inp value={d.namen || ""} onChange={v => set("namen", v)} placeholder="bijv. A. Jansen, B. de Vries" />
+        </Veld>
+      )}
+    </div>
+  );
+}
+function BlokkCommissies({ data, onChange }) {
+  const d = data || {};
+  return (
+    <div className="space-y-4">
+      <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-[11px] text-amber-700">
+        Let op: de formuleringen van dit agendapunt zijn concept en nog niet door Totaal VvE Beheer vastgesteld. Controleer de tekst in de notule.
+      </div>
+      <CommissieRij naam="Raad van Toezicht (RvT)" data={d.rvt} onChange={v => onChange({ ...d, rvt: v })} />
+      <CommissieRij naam="Technische commissie (TC)" data={d.tc} onChange={v => onChange({ ...d, tc: v })} />
+      <CommissieRij naam="Kascommissie (KC)" data={d.kc} onChange={v => onChange({ ...d, kc: v })} />
+    </div>
+  );
+}
+
 // Blok 3: Notulen vorige vergadering
 function BlokkNotulenVorig({ data, onChange }) {
   return (
@@ -239,7 +290,6 @@ function BlokkOnderhoud({ data, onChange }) {
             <Veld label="Omschrijving werkzaamheden" ><Inp value={data.mandaatOmschrijving || ""} onChange={v => onChange({ ...data, mandaatOmschrijving: v })} placeholder="omschrijving" /></Veld>
           </div>
         )}
-        <Chk checked={!!data.commissie} onChange={v => onChange({ ...data, commissie: v })} label="Interne commissie vastgesteld / herhaald" />
       </div>
     </div>
   );
@@ -360,4 +410,4 @@ function BlokkSluiting({ data, onChange }) {
   );
 }
 
-export { BlokkOpening, BlokkStemgerechtigden, BlokkNotulenVorig, BlokkOnderhoud, BlokkFinancien, BlokkRondvraag, BlokkSluiting, Sectie, Inp, Txa, Sel, Veld, Chk, RadioOptie, InfoTip, CSS_FONT, ROOD, SUPABASE_URL, SUPABASE_ANON, nu, uid };
+export { BlokkOpening, BlokkStemgerechtigden, BlokkMededelingen, BlokkCommissies, BlokkNotulenVorig, BlokkOnderhoud, BlokkFinancien, BlokkRondvraag, BlokkSluiting, Sectie, Inp, Txa, Sel, Veld, Chk, RadioOptie, InfoTip, CSS_FONT, ROOD, SUPABASE_URL, SUPABASE_ANON, nu, uid };

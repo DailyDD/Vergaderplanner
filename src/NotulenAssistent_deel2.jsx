@@ -1,14 +1,52 @@
 import React, { useState } from "react";
-import { BlokkOpening, BlokkStemgerechtigden, BlokkNotulenVorig, BlokkOnderhoud, BlokkFinancien, BlokkRondvraag, BlokkSluiting, Sectie, Inp, Txa, Sel, Veld, Chk, RadioOptie, CSS_FONT, ROOD, SUPABASE_URL, SUPABASE_ANON, nu, uid } from "./NotulenAssistent_deel1";
+import { BlokkOpening, BlokkStemgerechtigden, BlokkMededelingen, BlokkCommissies, BlokkNotulenVorig, BlokkOnderhoud, BlokkFinancien, BlokkRondvraag, BlokkSluiting, Sectie, Inp, Txa, Sel, Veld, Chk, RadioOptie, CSS_FONT, ROOD, SUPABASE_URL, SUPABASE_ANON, nu, uid } from "./NotulenAssistent_deel1";
 import Presentie, { berekenStemmen } from "./NotulenAssistent_presentie";
 import { exportNotuleWord } from "./NotulenAssistent_export";
 import Acties from "./NotulenAssistent_acties";
 
 // ── Tekstgeneratie op basis van ingevulde data ─────────────────────────────
+// De agenda volgt de vaste 8-punts indeling van Totaal VvE Beheer. De nummering
+// wordt dynamisch opgebouwd (kop()), zodat extra agendapunten vanzelf meetellen
+// en er nooit een hardgecodeerd nummer scheef kan lopen.
 function genereerTekst(vergadering, blokken, vrij, owners = []) {
   const lijnen = [];
   const r = (t) => lijnen.push(t);
   const leeg = () => lijnen.push("");
+
+  let nr = 0;
+  const kop = (titel) => {
+    if (lijnen.length && lijnen[lijnen.length - 1] !== "") leeg();
+    r(`${++nr}.  ${titel}`);
+    leeg();
+  };
+
+  // Extra agendapunt: besproken + besluit + uitkomst stemming (zonder AI).
+  const STEM_TEKST = {
+    algemeen: "Aangenomen met algemene stemmen.",
+    meerderheid: "Aangenomen met meerderheid van stemmen",
+    verworpen: "Niet aangenomen",
+    aangehouden: "Aangehouden; het voorstel wordt niet in stemming gebracht.",
+  };
+  const heeftInhoud = (p) => p.titel && p.titel.trim() && ((p.besproken || "").trim() || (p.besluit || "").trim());
+  const vrijePunten = (plaats) => (vrij || []).filter(p => heeftInhoud(p) && (p.plaats || "financien") === plaats);
+  const vrijBlok = (p) => {
+    kop(p.titel.trim().toUpperCase());
+    if ((p.besproken || "").trim()) r(p.besproken.trim());
+    if ((p.besluit || "").trim()) {
+      if ((p.besproken || "").trim()) leeg();
+      r(`Besluit: ${p.besluit.trim()}`);
+      const u = p.uitkomst || "algemeen";
+      let regel = STEM_TEKST[u] || STEM_TEKST.algemeen;
+      const { voor, tegen, onthouding } = p;
+      const heeftTelling = [voor, tegen, onthouding].some(x => x !== undefined && x !== "" && x !== null);
+      if ((u === "meerderheid" || u === "verworpen") && heeftTelling) {
+        regel += ` (${voor || 0} voor, ${tegen || 0} tegen, ${onthouding || 0} onthouding)`;
+      }
+      if (u === "meerderheid" || u === "verworpen") regel += ".";
+      r(regel);
+    }
+    leeg();
+  };
 
   r(`NOTULEN VERGADERING`);
   r(`Vereniging : ${vergadering.naam || "[NAAM VERENIGING]"}`);
@@ -18,46 +56,66 @@ function genereerTekst(vergadering, blokken, vrij, owners = []) {
   r(`─────────────────────────────────────────────────────────`);
   leeg();
 
-  // 1. Opening
-  r(`1.  OPENING | MEDEDELINGEN | INGEKOMEN STUKKEN`);
-  leeg();
+  // 1. Opening | Mededelingen | Ingekomen stukken (incl. vaststellen stemgerechtigden)
+  kop(`OPENING | MEDEDELINGEN | INGEKOMEN STUKKEN`);
   const op = blokken.opening || {};
   if (op.voorzitter) r(`De vergadering wordt geopend door de voorzitter, ${op.voorzitter}.`);
   if (vergadering.naam) r(`Totaal VvE Beheer Den Haag en omstreken B.V. is aangenomen als bestuurder van ${vergadering.naam}; een formaliteit.`);
   if (op.avg === "akkoord") r(`De vergadering gaat akkoord met het delen van persoonsgegevens conform de AVG.`);
   if (op.email === "akkoord") r(`De vergadering stemt in met verzending van correspondentie per e-mail en het delen van contactgegevens van eigenaren onderling (Cc).`);
-  leeg();
 
-  // 2. Stemgerechtigden
-  r(`2.  VASTSTELLEN AANTAL STEMGERECHTIGDEN LEDEN`);
-  leeg();
+  // Vaststellen aantal stemgerechtigden — onderdeel van agendapunt 1.
+  // Is de presentietabel ingevuld, dan wordt de stemmen-passage daaruit
+  // opgebouwd. Is die leeg, dan val terug op de handmatige velden.
   const st = blokken.stemgerechtigden || {};
-  if (st.type === "tweede") {
-    r(`Tijdens een tweede reglementaire vergadering zoals hier is bedoeld kunnen er, ongeacht het aantal aanwezige stemmen, rechtsgeldige besluiten worden genomen.`);
-    leeg();
-  }
-  // Nieuw: wanneer de presentietabel is ingevuld, wordt de stemmen-passage
-  // automatisch daaruit opgebouwd. Is die leeg, dan val terug op de
-  // handmatige velden in het stemgerechtigden-blok (achterwaarts compatibel).
   const stem = berekenStemmen(owners);
-  if (stem.aantal > 0) {
-    r(`Er zijn in totaal ${stem.totaal} stemmen. Ter vergadering zijn ${stem.vertegenwoordigd} stemmen aanwezig of vertegenwoordigd${stem.volmacht ? ` (waarvan ${stem.volmacht} bij volmacht)` : ""}, ofwel ${stem.pct}% van het totaal aantal stemmen.`);
-  } else if (st.aanwezig || st.totaal) {
-    r(`Aanwezig en/of vertegenwoordigd: ${st.aanwezig || "—"} stemmen${st.vertegenwoordigd ? ` (waarvan ${st.vertegenwoordigd} vertegenwoordigd)` : ""}. Totaal aantal stemmen: ${st.totaal || "—"}.`);
+  const heeftStemInfo = stem.aantal > 0 || st.aanwezig || st.totaal || st.type === "tweede";
+  if (heeftStemInfo) {
+    leeg();
+    if (st.type === "tweede") {
+      r(`Tijdens een tweede reglementaire vergadering zoals hier is bedoeld kunnen er, ongeacht het aantal aanwezige stemmen, rechtsgeldige besluiten worden genomen.`);
+      leeg();
+    }
+    if (stem.aantal > 0) {
+      r(`Er zijn in totaal ${stem.totaal} stemmen. Ter vergadering zijn ${stem.vertegenwoordigd} stemmen aanwezig of vertegenwoordigd${stem.volmacht ? ` (waarvan ${stem.volmacht} bij volmacht)` : ""}, ofwel ${stem.pct}% van het totaal aantal stemmen.`);
+    } else if (st.aanwezig || st.totaal) {
+      r(`Aanwezig en/of vertegenwoordigd: ${st.aanwezig || "—"} stemmen${st.vertegenwoordigd ? ` (waarvan ${st.vertegenwoordigd} vertegenwoordigd)` : ""}. Totaal aantal stemmen: ${st.totaal || "—"}.`);
+    }
   }
   leeg();
 
-  // 3. Notulen vorige vergadering
-  r(`3.  VASTSTELLEN NOTULEN VORIGE VERGADERING${blokken.notulenVorig?.datum ? ` | ${blokken.notulenVorig.datum}` : ""}`);
-  leeg();
+  // 2. Algemene mededelingen van de bestuurder (administrateur)
+  kop(`ALGEMENE MEDEDELINGEN VAN DE BESTUURDER (ADMINISTRATEUR)`);
+  const md = blokken.mededelingen || {};
+  if (md.totaalPortaal) r(`De bestuurder licht het gebruik van het Totaal Portaal toe, waaronder het (digitaal) indienen van reparatiemeldingen door de eigenaars.`);
+  if (md.extra && md.extra.trim()) {
+    md.extra.split(/\n+/).map(s => s.trim()).filter(Boolean).forEach(regel => r(regel));
+  }
+
+  // 3. Vaststellen Raad van Toezicht | Technische commissie | Kascommissie
+  kop(`VASTSTELLEN RAAD VAN TOEZICHT | TECHNISCHE COMMISSIE | KASCOMMISSIE`);
+  const co = blokken.commissies || {};
+  const commissieRegel = (d, naam) => {
+    const status = d && d.status;
+    if (!status || status === "niet") return;
+    const namen = ((d && d.namen) || "").trim();
+    if (status === "herkozen") r(`De ${naam} wordt herkozen in de huidige samenstelling${namen ? `: ${namen}` : ""}.`);
+    else if (status === "nieuw") r(`Tot leden van de ${naam} worden gekozen: ${namen || "[NAMEN]"}.`);
+    else if (status === "vacature") r(`De ${naam} kent op dit moment geen leden; de vergadering roept eigenaars op zich kandidaat te stellen.`);
+  };
+  commissieRegel(co.rvt, "Raad van Toezicht");
+  commissieRegel(co.tc, "Technische commissie");
+  commissieRegel(co.kc, "Kascommissie");
+
+  // 4. Vaststellen notulen vorige vergadering
+  kop(`VASTSTELLEN NOTULEN VORIGE VERGADERING${blokken.notulenVorig?.datum ? ` | ${blokken.notulenVorig.datum}` : ""}`);
   const nv = blokken.notulenVorig || {};
   if (nv.uitkomst === "vastgesteld") r(`De vergadering stelt de notulen van de vorige vergadering${nv.datum ? ` d.d. ${nv.datum}` : ""} vast.`);
   else if (nv.uitkomst === "aanpassingen") r(`De notulen van de vorige vergadering${nv.datum ? ` d.d. ${nv.datum}` : ""} worden na aanpassingen${nv.aanpassingen ? ` (${nv.aanpassingen})` : ""} vastgesteld.`);
   leeg();
 
-  // 4. Onderhoud
-  r(`4.  ONDERHOUD GEBOUW`);
-  leeg();
+  // 5. Onderhoud gebouw
+  kop(`ONDERHOUD GEBOUW`);
   const on = blokken.onderhoud || {};
 
   // MJOP
@@ -97,14 +155,12 @@ function genereerTekst(vergadering, blokken, vrij, owners = []) {
     r(`De vergadering mandateert Totaal VvE Beheer Den Haag en omstreken B.V. — eenmalig en welbepaald in deze specifieke situatie — tot het verstrekken van de opdracht aan ${on.mandaatPartij || "[NAAM ONDERHOUDSPARTIJ]"} met betrekking tot ${on.mandaatOmschrijving || "[OMSCHRIJVING]"}${on.mandaatBedrag ? `, tot ten hoogste ${on.mandaatBedrag} exclusief BTW` : ""}.`);
     leeg();
   }
-  if (on.commissie) {
-    r(`De interne commissie wordt vastgesteld (herhaling).`);
-    leeg();
-  }
 
-  // 5. Financiën
-  r(`5.  FINANCIËN | VERZEKERINGEN`);
-  leeg();
+  // Extra agendapunten die de beheerder na Onderhoud heeft geplaatst
+  vrijePunten("onderhoud").forEach(vrijBlok);
+
+  // 6. Financiën | Verzekeringen
+  kop(`FINANCIËN | VERZEKERINGEN`);
   const fi = blokken.financien || {};
 
   if (fi.bijdrageKeuze === "verhogen") {
@@ -158,21 +214,11 @@ function genereerTekst(vergadering, blokken, vrij, owners = []) {
     leeg();
   }
 
-  // Vrije agendapunten
-  const vrijeMetTekst = vrij.filter(p => p.titel && p.output);
-  if (vrijeMetTekst.length > 0) {
-    vrijeMetTekst.forEach((p, i) => {
-      r(`${6 + i}.  ${p.titel.toUpperCase()}`);
-      leeg();
-      r(p.output);
-      leeg();
-    });
-  }
+  // Extra agendapunten die na Financiën zijn geplaatst (standaard)
+  vrijePunten("financien").forEach(vrijBlok);
 
   // Rondvraag
-  const rondvraagNummer = 6 + vrijeMetTekst.length;
-  r(`${rondvraagNummer}.  RONDVRAAG`);
-  leeg();
+  kop(`RONDVRAAG`);
   const rv = blokken.rondvraag || {};
   if (rv.uitkomst === "geen") r(`Geen.`);
   else if (rv.uitkomst === "beantwoord") r(`De bestuurder beantwoordt de vragen naar tevredenheid van de eigenaars.`);
@@ -180,9 +226,7 @@ function genereerTekst(vergadering, blokken, vrij, owners = []) {
   leeg();
 
   // Sluiting
-  const sluitingNummer = rondvraagNummer + 1;
-  r(`${sluitingNummer}.  VASTSTELLEN NIEUWE VERGADERING | SLUITING`);
-  leeg();
+  kop(`VASTSTELLEN NIEUWE VERGADERING | SLUITING`);
   const sl = blokken.sluiting || {};
   if (sl.datum) r(`De volgende vergadering wordt vastgesteld op ${sl.datum}${sl.locatie ? `, ${sl.locatie}` : ""}.`);
   r(`De vergadering wordt gesloten.`);
@@ -190,34 +234,14 @@ function genereerTekst(vergadering, blokken, vrij, owners = []) {
   return lijnen.join("\n");
 }
 
-// ── Vrij agendapunt met AI ─────────────────────────────────────────────────
-function VrijPunt({ punt, onChange, onDelete, apiKey }) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const genereer = async () => {
-    if (!punt.omschrijving?.trim()) return;
-    if (!apiKey) { setError("Geen API key beschikbaar."); return; }
-    setLoading(true); setError("");
-    try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({
-          model: "claude-opus-4-5",
-          max_tokens: 600,
-          system: `Je schrijft notulentekst voor VvE-vergaderingen in de stijl van Totaal VvE Beheer Den Haag en omstreken B.V. 
-Schrijfstijl: formeel, juridisch precies, zakelijk. Gebruik "De vergadering beslist met algemene stemmen..." of "De bestuurder zal namens de vereniging..." als standaard beginzin voor besluiten. 
-Geef alleen de notulentekst terug, geen uitleg of opmaak. Maximaal 4 zinnen.`,
-          messages: [{ role: "user", content: `Schrijf een notulentekst voor het volgende agendapunt: "${punt.titel || "Extra punt"}"\n\nWat is besproken/besloten: ${punt.omschrijving}` }]
-        })
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error.message);
-      onChange({ ...punt, output: data.content[0]?.text || "" });
-    } catch (e) { setError(e.message); }
-    finally { setLoading(false); }
-  };
+// ── Extra agendapunt (zonder AI) ───────────────────────────────────────────
+// Vast stramien: titel, wat is besproken, wat is besloten, uitkomst van de stemming.
+function VrijPunt({ punt, onChange, onDelete }) {
+  const set = (veld, val) => onChange({ ...punt, [veld]: val });
+  const uitkomst = punt.uitkomst || "algemeen";
+  const toonTelling = uitkomst === "meerderheid" || uitkomst === "verworpen";
+  const heeftBesluit = !!(punt.besluit || "").trim();
+  const onvolledig = !(punt.titel || "").trim() && ((punt.besproken || "").trim() || heeftBesluit);
 
   return (
     <div className="bg-[#FAF7F2] border border-gray-200 rounded-xl p-4 space-y-3">
@@ -225,27 +249,44 @@ Geef alleen de notulentekst terug, geen uitleg of opmaak. Maximaal 4 zinnen.`,
         <p className="text-xs font-bold text-[#2D2D2D]">Extra agendapunt</p>
         <button onClick={onDelete} className="text-gray-400 hover:text-red-500 text-sm">✕ verwijderen</button>
       </div>
-      <Veld label="Titel agendapunt">
-        <Inp value={punt.titel || ""} onChange={v => onChange({ ...punt, titel: v })} placeholder="bijv. Plaatsing zonnepanelen" />
+      <div className="grid grid-cols-[1fr_190px] gap-3">
+        <Veld label="Titel agendapunt" required>
+          <Inp value={punt.titel || ""} onChange={v => set("titel", v)} placeholder="bijv. Plaatsing zonnepanelen" />
+        </Veld>
+        <Veld label="Plaats in agenda" hint="Waar dit punt in de notule komt. Rondvraag en Sluiting blijven altijd aan het eind.">
+          <Sel value={punt.plaats || "financien"} onChange={v => set("plaats", v)}>
+            <option value="onderhoud">Na Onderhoud gebouw</option>
+            <option value="financien">Na Financiën</option>
+          </Sel>
+        </Veld>
+      </div>
+      {onvolledig && <p className="text-xs text-[#991A21]">Zonder titel komt dit punt niet in de notule.</p>}
+      <Veld label="Wat is er besproken?">
+        <Txa value={punt.besproken || ""} onChange={v => set("besproken", v)} placeholder="Kern van de bespreking. Deze tekst komt letterlijk in de notule, pas hem dus zelf aan." rows={3} />
       </Veld>
-      <Veld label="Wat is er besproken / besloten?">
-        <Txa value={punt.omschrijving || ""} onChange={v => onChange({ ...punt, omschrijving: v })} placeholder="Beschrijf kort de kern van de bespreking en het besluit…" rows={3} />
+      <Veld label="Wat is er besloten?" hint="Laat leeg als er geen besluit is genomen. Schrijf het besluit als zin, zonder de stemuitkomst: die kies je hieronder.">
+        <Txa value={punt.besluit || ""} onChange={v => set("besluit", v)} placeholder="bijv. De vergadering stemt in met plaatsing van zonnepanelen op het dak, mits…" rows={2} />
       </Veld>
-      {apiKey ? (
-        <button onClick={genereer} disabled={loading || !punt.omschrijving?.trim()}
-          className="text-xs px-3 py-1.5 bg-[#991A21] hover:bg-[#7a1419] disabled:opacity-50 text-white rounded-lg font-semibold transition-colors">
-          {loading ? "Genereren…" : "✦ Notulentekst genereren"}
-        </button>
-      ) : (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700 font-medium">
-          ✦ AI-generatie is nog niet beschikbaar — Anthropic API key niet ingesteld. De omschrijving wordt wel meegenomen in de notule.
-        </div>
-      )}
-      {error && <p className="text-xs text-[#991A21]">{error}</p>}
-      {punt.output && (
-        <div className="bg-white border border-gray-200 rounded-lg p-3">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">Gegenereerde tekst — pas eventueel aan</p>
-          <Txa value={punt.output} onChange={v => onChange({ ...punt, output: v })} rows={4} />
+      {heeftBesluit && (
+        <div className="space-y-2">
+          <Veld label="Uitkomst stemming">
+            <Sel value={uitkomst} onChange={v => set("uitkomst", v)}>
+              <option value="algemeen">Aangenomen met algemene stemmen</option>
+              <option value="meerderheid">Aangenomen met meerderheid van stemmen</option>
+              <option value="verworpen">Niet aangenomen</option>
+              <option value="aangehouden">Aangehouden</option>
+            </Sel>
+          </Veld>
+          {toonTelling && (
+            <div className="grid grid-cols-3 gap-3">
+              <Veld label="Voor"><Inp type="number" value={punt.voor ?? ""} onChange={v => set("voor", v)} placeholder="0" /></Veld>
+              <Veld label="Tegen"><Inp type="number" value={punt.tegen ?? ""} onChange={v => set("tegen", v)} placeholder="0" /></Veld>
+              <Veld label="Onthouding"><Inp type="number" value={punt.onthouding ?? ""} onChange={v => set("onthouding", v)} placeholder="0" /></Veld>
+            </div>
+          )}
+          <p className="text-[11px] text-gray-500 leading-snug">
+            Controleer zelf of het besluit geldig is genomen volgens de splitsingsakte en het reglement. Deze module toetst dat niet.
+          </p>
         </div>
       )}
     </div>
@@ -257,7 +298,7 @@ export default function NotulenAssistent({ onTerug }) {
   const [vergadering, setVergadering] = useState({ naam: "", datum: "", locatie: "" });
   const [actieveSectie, setActieveSectie] = useState("opening");
   const [blokken, setBlokken] = useState({
-    opening: {}, stemgerechtigden: {}, notulenVorig: {},
+    opening: {}, stemgerechtigden: {}, mededelingen: {}, commissies: {}, notulenVorig: {},
     onderhoud: {}, financien: {}, rondvraag: { uitkomst: "geen" }, sluiting: {}
   });
   const [vrij, setVrij] = useState([]);
@@ -267,12 +308,9 @@ export default function NotulenAssistent({ onTerug }) {
   const [gekopieerd, setGekopieerd] = useState(false);
   const [toonOutput, setToonOutput] = useState(false);
 
-  // Controleer of Anthropic API beschikbaar is via Supabase Edge Function
-  // (geen directe API key in frontend — loopt via de bestaande herschrijf-mail function structuur)
-  const apiKey = null; // Wordt later gekoppeld zodra Edge Function beschikbaar is
 
   const updBlok = (sleutel, val) => setBlokken(b => ({ ...b, [sleutel]: val }));
-  const addVrij = () => setVrij(v => [...v, { id: uid(), titel: "", omschrijving: "", output: "" }]);
+  const addVrij = () => setVrij(v => [...v, { id: uid(), titel: "", besproken: "", besluit: "", uitkomst: "algemeen", plaats: "financien" }]);
   const updVrij = (id, val) => setVrij(v => v.map(p => p.id === id ? val : p));
   const delVrij = (id) => setVrij(v => v.filter(p => p.id !== id));
 
@@ -290,12 +328,14 @@ export default function NotulenAssistent({ onTerug }) {
 
   const SECTIES = [
     { key: "opening", nr: "1", titel: "Opening | Mededelingen | Ingekomen stukken", comp: <BlokkOpening data={blokken.opening} onChange={v => updBlok("opening", v)} /> },
-    { key: "stemgerechtigden", nr: "2", titel: "Vaststellen aantal stemgerechtigden", comp: <BlokkStemgerechtigden data={blokken.stemgerechtigden} onChange={v => updBlok("stemgerechtigden", v)} /> },
-    { key: "notulenVorig", nr: "3", titel: "Vaststellen notulen vorige vergadering", comp: <BlokkNotulenVorig data={blokken.notulenVorig} onChange={v => updBlok("notulenVorig", v)} /> },
-    { key: "onderhoud", nr: "4", titel: "Onderhoud gebouw", comp: <BlokkOnderhoud data={blokken.onderhoud} onChange={v => updBlok("onderhoud", v)} /> },
-    { key: "financien", nr: "5", titel: "Financiën | Verzekeringen", comp: <BlokkFinancien data={blokken.financien} onChange={v => updBlok("financien", v)} /> },
-    { key: "rondvraag", nr: "6", titel: "Rondvraag", comp: <BlokkRondvraag data={blokken.rondvraag} onChange={v => updBlok("rondvraag", v)} /> },
-    { key: "sluiting", nr: "7", titel: "Vaststellen nieuwe vergadering | Sluiting", comp: <BlokkSluiting data={blokken.sluiting} onChange={v => updBlok("sluiting", v)} /> },
+    { key: "stemgerechtigden", nr: "1", titel: "Stemgerechtigden (onderdeel van punt 1)", comp: <BlokkStemgerechtigden data={blokken.stemgerechtigden} onChange={v => updBlok("stemgerechtigden", v)} /> },
+    { key: "mededelingen", nr: "2", titel: "Algemene mededelingen bestuurder", comp: <BlokkMededelingen data={blokken.mededelingen} onChange={v => updBlok("mededelingen", v)} /> },
+    { key: "commissies", nr: "3", titel: "Raad van Toezicht | Technische commissie | Kascommissie", comp: <BlokkCommissies data={blokken.commissies} onChange={v => updBlok("commissies", v)} /> },
+    { key: "notulenVorig", nr: "4", titel: "Vaststellen notulen vorige vergadering", comp: <BlokkNotulenVorig data={blokken.notulenVorig} onChange={v => updBlok("notulenVorig", v)} /> },
+    { key: "onderhoud", nr: "5", titel: "Onderhoud gebouw", comp: <BlokkOnderhoud data={blokken.onderhoud} onChange={v => updBlok("onderhoud", v)} /> },
+    { key: "financien", nr: "6", titel: "Financiën | Verzekeringen", comp: <BlokkFinancien data={blokken.financien} onChange={v => updBlok("financien", v)} /> },
+    { key: "rondvraag", nr: "7", titel: "Rondvraag", comp: <BlokkRondvraag data={blokken.rondvraag} onChange={v => updBlok("rondvraag", v)} /> },
+    { key: "sluiting", nr: "8", titel: "Vaststellen nieuwe vergadering | Sluiting", comp: <BlokkSluiting data={blokken.sluiting} onChange={v => updBlok("sluiting", v)} /> },
   ];
 
   return (
@@ -381,7 +421,7 @@ export default function NotulenAssistent({ onTerug }) {
                 <p className="text-xs text-gray-400 italic">Geen extra punten. Klik op '+ Punt toevoegen' voor niet-standaard agendapunten.</p>
               )}
               {vrij.map(p => (
-                <VrijPunt key={p.id} punt={p} onChange={val => updVrij(p.id, val)} onDelete={() => delVrij(p.id)} apiKey={apiKey} />
+                <VrijPunt key={p.id} punt={p} onChange={val => updVrij(p.id, val)} onDelete={() => delVrij(p.id)} />
               ))}
             </div>
 
