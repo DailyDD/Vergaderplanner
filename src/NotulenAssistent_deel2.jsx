@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { BlokkOpening, BlokkStemgerechtigden, BlokkNotulenVorig, BlokkOnderhoud, BlokkFinancien, BlokkRondvraag, BlokkSluiting, Sectie, Inp, Txa, Sel, Veld, Chk, RadioOptie, CSS_FONT, ROOD, SUPABASE_URL, SUPABASE_ANON, nu, uid } from "./NotulenAssistent_deel1";
 import Presentie, { berekenStemmen } from "./NotulenAssistent_presentie";
 import { exportNotuleWord } from "./NotulenAssistent_export";
+import Acties from "./NotulenAssistent_acties";
 
 // ── Tekstgeneratie op basis van ingevulde data ─────────────────────────────
 function genereerTekst(vergadering, blokken, vrij, owners = []) {
@@ -261,6 +262,7 @@ export default function NotulenAssistent({ onTerug }) {
   });
   const [vrij, setVrij] = useState([]);
   const [owners, setOwners] = useState([]);            // ← presentie & volmachten
+  const [tab, setTab] = useState("notule");             // "notule" | "acties"
   const [output, setOutput] = useState("");
   const [gekopieerd, setGekopieerd] = useState(false);
   const [toonOutput, setToonOutput] = useState(false);
@@ -319,7 +321,23 @@ export default function NotulenAssistent({ onTerug }) {
         </div>
       </div>
 
-      <div className="p-6 max-w-6xl mx-auto">
+      {/* Tabbladen */}
+      <div className="bg-white border-b border-gray-200 px-6 flex gap-1">
+        {[["notule", "Notule"], ["acties", "Acties & besluiten"]].map(([k, l]) => (
+          <button key={k} onClick={() => setTab(k)}
+            className={`text-xs font-semibold px-4 py-2.5 border-b-2 transition-colors ${tab === k ? "border-[#991A21] text-[#991A21]" : "border-transparent text-gray-500 hover:text-[#2D2D2D]"}`}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {tab === "acties" && (
+        <div className="p-6 max-w-3xl mx-auto">
+          <Acties vergaderingNaam={vergadering.naam} />
+        </div>
+      )}
+
+      <div className={`p-6 max-w-6xl mx-auto ${tab === "notule" ? "" : "hidden"}`}>
         <div className="grid grid-cols-[1fr_1fr] gap-6">
 
           {/* ── LINKER KOLOM: invulformulier ── */}
