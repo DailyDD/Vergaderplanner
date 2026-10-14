@@ -26,3 +26,5 @@ dist-ssr
 # Backups en tooling
 *.sql
 *.exe
+
+supabase/.temp/
